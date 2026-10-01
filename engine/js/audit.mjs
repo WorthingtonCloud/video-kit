@@ -25,18 +25,18 @@ const STEP = +arg("--step", 0.15),
   TO = +arg("--to", 1e9);
 const R = loadReel(),
   [W, H] = R.size;
-const cuts = [];
-let acc = 0;
-R.segments.forEach((s) => {
-  cuts.push(acc);
-  acc += s.secs;
-});
-const END = acc;
 
 const b = await launch(),
   p = await b.newPage();
 await p.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
 await p.goto(pathToFileURL(path.resolve(COMP, "index.html")).href, { waitUntil: "load" });
+// the cuts and the length come from the composition itself, exactly as the build timed it. Summing reel.json's "secs"
+// read a beat-timed reel's length as NaN, so the audit checked nothing and said "no overlaps" (fixed in 1.0.1).
+const { cuts, END } = await p.evaluate(() => ({ cuts: window.REEL.segments.map((s) => s.t0), END: window.REEL.end }));
+if (!(END > 0)) {
+  console.error(`⛔ the composition's length is ${END}: run vs build --no-render first`);
+  process.exit(1);
+}
 await p.evaluate(async () => {
   await document.fonts.ready;
   const s = document.createElement("style");
@@ -45,8 +45,10 @@ await p.evaluate(async () => {
 });
 
 const hits = [];
+let checked = 0;
 for (let t = Math.max(0.05, FROM); t < Math.min(END, TO); t += STEP) {
   if (cuts.some((c) => t > c - 0.5 && t < c + 0.6)) continue;
+  checked++;
   const found = await p.evaluate(
     (t, W, H) => {
       window.__timelines.main.seek(t, false);
@@ -338,7 +340,13 @@ list.forEach((o, i) =>
     `${String(i + 1).padStart(2)}. ${o.t0.toFixed(1).padStart(6)}–${o.t1.toFixed(1).padStart(6)}s  ${o.kind.padEnd(12)} ${o.text}  ×  ${o.shape}`,
   ),
 );
-console.log(list.length ? `${list.length} overlaps → ${QA}/overlaps.json` : "no overlaps");
+// say how much was looked at, so a check that silently looked at nothing can't pass for a clean one
+const span = `${checked} moments, ${Math.max(0, FROM).toFixed(1)}–${Math.min(END, TO).toFixed(1)}s`;
+if (!checked) {
+  console.error(`⛔ checked 0 moments (${span}): nothing was audited`);
+  process.exit(1);
+}
+console.log(list.length ? `${list.length} overlaps → ${QA}/overlaps.json (checked ${span})` : `no overlaps (checked ${span})`);
 
 if (SHOTS && list.length) {
   fs.rmSync(`${QA}/overlaps`, { recursive: true, force: true });

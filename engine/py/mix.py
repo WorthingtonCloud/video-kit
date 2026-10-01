@@ -38,12 +38,7 @@ if a.final:
     a.takes, a.no_sfx = [saved["take"]], not saved.get("fx_on", True)
 
 R = json.load(open("reel.json"))
-END = round(sum(s["secs"] for s in R["segments"]), 3)
-T, t = {}, 0.0
-for s in R["segments"]:
-    T[s["name"]] = t
-    t += s["secs"]
-TT = {tid: T[s["name"]] + a0 for s in R["segments"] for tid, a0, _ in s.get("titles", [])}
+T, TT, END = vslib.timeline(R)  # the build's own timing: an explainer's "secs" and a reel's "beats" alike
 C = {k: v.get("cues", {}) for k, v in R.get("scenes", {}).items()}
 END_T = T[R["segments"][-1]["name"]]  # the end card is always the last segment
 NARRATED = os.path.exists("plan.json")
@@ -73,7 +68,14 @@ dbf = lambda x: 20 * np.log10(np.sqrt(np.mean(x ** 2)) + 1e-12)
 os.makedirs(MIX, exist_ok=True)
 
 # ── the reference: the voice at -16 LUFS (a reel with no narrator: its own track, at -16 LUFS) ──
-voice = fit(load(R["music"]["file"]))
+M = R["music"]
+if NARRATED:
+    voice = fit(load(M["file"]))
+else:  # a reel's own track, cut and faded the way the build cut the picture's bed (pipeline/media.mjs)
+    voice = fit(load(M["file"])[int(round(float(M.get("offset") or 0) * SR)):])
+    fade = float(M.get("fade", 2.2))
+    if fade > 0:
+        voice *= np.clip((END - np.arange(N) / SR) / fade, 0, 1)[:, None].astype(np.float32)
 v_lufs = lufs(voice)
 voice *= db(-16 - v_lufs)
 print(f"{'voice' if NARRATED else 'the reel’s track'} {v_lufs:.1f} → -16 LUFS")

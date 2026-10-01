@@ -56,6 +56,32 @@ def project_name():
     return os.path.basename(os.getcwd())
 
 
+def timeline(R):
+    """Every segment's start and every title's landing, in seconds, worked out the way the build does
+    (engine/js/pipeline/timing.mjs): a segment lasts "secs", or "beats" × the music's beat, or (to_hit) until the
+    music's first hit, and its title times count in the segment's own unit. Returns (T, TT, END): T[segment] = start,
+    TT[title] = when it lands, END = the video's length. (Summing "secs" alone broke every beat-timed reel.)"""
+    B, HIT = float(R["music"]["beat"]), float(R["music"].get("first_hit") or 0)
+    T, TT, t = {}, {}, 0.0
+    for s in R["segments"]:
+        unit = 1 if s.get("to_hit") or s.get("secs") is not None else B
+        if s.get("to_hit"):
+            n = HIT - t
+        elif s.get("secs") is not None:
+            n = float(s["secs"])
+        elif s.get("beats") is not None:
+            n = float(s["beats"]) * B
+        else:
+            sys.exit(f"⛔ {s['name']}: no length (give it \"beats\", \"secs\" or \"to_hit\")")
+        if not n > 0:
+            sys.exit(f"⛔ {s['name']}: length {n:.3f}s (a to_hit segment must come before the hit)")
+        T[s["name"]] = t
+        for tid, a0, _ in s.get("titles", []):
+            TT[tid] = t + a0 * unit
+        t += n
+    return T, TT, round(t, 3)
+
+
 def key(name):
     """An API key: the environment, else the nearest .env in this folder or any folder above it, else the studio's .env,
     else ~/.config/video-studio/.env."""

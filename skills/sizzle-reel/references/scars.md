@@ -72,3 +72,10 @@ From two reels (a 58 s lab reel, v1→v22, and a product reel, Sep 27–29, 2026
   never tween `letterSpacing` or `left`; scale SVG with `svgOrigin`; telemetry is on by default (`vs build` turns it
   off); `snapshot` calls Gemini if `GEMINI_API_KEY` is set (`--describe false`).
 - ⚠️ `ffmpeg tile` over mixed pixel formats fails (`vs qa` normalizes each cell first).
+
+## Checks
+
+- 🚨 **A check that looks at nothing passes.** The overlap audit once added up segment lengths from `secs`, so on a
+  beat-timed reel it checked zero frames and printed "no overlaps" (`vs mix` crashed on the same file). Fixed in 1.0.1:
+  the audit takes its times from the built composition and says how many moments it checked; the mix times effects
+  the way the build does. Read the "checked N moments" line, not just "no overlaps".

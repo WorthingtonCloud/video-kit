@@ -74,7 +74,7 @@ if sys.argv[1:2] == ["spent"]:
     sys.exit(print(f"{spent()} music credits logged"))
 cost = PER_CALL * len(DIRS)
 if os.path.exists("reel.json"):
-    R = json.load(open("reel.json")); total = sum(s["secs"] for s in R["segments"])
+    total = vslib.timeline(json.load(open("reel.json")))[2]
     if DUR < total + 3: print(f"⚠️  --duration {DUR}s is shorter than the video ({total:.0f}s): Suno extend, or a longer take")
 if "--yes" not in sys.argv:
     sys.exit(f"{len(DIRS)} directions × 2 takes of ~{DUR}s = {cost} kie.ai credits (${cost * 0.005:.2f}). Re-run with --yes once the human has said yes to that number.")
