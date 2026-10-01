@@ -1,0 +1,47 @@
+{
+ "_about": "What this studio has settled on. Every video starts from it; a project's plan.json or reel.json overrides any of it for that one video. vs learn updates it after each approved video (the mix levels, the music that won, a first video's look), and history keeps one line per video. Edit it by hand any time.",
+ "brand": {
+  "settled": false,
+  "name": "",
+  "palette": {
+   "ground": "#111114",
+   "card": "#1c1d21",
+   "line": "#2a2b30",
+   "dim": "#9b9da4",
+   "ink": "#f4f4f2",
+   "accent": "#e5484d"
+  },
+  "font": {"family": "Archivo", "weights": "500,600,700,800"},
+  "mono": {"family": "JetBrains Mono", "weights": "500,700"},
+  "endcard": {
+   "mark": {"path": "M4 4 h16 v16 h-16 z", "point": [10, 10, 4, 4], "viewBox": "-3 -3 30 30"},
+   "wordmark": "YOUR NAME",
+   "url": "example.com",
+   "word_b": 2,
+   "url_b": 4
+  }
+ },
+ "formats": {"first": "vertical", "then": ["widescreen"]},
+ "narrator": {
+  "voice": "",
+  "model": "eleven_v4",
+  "stability": 0.3,
+  "register": "an energetic, informed talk: candid, a little funny, never monotone"
+ },
+ "music": {
+  "directions": [
+   {"label": "B modern pulse", "style": "light modern hip-hop and electronic pulse instrumental, 92 BPM, crisp soft hi-hats, muted punchy kick, warm sub bass, gentle plucked synth arpeggio, clean, curious and optimistic, smart documentary explainer bed, steady even energy, minimal melody, leaves room for a narrator"},
+   {"label": "A lo-fi head-nod", "style": "mellow lo-fi hip-hop instrumental, 85 BPM head-nod groove, dusty boom-bap drums with a soft kick and brushed snare, warm Rhodes electric piano chords, round bass, vinyl warmth, relaxed but confident, steady even energy start to finish, sparse, no lead melody, sits under a voiceover"}
+  ],
+  "avoid": "vocals, lyrics, horror, ominous, eerie, sad, big drops, a loud lead melody"
+ },
+ "mix": {"music_db": -16, "duck_db": 6, "sfx_db": 0},
+ "render": {"fps": 30},
+ "spend": {
+  "ask_first": true,
+  "usd_per_video": 15,
+  "kie_credits_per_video": 48,
+  "elevenlabs_sfx_credits_per_video": 1000
+ },
+ "history": []
+}

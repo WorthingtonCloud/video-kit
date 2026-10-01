@@ -1,0 +1,11 @@
+{
+  "name": "video-kit-engine",
+  "private": true,
+  "description": "The engine behind the sizzle-reel and explainer-video skills: HyperFrames renders, GSAP animates, puppeteer runs the checks and the stills. Installed once by vs setup.",
+  "engines": { "node": ">=22" },
+  "dependencies": {
+    "gsap": "3.15.0",
+    "hyperframes": "0.8.91",
+    "puppeteer": "^24.0.0"
+  }
+}

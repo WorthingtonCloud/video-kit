@@ -1,0 +1,475 @@
+{
+ "name": "demo-explainer",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "narrator": {
+  "voice": "",
+  "model": "eleven_v4",
+  "stability": 0.3
+ },
+ "palette": {
+  "ground": "#111114",
+  "card": "#1c1d21",
+  "line": "#2a2b30",
+  "dim": "#9b9da4",
+  "ink": "#ffffff",
+  "accent": "#e8402c"
+ },
+ "font": {
+  "family": "Archivo",
+  "css": "fonts/Archivo.css"
+ },
+ "mono": {
+  "family": "JetBrains Mono",
+  "css": "fonts/JetBrainsMono.css"
+ },
+ "finish": {
+  "grain": 0.04,
+  "vignette": true,
+  "texture": "none"
+ },
+ "words": "voice/narration-v1.words.json",
+ "voice": "voice/voice-bed-v1.wav",
+ "total": 176.02,
+ "lead": 0.3,
+ "after_last": 0.5,
+ "beat": 0.5,
+ "titles": {
+  "t_hook": {
+   "kind": "lower",
+   "text": "You rolled out AI.<br>Where's the<br><span class=a>payoff?</span>",
+   "size": 0.8
+  },
+  "t_use": {
+   "kind": "stat",
+   "text": "39%",
+   "sub": "of US workers use AI<br>at work every week<br>(28% in 2024) \u00b7 NBER"
+  },
+  "t_pay": {
+   "kind": "stat",
+   "text": "&lt;2%",
+   "sub": "change in pay or hours<br>25,000 workers \u00b7 NBER"
+  },
+  "t_ten": {
+   "kind": "stat",
+   "text": "10",
+   "sub": "lines between<br>5 people"
+  },
+  "t_190": {
+   "kind": "stat",
+   "text": "190",
+   "sub": "lines between 20 people<br>Brooks's Law, 1975"
+  },
+  "t_email": {
+   "kind": "stat",
+   "text": "\u221212%",
+   "sub": "time on email; meetings<br>didn't change \u00b7 66 firms"
+  },
+  "t_review": {
+   "kind": "stat",
+   "text": "61%",
+   "sub": "of AI-written code never<br>reviewed (35% for people)"
+  },
+  "t_thesis": {
+   "kind": "lower",
+   "text": "The paperwork<br>got automated.<br>The coordination<br><span class=a>didn't.</span>",
+   "size": 0.6,
+   "em": {
+    "fx": "pulse",
+    "b": 2
+   }
+  },
+  "t_slow": {
+   "kind": "stat",
+   "text": "\u221219%",
+   "sub": "slower with AI, while<br>believing +20% \u00b7 METR"
+  },
+  "t_limits": {
+   "kind": "stat",
+   "text": "7%",
+   "sub": "attacks got through once<br>tools were limited (58%)"
+  },
+  "t_grade": {
+   "kind": "stat",
+   "text": "79%",
+   "sub": "of failures called success<br>(worst case) \u00b7 3% if checked"
+  },
+  "t_meal": {
+   "kind": "lower",
+   "text": "AI is an<br>ingredient.<br>Agents are<br>the <span class=a>meal.</span>",
+   "size": 0.8
+  },
+  "t_q": {
+   "kind": "lower",
+   "text": "What should<br>your teams look<br>like now that<br>agents <span class=a>exist?</span>",
+   "size": 0.7
+  }
+ },
+ "scene_data": {
+  "found": {
+   "layers": [
+    "Who can do what",
+    "Shared knowledge",
+    "Memory",
+    "Safe access to data and tools",
+    "A log of every action"
+   ],
+   "agents": [
+    "Sales agent",
+    "Ops agent",
+    "Finance agent"
+   ],
+   "bars": [
+    [
+     "Curated",
+     66.4
+    ],
+    [
+     "None",
+     52.5
+    ],
+    [
+     "Uncurated",
+     49.9
+    ]
+   ]
+  },
+  "room": {
+   "img": "stills/room.jpg",
+   "mic": [
+    0.5024,
+    0.441
+   ]
+  },
+  "endcard": {
+   "mark": {
+    "path": "M4 4 h16 v16 h-16 z",
+    "point": [
+     10,
+     10,
+     4,
+     4
+    ],
+    "viewBox": "-3 -3 30 30"
+   },
+   "wordmark": "YOUR NAME",
+   "url": "example.com",
+   "word_b": 2,
+   "url_b": 4
+  }
+ },
+ "segments": [
+  {
+   "name": "s01_paradox",
+   "acts": [
+    1
+   ],
+   "source": {
+    "scene": "paradox"
+   },
+   "cues": {
+    "license": "license",
+    "green": "green",
+    "four": "four",
+    "faster": "ARE",
+    "payroll": "payroll",
+    "payoff": "payoff",
+    "barely": "barely",
+    "where": "where",
+    "go": "go"
+   },
+   "titles": [
+    [
+     "t_hook",
+     "So-0.47",
+     "Almost-0.4"
+    ],
+    [
+     "t_use",
+     "four",
+     "payroll-0.3"
+    ],
+    [
+     "t_pay",
+     "payoff",
+     "end"
+    ]
+   ]
+  },
+  {
+   "name": "s02_switch",
+   "acts": [
+    2
+   ],
+   "in": "zoom",
+   "source": {
+    "scene": "web"
+   },
+   "cues": {
+    "office": "office",
+    "work": "isn't",
+    "coord": "coordination",
+    "pair": "pair",
+    "five": "Five",
+    "ten": "Ten",
+    "twenty": "Twenty",
+    "ninety": "hundred",
+    "team": "team",
+    "switch": "switchboard"
+   },
+   "titles": [
+    [
+     "t_ten",
+     "Five",
+     "Twenty-0.1"
+    ],
+    [
+     "t_190",
+     "hundred",
+     "end"
+    ]
+   ]
+  },
+  {
+   "name": "s03_inbox",
+   "acts": [
+    3
+   ],
+   "in": "whipx",
+   "source": {
+    "scene": "inbox"
+   },
+   "cues": {
+    "guess": "guess",
+    "inbox": "inbox",
+    "trial": "trial",
+    "twelve": "twelve",
+    "meetings": "Meetings",
+    "move": "Didn't",
+    "one": "One#2",
+    "cancel": "cancel",
+    "everyone": "everyone"
+   },
+   "titles": [
+    [
+     "t_email",
+     "twelve",
+     "One#2"
+    ]
+   ]
+  },
+  {
+   "name": "s04_lights",
+   "acts": [
+    4
+   ],
+   "in": "whip",
+   "source": {
+    "scene": "lights"
+   },
+   "cues": {
+    "floor": "flooring",
+    "more": "MORE",
+    "meeting": "thirty-minute",
+    "pages": "two",
+    "your": "YOUR",
+    "remember": "remember",
+    "writing": "Writing",
+    "reading": "Reading",
+    "paperwork": "paperwork",
+    "didnt": "DIDN'T"
+   },
+   "titles": [
+    [
+     "t_review",
+     "Writing",
+     "paperwork-0.35"
+    ],
+    [
+     "t_thesis",
+     "paperwork",
+     "end"
+    ]
+   ]
+  },
+  {
+   "name": "s05_found",
+   "acts": [
+    5,
+    6
+   ],
+   "in": "zoom",
+   "source": {
+    "scene": "found"
+   },
+   "cues": {
+    "hand": "hand",
+    "know": "know",
+    "remember": "remember",
+    "builds": "builds",
+    "strategy": "strategy",
+    "hundred": "hundred",
+    "quiet": "quiet",
+    "devs": "Developers",
+    "once": "ONCE",
+    "everyone": "6:everyone",
+    "shared": "shared",
+    "l0": "Who",
+    "l1": "Shared#2",
+    "l2": "Memory",
+    "l3": "Safe",
+    "l4": "log",
+    "build": "Build#2",
+    "one": "ONE",
+    "fifteen": "fifteen",
+    "talk": "talk",
+    "slide": "slide",
+    "owner": "owner",
+    "uncurated": "uncurated",
+    "worse": "WORSE"
+   },
+   "titles": [
+    [
+     "t_slow",
+     "nineteen",
+     "6:So-0.3"
+    ]
+   ]
+  },
+  {
+   "name": "s07_courier",
+   "acts": [
+    7
+   ],
+   "in": "whipx",
+   "source": {
+    "scene": "courier"
+   },
+   "cues": {
+    "engineer": "engineer",
+    "expensive": "expensive",
+    "courier": "courier",
+    "s0": "Ticket",
+    "s1": "code",
+    "s2": "logs",
+    "s3": "team",
+    "s4": "ticket#2",
+    "instead": "Instead",
+    "ask": "ask",
+    "agent": "agent",
+    "decides": "decides",
+    "writes": "writes",
+    "humans": "Humans",
+    "coord": "coordinate",
+    "limits": "Inside"
+   },
+   "titles": [
+    [
+     "t_limits",
+     "coordinate",
+     "end"
+    ]
+   ]
+  },
+  {
+   "name": "s08_joe",
+   "acts": [
+    8
+   ],
+   "in": "zoom",
+   "source": {
+    "scene": "joe"
+   },
+   "cues": {
+    "job": "JOB",
+    "person": "person",
+    "joe": "Joe",
+    "only": "only",
+    "sheet": "spreadsheet",
+    "leaves": "leaves",
+    "stays": "stays",
+    "knows": "knows",
+    "seats": "seats",
+    "results": "results",
+    "check": "Check",
+    "grade": "grade",
+    "generously": "generously"
+   },
+   "titles": [
+    [
+     "t_grade",
+     "because",
+     "end"
+    ]
+   ]
+  },
+  {
+   "name": "s09_meal",
+   "acts": [
+    9
+   ],
+   "in": "zoom",
+   "source": {
+    "scene": "meal"
+   },
+   "cues": {
+    "people": "people",
+    "model": "model",
+    "good": "good",
+    "different": "different",
+    "task": "task",
+    "ai": "AI#2",
+    "ingredient": "ingredient",
+    "agents": "Agents",
+    "meal": "MEAL",
+    "models": "Models",
+    "swapped": "swapped",
+    "scaffolding": "scaffolding",
+    "stays": "stays",
+    "yours": "yours",
+    "data": "data",
+    "tools": "tools",
+    "governance": "governance"
+   },
+   "titles": [
+    [
+     "t_meal",
+     "ingredient-0.3",
+     "swapped+0.3"
+    ]
+   ]
+  },
+  {
+   "name": "s10_room",
+   "acts": [
+    10
+   ],
+   "in": "zoom",
+   "source": {
+    "scene": "room"
+   },
+   "cues": {
+    "better": "better",
+    "exist": "exist"
+   },
+   "titles": [
+    [
+     "t_q",
+     "So",
+     "end"
+    ]
+   ]
+  },
+  {
+   "name": "s11_end",
+   "in": "dot",
+   "source": {
+    "scene": "endcard"
+   }
+  }
+ ]
+}

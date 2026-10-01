@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+# The one command for this skill: <this folder>/vs <step> …   It finds the engine beside the skills (the real folder,
+# even through a symlink) and hands over. vs help lists the steps.
+import os, sys
+engine = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "engine", "studio.py")
+os.execv(sys.executable, [sys.executable, os.path.normpath(engine), *sys.argv[1:]])

@@ -1,0 +1,22 @@
+{
+ "name": "my-explainer",
+ "version": 1,
+ "size": [1080, 1920],
+ "fps": 30,
+ "finish": {"grain": 0.04, "vignette": true, "texture": "none"},
+ "words": "voice/narration-v1.words.json",
+ "voice": "voice/voice-bed-v1.wav",
+ "total": 60,
+ "lead": 0.3,
+ "after_last": 0.5,
+ "beat": 0.5,
+ "titles": {
+  "t_hook": {"kind": "lower", "text": "The question<br>in one <span class=a>line.</span>", "size": 0.85},
+  "t_close": {"kind": "lower", "text": "The answer<br>in <span class=a>one.</span>", "size": 0.9, "em": {"fx": "box", "b": 1}}
+ },
+ "segments": [
+  {"name": "s01_hook", "acts": [1], "source": {"scene": "intro"}, "cues": {"first": "Replace"}, "titles": [["t_hook", "Replace", "end"]]},
+  {"name": "s02_close", "acts": [2], "in": "whip", "source": {"scene": "intro"}, "titles": [["t_close", "And", "end"]]},
+  {"name": "s03_end", "in": "dot", "source": {"scene": "endcard"}}
+ ]
+}

@@ -1,0 +1,20 @@
+# Text is what you keep in version control: the profile, the lessons, every project's script, plan, scenes and cues,
+# the indexes and the ledger. Media regenerates or is yours to back up some other way.
+.env
+projects/*/build/
+projects/*/out/
+projects/*/inputs/
+projects/*/media/
+projects/*/voice/*.mp3
+projects/*/voice/*.wav
+projects/*/music/*.mp3
+library/**/*.mp3
+library/**/*.wav
+library/**/*.m4a
+library/**/*.mp4
+library/**/*.jpg
+library/**/*.jpeg
+library/**/*.png
+library/**/*.woff2
+library/originals/
+finals/

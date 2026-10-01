@@ -1,0 +1,30 @@
+# Narration v4 — candid, informed, a little funny; for executives. eleven_v4: [tags] direct delivery, CAPS = emphasis, ... = a beat.
+# 1 The paradox
+[wry, confident, like a candid TED talk] So. You rolled out AI. Everyone got a license, and the adoption dashboard is a beautiful shade of green. Almost four in ten American workers now use AI at work every week, and they really ARE faster. But in the payroll records? The payoff barely shows. So where did all that time go?
+
+# 2 Coordination grows faster than teams
+[leaning in] Here's the uncomfortable part. A lot of office work isn't the work. It's coordination. Every pair of people is another line to keep in sync. Five people? Ten lines. Twenty? A hundred and ninety. [dry] That's not a team. That's a switchboard.
+
+# 3 AI automated the paperwork
+[amused] And guess where AI went? Straight into the inbox. In one big trial, time on email dropped twelve percent. Meetings? [deadpan] Didn't move. One person's assistant can't cancel a meeting for everyone else.
+
+# 4 Faster between stops, and more stops
+[quick, lively] So everybody's flooring it between red lights... and there are MORE red lights. A thirty-minute meeting now comes with two pages of AI notes, and an action item in YOUR name you don't remember agreeing to. Writing got cheap. Reading didn't. [emphatic] The paperwork got automated. The coordination DIDN'T.
+
+# 5 Everyone builds their own agent
+[candid] The instinct is to hand everyone a model and let them figure it out. But a model doesn't know your business or remember last week. So everyone builds the rest themselves. [wry] That's not a strategy. That's a hundred science projects. And the failures are quiet. Developers using AI were nineteen percent SLOWER... [amused] and thought they were twenty percent faster.
+
+# 6 The shared foundation
+[confident, building] So here's the honest answer: build the rest ONCE, for everyone. A shared foundation. Who can do what. Shared knowledge. Memory. Safe access to data and tools. And a log of every action. Build it or buy it, but make it ONE system... not fifteen products that don't talk to each other because every vendor had a nice slide. And give the knowledge an owner. Left uncurated, it made agents WORSE than nothing.
+
+# 7 The flip
+[excited] Then flip who carries the work. Right now, your best engineer is a very expensive courier. Ticket, code, logs, another team, back to the ticket. Instead, they ask, and the agent does the running around. The person decides. The agent writes it down. Humans decide. Agents coordinate. Inside hard limits.
+
+# 8 Jobs and results
+[energetic] Give the agent to the JOB, not the person. You know Joe, the only one who understands the big spreadsheet? When Joe leaves, the agent stays, and so does what it knows. And stop counting seats. Count results. Check them independently, because agents grade themselves... [wry] generously.
+
+# 9 The better question
+[inspiring, big finish] Most leaders are still asking how to give their people AI. [dry] A model and a "good luck"? A different app for every task? [confident] AI is an ingredient. Agents are the MEAL. Models get swapped. The scaffolding stays yours: your data, your tools, your governance.
+
+# 10 The question
+[slower, landing it] So the better question is what your teams should look like... now that agents exist.

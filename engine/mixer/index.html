@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sound Mixer</title>
+<link rel="stylesheet" href="fonts/Archivo.css">
+<link rel="stylesheet" href="fonts/JetBrainsMono.css">
+<style>
+:root { --ground:#111114; --raised:#1c1d21; --rule:#2a2b30; --muted:#9b9da4; --ink:#fff; --signal:#e8402c; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--ground); color:var(--ink); font:500 15px/1.45 Archivo, system-ui, sans-serif; }
+main { display:flex; gap:28px; padding:20px; min-height:100vh; align-items:flex-start; justify-content:center; flex-wrap:wrap; }
+.stage { position:relative; height:calc(100vh - 40px); max-height:960px; max-width:calc(100vw - 440px); aspect-ratio:var(--ar, 9/16); background:#000; border:1px solid var(--rule); border-radius:10px; overflow:hidden; }
+video { width:100%; height:100%; display:block; }
+.loading { position:absolute; inset:0; display:grid; place-items:center; background:rgba(17,17,20,.92); font-family:"JetBrains Mono", monospace; font-size:13px; color:var(--muted); text-align:center; padding:20px; }
+.panel { width:380px; max-width:100%; display:flex; flex-direction:column; gap:14px; }
+h1 { font-size:26px; font-weight:800; letter-spacing:-.02em; margin:4px 0 0; }
+h1 span { color:var(--signal); }
+.k { font:500 11px/1 "JetBrains Mono", monospace; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); margin-bottom:10px; }
+.card { background:var(--raised); border:1px solid var(--rule); border-radius:8px; padding:16px; }
+.row { display:flex; align-items:center; gap:10px; }
+button { font:inherit; color:var(--ink); background:transparent; border:1px solid var(--rule); border-radius:6px; padding:8px 10px; cursor:pointer; }
+button:hover { border-color:var(--muted); }
+button.on { background:var(--signal); border-color:var(--signal); }
+#play { width:64px; font-weight:700; }
+.takes { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; }
+.takes button { padding:8px 0; font-size:13px; }
+.takes small { display:block; font-size:10px; color:var(--muted); font-family:"JetBrains Mono", monospace; }
+.takes button.on small { color:#fff; }
+input[type=range] { width:100%; accent-color:var(--signal); }
+.val { font:600 13px "JetBrains Mono", monospace; min-width:92px; text-align:right; }
+.time { font:500 12px "JetBrains Mono", monospace; color:var(--muted); min-width:92px; text-align:right; }
+.summary { font-size:17px; font-weight:600; line-height:1.35; }
+.hint { color:var(--muted); font-size:13px; }
+#save { width:100%; font-weight:700; margin-top:12px; }
+#saved { color:var(--muted); font-size:13px; margin-top:8px; min-height:1em; }
+kbd { font-family:"JetBrains Mono", monospace; font-size:11px; border:1px solid var(--rule); border-radius:4px; padding:1px 5px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="stage">
+    <video id="v" src="media/video.mp4" muted playsinline preload="auto"></video>
+    <div class="loading" id="loading">Loading the voice, the effects and the music takes…</div>
+  </div>
+  <div class="panel">
+    <h1>Sound <span>mixer</span></h1>
+    <div class="card">
+      <div class="row"><button id="play">Play</button><input id="scrub" type="range" min="0" max="167.2" step="0.01" value="0"><span class="time" id="time">0:00</span></div>
+    </div>
+    <div class="card" id="musiccard">
+      <div class="k">Music take</div>
+      <div class="takes" id="takes"><button data-t="0">Off<small>voice</small></button></div>
+      <div class="row" style="margin-top:14px"><input id="mus" type="range" min="-12" max="12" step="1" value="0"><span class="val" id="musv"></span></div>
+    </div>
+    <div class="card">
+      <div class="row" style="justify-content:space-between"><div class="k" style="margin:0">Sound effects</div><button id="fxon" class="on">On</button></div>
+      <div class="row" style="margin-top:14px"><input id="fx" type="range" min="-12" max="12" step="1" value="0"><span class="val" id="fxv"></span></div>
+    </div>
+    <div class="card">
+      <div class="k">Your mix</div>
+      <div class="summary" id="summary"></div>
+      <button id="save" class="on">Save these levels</button>
+      <div id="saved"></div>
+    </div>
+    <div class="hint"><kbd>space</kbd> play or pause · <kbd>0</kbd>–<kbd>9</kbd> switch take while it plays · <kbd>←</kbd> <kbd>→</kbd> 5 seconds. Every track plays at once, so a take switch is instant and in sync. Save writes your choice into the project; then tell Claude “saved”.</div>
+  </div>
+</main>
+<script>
+// config.json is written by mix.py: the length, the levels it mixed at, and each take's label and measured level under
+// the voice. Save posts the choice to the project's mix.json (vs mixer serves this page); mix.py --final bakes it.
+const $ = (s) => document.querySelector(s), v = $("#v");
+let END = 60, BASE = {}, KIND = {}, NAMES = ["voice", "fx"], CFG = {};
+const S = { take: 0, mus: 0, fx: 0, fxOn: true };
+try { Object.assign(S, JSON.parse(localStorage.getItem("mixer") || "{}")); } catch (e) {}
+let ctx, bufs = {}, gains = {}, srcs = [], playing = false, offset = 0, t0 = 0;
+
+const db = (d) => Math.pow(10, d / 20);
+const fmt = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+const now = () => playing ? Math.min(END, ctx.currentTime - t0 + offset) : offset;
+
+function apply(instant) {
+  if (ctx) {
+    const at = ctx.currentTime, set = (g, x) => instant ? g.gain.setValueAtTime(x, at) : g.gain.setTargetAtTime(x, at, 0.04);
+    for (const n of Object.keys(BASE).map(Number)) set(gains["music" + n], S.take === n ? db(S.mus) : 0);
+    set(gains.fx, S.fxOn ? db(S.fx) : 0);
+  }
+  document.querySelectorAll("#takes button").forEach((b) => b.classList.toggle("on", +b.dataset.t === S.take));
+  $("#mus").value = S.mus; $("#fx").value = S.fx;
+  $("#fxon").classList.toggle("on", S.fxOn); $("#fxon").textContent = S.fxOn ? "On" : "Off";
+  const lvl = S.take ? Math.round(BASE[S.take] + S.mus) : null;
+  $("#musv").textContent = S.take ? `${lvl} dB` : "—";
+  $("#fxv").textContent = `${S.fx > 0 ? "+" : ""}${S.fx} dB`;
+  const kind = KIND[S.take] || "";
+  $("#summary").textContent = (CFG.narrated === false ? "The reel's own track" : S.take ? `Take ${S.take} (${kind}), music ${-lvl} dB under the voice` : "No music")
+    + (S.fxOn ? `, effects ${S.fx === 0 ? "as mixed" : (S.fx > 0 ? "+" : "") + S.fx + " dB"}.` : ", no effects.");
+  try { localStorage.setItem("mixer", JSON.stringify(S)); } catch (e) {}
+}
+
+async function init() {
+  const cfg = await (await fetch("config.json", { cache: "no-store" })).json();
+  CFG = cfg; END = cfg.end; $("#scrub").max = END;
+  if (cfg.narrated === false) { $("#musiccard").style.display = "none"; S.take = 0; }
+  cfg.takes.forEach((k) => {
+    BASE[k.n] = k.under; KIND[k.n] = k.label.replace(/^[A-Z] /, ""); NAMES.push("music" + k.n);
+    const b = document.createElement("button"); b.dataset.t = k.n; b.innerHTML = `${k.n}<small>${KIND[k.n].split(" ").pop()}</small>`;
+    $("#takes").appendChild(b);
+  });
+  if (cfg.narrated !== false && (!S.take || !BASE[S.take])) S.take = cfg.takes[0]?.n || 0;
+  ctx = new AudioContext({ sampleRate: 44100 });
+  const master = ctx.createDynamicsCompressor();  // a safety limiter, so a loud setting never clips
+  master.threshold.value = -2; master.ratio.value = 20; master.attack.value = 0.003; master.release.value = 0.1;
+  master.connect(ctx.destination);
+  await Promise.all(NAMES.map(async (n) => {
+    const r = await fetch(`media/${n}.m4a`);
+    bufs[n] = await ctx.decodeAudioData(await r.arrayBuffer());
+    gains[n] = ctx.createGain(); gains[n].connect(master);
+  }));
+  apply(true);
+  $("#loading").remove();
+}
+
+function start() {
+  srcs = NAMES.map((n) => { const s = ctx.createBufferSource(); s.buffer = bufs[n]; s.connect(gains[n]); return s; });
+  t0 = ctx.currentTime + 0.05;
+  srcs.forEach((s) => s.start(t0, offset));
+  v.currentTime = offset; v.play();
+  playing = true; $("#play").textContent = "Pause";
+}
+function stop() {
+  offset = now(); srcs.forEach((s) => { try { s.stop(); } catch (e) {} }); srcs = [];
+  v.pause(); playing = false; $("#play").textContent = "Play";
+}
+function seek(t) {
+  const was = playing; if (was) stop();
+  offset = Math.max(0, Math.min(END - 0.1, t)); v.currentTime = offset;
+  if (was) start();
+}
+async function toggle() {
+  if (!bufs.voice) return;
+  await ctx.resume();
+  if (playing) stop(); else { if (offset >= END - 0.2) offset = 0; start(); }
+}
+
+// the audio clock leads; the picture follows it
+(function tick() {
+  const t = now();
+  if (playing) {
+    if (t >= END - 0.02) { stop(); offset = END; }
+    else if (Math.abs(v.currentTime - t) > 0.08) v.currentTime = t;
+  }
+  if (document.activeElement !== $("#scrub")) $("#scrub").value = t;
+  $("#time").textContent = `${fmt(t)} / ${fmt(END)}`;
+  requestAnimationFrame(tick);
+})();
+
+$("#play").onclick = toggle;
+$("#scrub").oninput = (e) => seek(+e.target.value);
+$("#takes").onclick = (e) => { const b = e.target.closest("button"); if (b) { S.take = +b.dataset.t; apply(); } };
+$("#mus").oninput = (e) => { S.mus = +e.target.value; apply(); };
+$("#fx").oninput = (e) => { S.fx = +e.target.value; apply(); };
+$("#fxon").onclick = () => { S.fxOn = !S.fxOn; apply(); };
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" && e.key !== " ") return;
+  if (e.key === " ") { e.preventDefault(); toggle(); }
+  else if (/^[0-9]$/.test(e.key) && (e.key === "0" || BASE[+e.key] != null)) { S.take = +e.key; apply(); }
+  else if (e.key === "ArrowRight") seek(now() + 5);
+  else if (e.key === "ArrowLeft") seek(now() - 5);
+});
+// the frame takes the video's own shape (a widescreen cut mixes here too)
+v.addEventListener("loadedmetadata", () => { if (v.videoWidth) document.querySelector(".stage").style.setProperty("--ar", `${v.videoWidth}/${v.videoHeight}`); });
+$("#save").onclick = async () => {
+  const body = { take: S.take, music_db: (CFG.music_db ?? -16) + S.mus, duck_db: CFG.duck_db ?? 6, sfx_db: (CFG.sfx_db ?? 0) + S.fx,
+                 fx_on: S.fxOn, summary: $("#summary").textContent, saved: new Date().toISOString() };
+  try {
+    const r = await fetch("/mix.json", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(r.status);
+    $("#saved").textContent = "Saved to the project. Tell Claude \u201csaved\u201d.";
+  } catch (e) {
+    $("#saved").textContent = "Couldn't save here (this page needs vs mixer). Copy the line above to Claude instead.";
+  }
+};
+init().catch((e) => { $("#loading").textContent = "Couldn't load the tracks: " + e.message; });
+</script>
+</body>
+</html>

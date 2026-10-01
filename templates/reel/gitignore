@@ -1,0 +1,7 @@
+build/
+out/
+inputs/
+media/
+voice/*.mp3
+voice/*.wav
+music/*.mp3

@@ -1,0 +1,494 @@
+{
+ "_about": "The kit's bundled sound effects: bought from ElevenLabs text-to-sound (eleven_text_to_sound_v2) on a paid plan for the first two explainers (Sep 30 and Oct 1, 2026) and given away with the kit, free to use with no credit (CC0, see LICENSE.md). Measured: secs, attack (where it first reaches half its peak), peak, sounding range, rms_db while sounding, peak_dbfs. 'trim' = play only that part. 'level' = a starting level in dB under the voice, from the approved mixes.",
+ "sounds": {
+  "whoosh1": {
+   "file": "whoosh1.mp3",
+   "use": "into a cut",
+   "prompt": "soft airy cinematic whoosh transition, smooth air movement, clean, no impact, no music",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.2,
+   "attack": 0.139,
+   "peak": 0.177,
+   "sounding": [
+    0.003,
+    0.46
+   ],
+   "rms_db": -9.2,
+   "peak_dbfs": 2.6,
+   "level": -13
+  },
+  "whoosh2": {
+   "file": "whoosh2.mp3",
+   "use": "into a cut",
+   "prompt": "gentle smooth whoosh pass by, soft air, subtle cinematic transition, clean, no music",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.2,
+   "attack": 0.273,
+   "peak": 0.356,
+   "sounding": [
+    0.068,
+    0.714
+   ],
+   "rms_db": -10.9,
+   "peak_dbfs": 0.5,
+   "level": -13
+  },
+  "swish1": {
+   "file": "swish1.mp3",
+   "use": "a whip, something flying by",
+   "prompt": "fast soft swish, quick whip pan air swipe, clean, subtle",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.6,
+   "attack": 0.057,
+   "peak": 0.082,
+   "sounding": [
+    0.012,
+    0.187
+   ],
+   "rms_db": -8.6,
+   "peak_dbfs": 1.8,
+   "level": -17
+  },
+  "swish2": {
+   "file": "swish2.mp3",
+   "use": "a whip, something flying by",
+   "prompt": "quick soft air swipe swoosh, short, clean, subtle",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.6,
+   "attack": 0.019,
+   "peak": 0.033,
+   "sounding": [
+    0.0,
+    0.097
+   ],
+   "rms_db": -8.7,
+   "peak_dbfs": 2.5,
+   "level": -17
+  },
+  "land1": {
+   "file": "land1.mp3",
+   "use": "a number or panel landing",
+   "prompt": "soft deep muted thud, gentle low UI impact as a number appears on screen, clean, minimal, no reverb tail",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.8,
+   "attack": 0.0,
+   "peak": 0.017,
+   "sounding": [
+    0.0,
+    0.473
+   ],
+   "rms_db": -26.4,
+   "peak_dbfs": -15.3,
+   "level": -14
+  },
+  "land2": {
+   "file": "land2.mp3",
+   "use": "a number or panel landing",
+   "prompt": "soft low felt thump, subtle interface hit, warm, short, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.8,
+   "attack": 0.036,
+   "peak": 0.054,
+   "sounding": [
+    0.0,
+    0.276
+   ],
+   "rms_db": -13.9,
+   "peak_dbfs": -3.5,
+   "level": -14
+  },
+  "tick1": {
+   "file": "tick1.mp3",
+   "use": "an item, a layer, a stop",
+   "prompt": "single soft UI click tick, subtle clean digital interface sound",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.48,
+   "attack": 0.0,
+   "peak": 0.005,
+   "sounding": [
+    0.0,
+    0.239
+   ],
+   "rms_db": -25.5,
+   "peak_dbfs": -14.5,
+   "level": -18
+  },
+  "tick2": {
+   "file": "tick2.mp3",
+   "use": "an item, a stop (wooden)",
+   "prompt": "tiny soft wooden click, subtle, clean, single",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.48,
+   "attack": 0.0,
+   "peak": 0.005,
+   "sounding": [
+    0.0,
+    0.1
+   ],
+   "rms_db": -35.9,
+   "peak_dbfs": -17.4,
+   "level": -18
+  },
+  "pop": {
+   "file": "pop.mp3",
+   "use": "an icon appearing",
+   "prompt": "soft gentle bubble pop, UI notification, subtle, single",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.48,
+   "attack": 0.0,
+   "peak": 0.006,
+   "sounding": [
+    0.0,
+    0.042
+   ],
+   "rms_db": -4.7,
+   "peak_dbfs": 2.7,
+   "level": -18
+  },
+  "counter": {
+   "file": "counter.mp3",
+   "use": "a number counting up",
+   "prompt": "rapid soft digital counter ticking, fast tiny ticks speeding up, subtle, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.48,
+   "attack": 0.034,
+   "peak": 0.836,
+   "sounding": [
+    0.0,
+    1.459
+   ],
+   "rms_db": -21.3,
+   "peak_dbfs": -5.3,
+   "level": -18
+  },
+  "click": {
+   "file": "click.mp3",
+   "use": "a button",
+   "prompt": "single computer mouse click, crisp, close, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.48,
+   "attack": 0.046,
+   "peak": 0.302,
+   "sounding": [
+    0.025,
+    0.328
+   ],
+   "rms_db": -23.2,
+   "peak_dbfs": -3.2,
+   "trim": [
+    0.0,
+    0.12
+   ],
+   "note": "the 'single click' came back as three: trim keeps the first",
+   "level": -18
+  },
+  "powerup": {
+   "file": "powerup.mp3",
+   "use": "lights coming on, a boost",
+   "prompt": "soft electric power up shimmer, gentle rising hum of lights turning on, subtle, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.2,
+   "attack": 0.271,
+   "peak": 0.414,
+   "sounding": [
+    0.0,
+    1.2
+   ],
+   "rms_db": -25.0,
+   "peak_dbfs": -10.2,
+   "level": -18
+  },
+  "shimmer": {
+   "file": "shimmer.mp3",
+   "use": "a field of things filling in",
+   "prompt": "delicate digital shimmer swell, many tiny sparkling ticks, airy, soft, subtle",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.6,
+   "attack": 0.072,
+   "peak": 0.474,
+   "sounding": [
+    0.0,
+    1.6
+   ],
+   "rms_db": -22.6,
+   "peak_dbfs": -7.2,
+   "level": -18
+  },
+  "paper": {
+   "file": "paper.mp3",
+   "use": "a card sliding in",
+   "prompt": "paper card sliding onto a table, soft swoosh, close, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.6,
+   "attack": 0.0,
+   "peak": 0.242,
+   "sounding": [
+    0.0,
+    0.475
+   ],
+   "rms_db": -40.7,
+   "peak_dbfs": -25.5,
+   "level": -18
+  },
+  "error": {
+   "file": "error.mp3",
+   "use": "a miss, a no",
+   "prompt": "soft muted low error buzz, gentle negative UI tone, short, subtle",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.6,
+   "attack": 0.0,
+   "peak": 0.037,
+   "sounding": [
+    0.0,
+    0.322
+   ],
+   "rms_db": -20.3,
+   "peak_dbfs": -12.0,
+   "level": -18
+  },
+  "chime": {
+   "file": "chime.mp3",
+   "use": "a success",
+   "prompt": "soft positive UI chime, two gentle bright notes, clean, subtle",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.8,
+   "attack": 0.0,
+   "peak": 0.006,
+   "sounding": [
+    0.0,
+    0.537
+   ],
+   "rms_db": -27.8,
+   "peak_dbfs": -11.4,
+   "level": -18
+  },
+  "lock": {
+   "file": "lock.mp3",
+   "use": "locking, a blindfold",
+   "prompt": "soft digital lock click, clean, subtle, single",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.48,
+   "attack": 0.007,
+   "peak": 0.015,
+   "sounding": [
+    0.0,
+    0.293
+   ],
+   "rms_db": -17.7,
+   "peak_dbfs": -1.4,
+   "level": -18
+  },
+  "pulse": {
+   "file": "pulse.mp3",
+   "use": "a ring from a point",
+   "prompt": "soft low sonar pulse, one gentle deep ping, subtle, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.0,
+   "attack": 0.0,
+   "peak": 0.06,
+   "sounding": [
+    0.0,
+    0.455
+   ],
+   "rms_db": -24.4,
+   "peak_dbfs": -16.5,
+   "level": -18
+  },
+  "riser": {
+   "file": "riser.mp3",
+   "use": "into a key line",
+   "prompt": "soft short airy riser, gentle tension build, clean, no impact at the end",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.48,
+   "attack": 0.815,
+   "peak": 0.92,
+   "sounding": [
+    0.395,
+    1.045
+   ],
+   "rms_db": -9.8,
+   "peak_dbfs": 0.9,
+   "level": -18
+  },
+  "sting": {
+   "file": "sting.mp3",
+   "use": "the logo landing",
+   "prompt": "subtle modern logo reveal, one soft low boom with a short airy shimmer tail, clean, minimal, elegant",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 2.48,
+   "attack": 0.322,
+   "peak": 0.41,
+   "sounding": [
+    0.002,
+    1.52
+   ],
+   "rms_db": -9.3,
+   "peak_dbfs": 1.5,
+   "level": -9
+  },
+  "bell": {
+   "file": "bell.mp3",
+   "use": "a round starting (one ringside ding)",
+   "prompt": "single boxing ring bell, one strike of a brass ringside bell, bright clear ding with a short natural ring-out, clean, no crowd, no music",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.6,
+   "attack": 0.0,
+   "peak": 0.054,
+   "sounding": [
+    0.0,
+    1.019
+   ],
+   "rms_db": -14.1,
+   "peak_dbfs": 0.1,
+   "level": -12
+  },
+  "bell3": {
+   "file": "bell3.mp3",
+   "use": "the fight starting (ding ding ding)",
+   "prompt": "boxing ring bell struck three times fast, ding ding ding, brass ringside bell starting the fight, clean, no crowd, no music",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 2.4,
+   "attack": 0.0,
+   "peak": 0.007,
+   "sounding": [
+    0.0,
+    1.282
+   ],
+   "rms_db": -11.7,
+   "peak_dbfs": 3.0,
+   "level": -12
+  },
+  "cheer": {
+   "file": "cheer.mp3",
+   "use": "a crowd cheering (a texture)",
+   "prompt": "arena crowd cheering and clapping at a boxing match, a short excited swell that fades out, slightly distant, no announcer, no words, no music",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 3.0,
+   "attack": 0.186,
+   "peak": 0.669,
+   "sounding": [
+    0.005,
+    2.842
+   ],
+   "rms_db": -10.4,
+   "peak_dbfs": 3.1,
+   "level": -16
+  },
+  "ooh": {
+   "file": "ooh.mp3",
+   "use": "a crowd's surprise",
+   "prompt": "big arena crowd going ooooh in surprise, one short amused reaction, no words, no music",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 2.0,
+   "attack": 0.122,
+   "peak": 0.348,
+   "sounding": [
+    0.0,
+    1.651
+   ],
+   "rms_db": -7.7,
+   "peak_dbfs": 3.0,
+   "level": -16
+  },
+  "groan": {
+   "file": "groan.mp3",
+   "use": "a crowd's letdown",
+   "prompt": "big arena crowd groaning awww in disappointment, one short reaction, no words, no music",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 2.0,
+   "attack": 0.074,
+   "peak": 0.608,
+   "sounding": [
+    0.0,
+    1.538
+   ],
+   "rms_db": -12.4,
+   "peak_dbfs": 1.6,
+   "level": -16
+  },
+  "receipt": {
+   "file": "receipt.mp3",
+   "use": "a receipt printing (trim to a burst)",
+   "prompt": "thermal receipt printer printing a receipt, fast mechanical whirring chatter, close, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 2.0,
+   "attack": 0.063,
+   "peak": 0.072,
+   "sounding": [
+    0.0,
+    1.954
+   ],
+   "rms_db": -22.8,
+   "peak_dbfs": 0.8,
+   "trim": [
+    0.0,
+    0.9
+   ],
+   "level": -18
+  },
+  "coins": {
+   "file": "coins.mp3",
+   "use": "money paid",
+   "prompt": "a small handful of coins dropping into a metal tray, bright short jingle, close, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.0,
+   "attack": 0.141,
+   "peak": 0.502,
+   "sounding": [
+    0.0,
+    0.812
+   ],
+   "rms_db": -19.6,
+   "peak_dbfs": 0.2,
+   "level": -18
+  },
+  "cloth": {
+   "file": "cloth.mp3",
+   "use": "fabric landing: a robe, a cape",
+   "prompt": "a heavy cloth robe flapping down and settling, soft fabric whoosh and flutter, close, clean",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 1.0,
+   "attack": 0.151,
+   "peak": 0.182,
+   "sounding": [
+    0.022,
+    0.473
+   ],
+   "rms_db": -14.6,
+   "peak_dbfs": 0.1,
+   "level": -18
+  },
+  "punch": {
+   "file": "punch.mp3",
+   "use": "a heavy hit",
+   "prompt": "one boxing glove punch landing on a heavy bag, deep muffled thump, close, no voice",
+   "source": "ElevenLabs eleven_text_to_sound_v2",
+   "secs": 0.6,
+   "attack": 0.0,
+   "peak": 0.008,
+   "sounding": [
+    0.0,
+    0.513
+   ],
+   "rms_db": -35.3,
+   "peak_dbfs": -27.1,
+   "level": -13
+  },
+  "stamp": {
+   "file": "stamp.mp3",
+   "use": "a stamp slamming down",
+   "prompt": "",
+   "source": "made from two ElevenLabs stamps that came back nearly silent: the louder one's paper slap, normalized, over land2's thump",
+   "secs": 0.8,
+   "attack": 0.036,
+   "peak": 0.054,
+   "sounding": [
+    0.0,
+    0.276
+   ],
+   "rms_db": -14.7,
+   "peak_dbfs": -4.3,
+   "level": -13
+  }
+ }
+}

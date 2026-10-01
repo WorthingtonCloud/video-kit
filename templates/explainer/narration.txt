@@ -1,0 +1,7 @@
+# Narration v1. One paragraph per act, a "# N title" line above each. eleven_v4: [tags] direct the delivery and aren't
+# spoken, CAPS = emphasis, ... = a beat. Never write a vocal action ("clears its throat"): the voice performs it.
+# 1 The hook
+[candid, a little wry] Replace this with the act's words.
+
+# 2 The close
+[slower, landing it] And this with the closing line.
