@@ -137,8 +137,18 @@ export function prepareMedia() {
       const box = LAND
         ? { w: (lh * mw) / mh, h: lh, x: W * 0.96 - (lh * mw) / mh }
         : { w: W * inset, h: H * inset, x: (W * (1 - inset)) / 2 };
+      let top = (H - box.h) / 2;
+      // vertical, a recording of another shape (an app window, not a phone page) keeps its own shape instead of being
+      // cropped to the frame's; with words over the segment it sits high, above the titles, like a drawn scene
+      if (!LAND && Math.abs(mw / mh - W / H) > 0.03) {
+        box.h = Math.min(H * inset, (box.w * mh) / mw);
+        box.w = (box.h * mw) / mh;
+        box.x = (W - box.w) / 2;
+        const words = seg.titles.some((tt) => ["lower", "stat", undefined].includes(R.titles[tt.id]?.kind));
+        top = words ? Math.max(H * 0.12, Math.min((H - box.h) / 2, H * 0.6 - box.h)) : (H - box.h) / 2; // 0.12: room for its 3D sway
+      }
       const radius = inset >= 1 && !LAND ? 0 : 34;
-      inner = `<div class="panel" data-el="page" style="left:${r3(box.x)}px;top:${r3((H - box.h) / 2)}px;width:${r3(box.w)}px;height:${r3(box.h)}px;border-radius:${radius}px">${v(path.relative(COMP, out))}</div>`;
+      inner = `<div class="panel" data-el="page" style="left:${r3(box.x)}px;top:${r3(top)}px;width:${r3(box.w)}px;height:${r3(box.h)}px;border-radius:${radius}px">${v(path.relative(COMP, out))}</div>`;
       footage = true;
     } else if (src.clip) {
       const out = `${A}/clip-${i}.mp4`,

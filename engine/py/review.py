@@ -1005,8 +1005,12 @@ def measure_pixels(old, new, t, box=None):
         a, b = a[max(0, y0):y1, max(0, x0):x1], b[max(0, y0):y1, max(0, x0):x1]
     if not a.size:
         return None
-    ch = np.abs(a.astype(np.int16) - b.astype(np.int16)).max(axis=2) > 48
-    out = {"changed": round(float(ch.mean()), 4)}
+    d = np.abs(a.astype(np.int16) - b.astype(np.int16)).max(axis=2)
+    ch = d > 48
+    # "faint": dim shapes on a dark ground move only 10-25 levels, under the grain line above, and a human sees them go
+    # (the video-kit reel's background shapes behind a card, Oct 2, 2026: 4.4% of the frame past 6 levels; unchanged
+    # moments of the same two renders, 0-0.5%)
+    out = {"changed": round(float(ch.mean()), 4), "faint": round(float((d > 6).mean()), 4)}
     if ch.sum() >= 20:
         out.update({"from": _color(a[ch].mean(0)), "to": _color(b[ch].mean(0))})
     return out
@@ -1053,13 +1057,18 @@ def _safely(fn, *a):
         return None
 
 
+def _moved(px):
+    """A real change in the picture: past the grain line, or a faint change over enough of it (see measure_pixels)."""
+    return bool(px) and (px.get("changed", 0) >= 0.005 or px.get("faint", 0) >= 0.02)
+
+
 def measure_moment(n, old, new):
     """A note pinned to a moment, not an element (a sound on a dark frame, "it repeats here"): the whole picture and the
     sound around it, old version against new."""
     t = n["time"].get("t", n["time"].get("t0"))
     m = {"el": None, "t": t, "moment": True, "flag": None, "pixels": measure_pixels(old, new, t), "audio": measure_audio(old, new, t)}
     px, au = m["pixels"] or {}, m["audio"] or {}
-    if (n.get("resolution") or {}).get("outcome") == "resolved" and px.get("changed", 0) < 0.005 and au.get("changed_secs", 0) < 0.1:
+    if (n.get("resolution") or {}).get("outcome") == "resolved" and not _moved(px) and au.get("changed_secs", 0) < 0.1:
         m["flag"] = "nothing measurable changed at that moment (the picture and the sound around it are the same)"
     return m
 
@@ -1068,6 +1077,8 @@ def _describe_pixels(px):
     if not px:
         return None
     if px["changed"] < 0.005:
+        if px.get("faint", 0) >= 0.02:
+            return f"its pixels changed faintly ({100 * px['faint']:.1f}% of it, by a few shades)".replace(".0%", "%")
         return "its pixels didn't change"
     pct = f"{100 * px['changed']:.1f}".rstrip("0").rstrip(".")
     return f"its pixels changed ({pct}% of it)" + (f", mostly {px['from']} → {px['to']}" if px.get("from") and px["from"] != px["to"] else "")
@@ -1449,7 +1460,7 @@ def open_round(args):
                     px = _safely(measure_pixels, old, new, m["t"], m.get("new_box"))
                     if px:
                         m["pixels"] = px
-                        if px["changed"] >= 0.005:
+                        if _moved(px):
                             m["flag"] = None
             else:
                 m = _safely(measure_moment, n, old, new)

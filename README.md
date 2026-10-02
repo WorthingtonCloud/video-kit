@@ -1,4 +1,4 @@
-https://github.com/user-attachments/assets/5cdd32b8-3436-4891-95ef-4c7ddf0e8629
+https://github.com/user-attachments/assets/43214abb-b2b9-479e-af4c-6dab79d13c17
 
 <p align="center">
   58 seconds, sound on. This reel was made by the kit, about the kit.
@@ -11,9 +11,9 @@ seconds). The agent writes it, voices it, draws every scene in code, checks its 
 watch it in a review page, point at what's wrong, and send. You never open a video editor.
 
 The reel above was made this way. One request, music reused from an earlier reel, every scene drawn in code, and the
-Review Studio filmed live from a real round. Its reviewer sent one note ("the red dot over the text makes it hard to
-read"); the agent traced it to the kit itself, fixed it there for every future reel, and the next version was
-approved with no notes. Nothing in it was paid for.
+Review Studio filmed live from a real round. Its reviewer gave five notes over four rounds, from "the red dot over the
+text makes it hard to read" to "this has to look like a polished million dollar product." The agent traced each one to
+the kit and fixed it there, so every reel after this one gets the fix too. Nothing in it was paid for.
 
 ## Install it
 

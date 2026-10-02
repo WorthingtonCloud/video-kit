@@ -45,6 +45,9 @@
         { filter: "brightness(0.28) blur(5px)", duration: 0.35, ease: "power2.out", ...IR },
         T - 0.05,
       );
+      // nothing to collapse: the scene is gone BEFORE the card's first words land, never dimmed behind them ("those
+      // shapes in the background should be gone before the 'This reel?' text comes on screen", video-kit reel, Oct 2)
+      if (!tiles.length) tl.to(prev.el, { opacity: 0, duration: 0.35, ease: "power2.in" }, T - 0.4);
       if (tiles.length)
         tl.fromTo(
           pcam,

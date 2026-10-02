@@ -201,14 +201,26 @@
       if (LAND)
         mover.style.transformOrigin = `${panel.offsetLeft + panel.offsetWidth / 2}px ${panel.offsetTop + panel.offsetHeight / 2}px`;
       // held at its starting angle from load: the page is on screen during the hand-off, before its own slot starts
+      // reel.json → shots.<id>.float: {"y": [from, to], "x": [from, to], "glare": 1} turns the sway up for a hero
+      // shot (a product's own interface): a wider turn, so the glare crosses the whole glass
+      const fl = (src.shot && R.shots?.[src.shot]?.float) || {},
+        fy = fl.y || [7, -6],
+        fx2 = fl.x || [4, -2];
       tw3(
         panel,
-        { rotationY: 7 * dir, rotationX: 4, transformPerspective: 2200 },
-        { rotationY: -6 * dir, rotationX: -2, transformPerspective: 2200, duration: len, ease: "sine.inOut" },
+        { rotationY: fy[0] * dir, rotationX: fx2[0], transformPerspective: 2200 },
+        { rotationY: fy[1] * dir, rotationX: fx2[1], transformPerspective: 2200, duration: len, ease: "sine.inOut" },
         seg.t0,
       );
       const sh = div("sheen", panel),
         pw = panel.offsetWidth;
+      if (fl.glare) {
+        const g = Math.min(2.5, fl.glare),
+          a = (v) => `rgba(255,255,255,${(v * g).toFixed(3)})`;
+        // glass: a soft wide band with a bright core, and a thin second glint beside it, screened onto the page
+        sh.style.background = `linear-gradient(100deg,transparent 0%,${a(0.03)} 24%,${a(0.09)} 40%,${a(0.16)} 47%,${a(0.09)} 54%,${a(0.02)} 62%,${a(0.1)} 66%,${a(0.02)} 70%,transparent 82%)`;
+        sh.style.mixBlendMode = "screen";
+      }
       // the glare sits where that light reflects off the glass: turn the page right and it slides left, tip it back
       // and it slides a little right. The sway, the hand-offs and the flips all move it, so it never jumps
       ticks.push((t) => {
@@ -248,6 +260,28 @@
             edge
           ).toFixed(3);
         });
+      });
+    }
+    // widescreen: the picture sits centered and slides right only while a title is up on the left (same video, just
+    // wider). Parked on the right with nothing to read beside it, half the frame sat empty (video-kit reel, Oct 2, 2026)
+    if (LAND && R.scene_lib !== "explainer" && ((src.scene && src.scene !== "endcard") || panel)) {
+      const words = seg.titles
+          .filter((tt) => ["lower", "stat", undefined].includes(R.titles[tt.id]?.kind))
+          .sort((a, b) => a.t0 - b.t0),
+        cx = panel ? panel.offsetLeft + panel.offsetWidth / 2 : W * 0.72,
+        dx = W / 2 - cx,
+        IN = 0.45,
+        MOVE = 0.55;
+      let at = words.length && words[0].t0 - IN <= seg.t0 ? 0 : dx;
+      gsap.set(cam, { x: at });
+      words.forEach((tt, k) => {
+        if (at !== 0) tl.fromTo(cam, { x: at }, { x: 0, duration: MOVE, ease: "power3.inOut", ...IR }, tt.t0 - IN);
+        at = 0;
+        const next = k + 1 < words.length ? words[k + 1].t0 - IN : seg.t1;
+        if (next - (tt.t1 + 0.05) >= 0.9) {
+          tl.fromTo(cam, { x: 0 }, { x: dx, duration: MOVE + 0.1, ease: "power3.inOut", ...IR }, tt.t1 + 0.05);
+          at = dx;
+        }
       });
     }
     if (!ownPush && push)
