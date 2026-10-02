@@ -51,7 +51,9 @@ export async function launch() {
       "No puppeteer found. Run: vs setup   (it installs the engine's packages; or set PUPPETEER_FROM to a package.json that has it)",
     );
   }
-  const opts = { headless: true, args: ["--hide-scrollbars", "--font-render-hinting=none"] };
+  // protocolTimeout: every call here takes milliseconds; a rare hang (twice on Oct 1, 2026, cause not yet caught) used to
+  // sit out puppeteer's 180 s default before failing
+  const opts = { headless: true, protocolTimeout: 60_000, args: ["--hide-scrollbars", "--font-render-hinting=none"] };
   const chrome = findChrome();
   if (found.name === "puppeteer-core") {
     if (!chrome) throw new Error("puppeteer-core needs a Chrome: set CHROME=/path/to/chrome");
@@ -60,6 +62,16 @@ export async function launch() {
     opts.executablePath = process.env.CHROME;
   }
   return found.pp.launch(opts);
+}
+
+// A browser call that stalls or fails says which step it was: puppeteer's own stack ends inside puppeteer, so the
+// failure used to name no step of ours (three one-off stalls on Oct 1, 2026, each a 60 s protocol timeout).
+export async function step(label, call) {
+  try {
+    return await call();
+  } catch (e) {
+    throw new Error(`the browser stalled or failed at: ${label} (${String(e.message).split("\n")[0]})`);
+  }
 }
 
 export function isLandscape(reel) {

@@ -1,0 +1,36 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/mix.schema.json",
+ "title": "mix.json",
+ "description": "What the mixer saved: the take and the levels. vs mix --final bakes exactly this.",
+ "type": "object",
+ "required": [
+  "take"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "take": {
+   "type": "integer",
+   "minimum": 0,
+   "description": "the music take; 0 = no music (a reel's own track, or the voice alone)"
+  },
+  "music_db": {
+   "type": "number"
+  },
+  "duck_db": {
+   "type": "number"
+  },
+  "sfx_db": {
+   "type": "number"
+  },
+  "fx_on": {
+   "type": "boolean"
+  },
+  "summary": {
+   "type": "string"
+  },
+  "saved": {
+   "type": "string"
+  }
+ }
+}

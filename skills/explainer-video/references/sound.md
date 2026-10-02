@@ -1,7 +1,7 @@
-# Sound: music, effects, the mixer
+# Sound: music, effects, the Mix panel
 
-**The voice is mastered to -16 LUFS** (ElevenLabs delivers about -24.6: quiet on a phone) with a -2 dB limiter (a -1.5
-limit overshot to -0.6 after AAC). Every other level is relative to the voice.
+**The voice is mastered to -16 LUFS** (ElevenLabs delivers about -24.6: quiet on a phone) with a -3 dB limiter (AAC
+overshoots it: -2 read -0.1 dBTP after encoding; -3 reads about -1.8). Every other level is relative to the voice.
 
 ## Music
 
@@ -51,14 +51,26 @@ them into the studio's library, measures them, and flags any that came back near
 at -55 and -49 dBFS: layer the quiet one over a thud rather than normalizing noise up). The human's own: `vs ingest
 <file> --as sfx`.
 
-## The mixer
+## The Mix panel (Review Studio)
 
 `vs mix --video out/<name>-vN.mp4 --tag vN` writes every take mixed (`out/<name>-vN-take<N>.mp4`), an effects-only cut,
-the stems, and the mixer page. `vs mixer` serves the project (add a `.claude/launch.json` entry that runs it so it opens
-in the preview pane at `/build/mixer/`). The human plays the picture with every stem in sync, switches takes live
-(keys 0–9), sets the music and effects levels, and presses **Save**: the choice lands in the project's `mix.json`.
-`vs mix … --final` bakes exactly that; `vs learn` keeps the levels as the next video's starting point. If the page is
-opened without `vs mixer`, Save says so and the "Your mix" line is the fallback to copy.
+the stems, and the Mix panel's data: the music un-ducked with its ducking envelope, and every effect once, alone.
+`vs mixer` opens Review Studio on its **Mix** panel (`/review/#mix`; a `.claude/launch.json` entry that runs it opens it
+in the preview pane). The human plays the picture with every stem in sync (the picture follows the sound), switches
+takes live (keys 0–9), sets the music level, the **ducking** (how far the music dips while the voice speaks: it plays
+live as the slider moves; every number moves while it plays, and "Music right now" shows the level at the playhead),
+and the effects level, and presses **Save**. In a round, the save waits with the rest of their feedback (Undo takes it
+back) and lands in the project's `mix.json` when they Approve & send; with no round open, it lands at once.
+`vs mix … --final` bakes exactly that (a reel's take 0 too); `vs learn` keeps the levels as the next video's start.
+
+**One sound at a time is a note, never a fader.** A click on a sound in the timeline's Sound row plays it alone (or in
+the mix around it); the human answers quieter, louder, a different sound, or remove it. That's a note on the cue
+(`sfx/<sound>@<what it's pinned to>`): change its level or sound in `cues.py`, re-mix, and the next round measures it in
+that version's cues (and flags an answer that went the other way). A choice between sounds can be offered in Decide.
+
+**`vs qa` on a mixed file** checks the loudness (−16 LUFS ± 1.5), the true peak (−1 dBTP at most) and the sound density
+(more than 14 effects in ten seconds; the busiest approved explainer peaked at 13): warnings for the human, thresholds in `profile.json →
+checks`. The limiter sits at −3 dB before the encoder, so a kit mix reads about −1.8 dBTP (at −2 it read −0.1).
 
 ⚠️ The preview pane's screenshot shows a playing `<video>` as black: check frames by drawing the video to a canvas.
 ⚠️ `qa.py`'s "audio drops 15 LU" warning fires on narration pauses and a silent end card: expected in an explainer.

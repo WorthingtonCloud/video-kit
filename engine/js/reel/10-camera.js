@@ -37,7 +37,11 @@
 
   // a shockwave ring at a screen point
   function shock(t0, x, y, r1 = 260, dur = 0.7, w = 5) {
-    const c = svg("circle", { cx: x, cy: y, r: 1, fill: "none", stroke: P.accent, "stroke-width": w, opacity: 0 }, fx);
+    const c = svg(
+      "circle",
+      { class: "shock", cx: x, cy: y, r: 1, fill: "none", stroke: P.accent, "stroke-width": w, opacity: 0 },
+      fx,
+    );
     ticks.push((t) => {
       const p = (t - t0) / dur;
       if (p < 0 || p > 1) {
@@ -54,10 +58,10 @@
   function spark(t0, a, b, dur = 0.3, bend = 0.22) {
     const tail = svg(
       "path",
-      { fill: "none", stroke: P.accent, "stroke-width": 6, "stroke-linecap": "round", opacity: 0 },
+      { class: "spark-tail", fill: "none", stroke: P.accent, "stroke-width": 6, "stroke-linecap": "round", opacity: 0 },
       fx,
     );
-    const head = svg("circle", { r: 10, fill: P.accent, opacity: 0 }, fx);
+    const head = svg("circle", { class: "spark", r: 10, fill: P.accent, opacity: 0 }, fx);
     const mx = (a.x + b.x) / 2 - (b.y - a.y) * bend,
       my = (a.y + b.y) / 2 + (b.x - a.x) * bend;
     const at = (p) => ({

@@ -1,0 +1,1 @@
+The kit's reel template minus the page recording and the collage (they need the network and tiles). The test makes music/take1.mp3 (a 40 s sine). Built and inspected, it checks 132 moments: the overlap audit read zero on this reel before 1.0.1.

@@ -1,0 +1,16 @@
+{
+ "scar": "sizzle \u00b7 Story \u00b7 the closing line is spent once: the homepage headline WAS the closing line, and showing it mid-reel spent the ending",
+ "make": {
+  "music/take1.mp3": "tone:8"
+ },
+ "steps": [
+  {
+   "run": "check",
+   "fails_with": "that page can't be on screen"
+  },
+  {
+   "run": "build",
+   "fails_with": "can't be on screen"
+  }
+ ]
+}

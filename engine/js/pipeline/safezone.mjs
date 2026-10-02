@@ -1,9 +1,11 @@
 // Build step 6, words vs the phone safe zone (and titles wider than their box), measured in the browser with the real
-// fonts loaded. A font that never loads is reported too: the render would silently use a fallback.
+// fonts loaded. A font that never loads is reported too: the render would silently use a fallback. While the page is
+// open it also counts the names (js/reel/55-names.js) and reports a name the scene used twice in one segment.
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { launch } from "../lib/browser.mjs";
+import { launch, step } from "../lib/browser.mjs";
 import { R, W, H, LAND, COMP, die } from "./context.mjs";
+import { CONTRACTS } from "../lib/paths.mjs";
 
 export async function checkSafeZone() {
   const b = await launch(),
@@ -11,13 +13,13 @@ export async function checkSafeZone() {
   await p.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
   const errs = [];
   p.on("pageerror", (e) => errs.push(e.message));
-  await p.goto(pathToFileURL(path.resolve(COMP, "index.html")).href, { waitUntil: "load" });
+  await step("safe zone: open the composition", () => p.goto(pathToFileURL(path.resolve(COMP, "index.html")).href, { waitUntil: "load" }));
   if (errs.length) die(`reel.js failed in the browser: ${errs[0]}`);
   // Measure with the real fonts. A face that never loads renders in a fallback, silently, and every width is wrong
   // (v20: widths read before the font arrived left the marker short of "measures" and the check mark on "checked").
   const fams = [R.font, R.mono].filter((f) => f?.family && f?.css).map((f) => f.family);
-  const noFont = await p.evaluate(async (fams) => {
-    await document.fonts.ready;
+  const [settled, noFont] = await step("safe zone: wait for the fonts", () => p.evaluate(async (fams) => {
+    const settled = await Promise.race([document.fonts.ready.then(() => true), new Promise((r) => setTimeout(() => r(false), 10000))]);
     const out = [];
     for (const f of fams) {
       try {
@@ -26,16 +28,27 @@ export async function checkSafeZone() {
         out.push(f);
       }
     }
-    return out;
-  }, fams);
+    return [settled, out];
+  }, fams));
+  if (!settled) console.log("  ⚠️  the composition's fonts didn't settle in 10 s (a browser stall): measured with what had loaded");
   noFont.forEach((f) =>
     console.log(
       `  ⚠️  the font "${f}" never loaded in the composition — the render will use a fallback (vs fonts "${f}")`,
     ),
   );
-  const found = await p.evaluate(
-    (W, H, LAND) => {
-      const S = { l: 0.11, r: 0.89, t: 0.1, b: 0.84, railX: 0.8, railY: 0.62 },
+  const nm = await step("safe zone: count the names", () => p.evaluate(() => {
+    const all = window.__names.all();
+    return {
+      n: all.length,
+      derived: all.filter((x) => x.el.getAttribute("data-el").startsWith("~")).length,
+      repeats: window.__names.repeats,
+    };
+  }));
+  console.log(`  names: ${nm.n} elements have an address (${nm.n - nm.derived} named, ${nm.derived} derived)`);
+  nm.repeats.forEach((r) => console.log(`  ⚠️  ${r} is named twice in one segment: the second one became ${r}#2`));
+  const found = await step("safe zone: measure the words", () => p.evaluate(
+    (W, H, LAND, Z) => {
+      const S = { l: Z.side, r: 1 - Z.side, t: Z.status_bar, b: Z.caption, railX: Z.rail.x, railY: Z.rail.y },
         out = [],
         e = 2; // 2px: words set ON the line are inside
       const check = (name, el) => {
@@ -88,7 +101,8 @@ export async function checkSafeZone() {
     W,
     H,
     LAND,
-  );
+    CONTRACTS.phone_safe,
+  ));
   await b.close();
   found.forEach((m) => console.log(`  ⚠️  ${m}`));
   if (!found.length) console.log(`  safe zone: every word clear${LAND ? " (widescreen: no phone crop to check)" : ""}`);

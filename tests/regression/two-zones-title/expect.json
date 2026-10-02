@@ -1,0 +1,16 @@
+{
+ "scar": "sizzle-reel · Pacing · two reading zones (\"I'd read the top and miss the bottom\")",
+ "make": {
+  "music/take1.mp3": "tone:6"
+ },
+ "expect": [
+  {
+   "check": "two-zones",
+   "element": "title/t_one"
+  }
+ ],
+ "expect_none": [
+  "fast-text",
+  "title-on-scene"
+ ]
+}

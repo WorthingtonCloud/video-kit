@@ -1,0 +1,79 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/sounds.schema.json",
+ "title": "library/sfx/index.json",
+ "description": "A sound library: name → the file and what it measured.",
+ "type": "object",
+ "required": [
+  "sounds"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "_about": {
+   "type": "string"
+  },
+  "sounds": {
+   "type": "object",
+   "propertyNames": {
+    "pattern": "^[a-z0-9][a-z0-9_-]*$"
+   },
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "properties": {
+     "file": {
+      "type": "string"
+     },
+     "secs": {
+      "type": "number"
+     },
+     "attack": {
+      "type": "number"
+     },
+     "peak": {
+      "type": "number"
+     },
+     "sounding": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "rms_db": {
+      "type": "number"
+     },
+     "peak_dbfs": {
+      "type": "number"
+     },
+     "level": {
+      "type": "number"
+     },
+     "trim": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 2,
+      "maxItems": 2
+     },
+     "use": {
+      "type": "string"
+     },
+     "prompt": {
+      "type": "string"
+     },
+     "source": {
+      "type": "string"
+     },
+     "note": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}

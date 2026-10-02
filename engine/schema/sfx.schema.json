@@ -1,0 +1,26 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/sfx.schema.json",
+ "title": "sfx.json",
+ "description": "Sounds this video needs that the library doesn't have: name → [seconds, what it sounds like]. vs sfx buys the missing ones.",
+ "type": "object",
+ "propertyNames": {
+  "pattern": "^[a-z0-9][a-z0-9_-]*$"
+ },
+ "additionalProperties": {
+  "type": "array",
+  "minItems": 2,
+  "maxItems": 2,
+  "prefixItems": [
+   {
+    "type": "number",
+    "minimum": 0.5,
+    "maximum": 30
+   },
+   {
+    "type": "string",
+    "minLength": 3
+   }
+  ]
+ }
+}

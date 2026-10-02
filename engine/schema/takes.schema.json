@@ -1,0 +1,31 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/takes.schema.json",
+ "title": "music/takes.json",
+ "description": "The music takes for this video (vs music writes it; the mix and the mixer read it).",
+ "type": "object",
+ "propertyNames": {
+  "pattern": "^take[0-9]+$"
+ },
+ "additionalProperties": {
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+   "label": {
+    "type": "string"
+   },
+   "id": {
+    "type": [
+     "string",
+     "null"
+    ]
+   },
+   "secs": {
+    "type": "number"
+   },
+   "from": {
+    "type": "string"
+   }
+  }
+ }
+}

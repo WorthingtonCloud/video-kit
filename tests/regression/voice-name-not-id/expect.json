@@ -1,0 +1,12 @@
+{
+ "scar": "elevenlabs · two library voices are both named Mark: always the voice ID",
+ "make": {
+  "voice/bed.wav": "tone:12"
+ },
+ "steps": [
+  {
+   "run": "check",
+   "fails_with": "voice ID, never its name"
+  }
+ ]
+}

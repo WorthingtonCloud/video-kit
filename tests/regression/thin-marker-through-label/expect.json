@@ -1,0 +1,12 @@
+{
+ "scar": "explainer \u00b7 Picture \u00b7 a label on a thin dashed line the audit couldn't see (a thin shape fell under the area threshold; only the top border counted)",
+ "make": {
+  "music/take1.mp3": "tone:6"
+ },
+ "expect": [
+  {
+   "check": "covers",
+   "element": "s01_chart/value"
+  }
+ ]
+}

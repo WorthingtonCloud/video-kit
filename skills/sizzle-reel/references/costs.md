@@ -7,8 +7,8 @@
 | Still | kie.ai Seedream 5 Pro | ~$0.07–0.14 |
 | 5 s clip, 480p draft | Higgsfield Seedance 2.5 | ~$1.03 |
 | 5 s clip, 720p final | Higgsfield Seedance 2.5 | ~$2.31 |
-| Drawn scenes, page recordings, your own footage, the library | the laptop | free |
+| Drawn scenes, page recordings, your own footage, the library, Review Studio | the laptop | free |
 
 The lab reel: ~$12.80 all in (6 music takes, 3 stills, 3 drafts, 4 finals); every cut after v4 was free. The product
-reel: $0.32 (10 music takes, no paid images or video). `vs gen` prints the cost and stops; `--yes` spends; the studio's
+reel: $0.32 (10 music takes, no paid images or video). `vs gen` prints the cost and stops (the spend gate); `--yes` spends; the studio's
 `ledger.csv` keeps every call (`vs spent`).

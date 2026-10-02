@@ -1,0 +1,39 @@
+{
+ "schema_version": 2,
+ "name": "zones",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "scene_lib": "explainer",
+ "music": {
+  "file": "music/take1.mp3",
+  "beat": 0.5,
+  "first_hit": 0,
+  "fade": 0.3
+ },
+ "titles": {
+  "t_one": {
+   "kind": "lower",
+   "text": "A title<br>at the bottom."
+  }
+ },
+ "segments": [
+  {
+   "name": "s01_zones",
+   "secs": 4.0,
+   "source": {
+    "scene": "busy"
+   },
+   "titles": [
+    [
+     "t_one",
+     0.5,
+     3.5
+    ]
+   ]
+  }
+ ]
+}

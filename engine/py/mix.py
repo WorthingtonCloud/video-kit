@@ -5,7 +5,9 @@ the project's cues.py, so a re-recorded voice re-times the effects too.
 
     vs mix --video out/<name>-vN.mp4 --tag vN [--takes 1 2 3] [--music_db -16] [--duck_db 6] [--sfx_db 0] [--no_sfx]
       → out/<name>-vN-sfx.mp4 (voice + effects), out/<name>-vN-take<N>.mp4 (voice + music + effects) for every take,
-        stems in build/mix/, and the mixer page in build/mixer/ (vs mixer serves it: pick a take, set levels, Save)
+        stems in build/mix/, and the Mix panel's data in build/mixer/ (vs mixer opens it: pick a take, set levels, Save):
+        the music un-ducked + duck.json (the envelope: the panel ducks live, so the ducking slider plays as it moves),
+        and each effect once, alone, at a fixed level (cues.json says each cue's file and gain: a click plays it)
     vs mix --video out/<name>-vN.mp4 --tag vN --final
       → only what the mixer saved (mix.json: the take and the levels), as out/<name>-vN-take<N>.mp4
 
@@ -34,13 +36,14 @@ a = ap.parse_args()
 pick = lambda k, d: getattr(a, k) if getattr(a, k) is not None else saved.get(k, house.get(k, d))
 MUSIC_DB, DUCK_DB, SFX_DB = pick("music_db", -16), pick("duck_db", 6), pick("sfx_db", 0)
 if a.final:
-    if not saved.get("take"): raise SystemExit("⛔ no mix.json yet: open the mixer (vs mixer), pick a take, press Save")
-    a.takes, a.no_sfx = [saved["take"]], not saved.get("fx_on", True)
+    if "take" not in saved: raise SystemExit("⛔ no mix.json yet: open the mixer (vs mixer), pick a take, press Save")
+    # take 0 = no music: a reel's own track, or the voice alone. (It used to read as "no mix.json yet", so a reel's
+    # Save could never be baked.)
+    a.takes, a.no_sfx = [saved["take"]] if saved["take"] else [], not saved.get("fx_on", True)
 
 R = json.load(open("reel.json"))
-T, TT, END = vslib.timeline(R)  # the build's own timing: an explainer's "secs" and a reel's "beats" alike
-C = {k: v.get("cues", {}) for k, v in R.get("scenes", {}).items()}
-END_T = T[R["segments"][-1]["name"]]  # the end card is always the last segment
+T, TT, END, C = vslib.timing()  # the build's own timing (build/timeline.json): "secs" and "beats" alike
+END_T = list(T.values())[-1]  # the end card is always the last segment
 NARRATED = os.path.exists("plan.json")
 
 
@@ -90,10 +93,13 @@ if os.path.exists("cues.py"):
     CUES = cm.cues(T, TT, C, END_T)
     TRIM.update(getattr(cm, "TRIM", {}))
 
+# every effect gets an address, sfx/<sound>@<the nearest word cue, title or cut> (vslib.name_cues) → build/mix/cues.json
+named = vslib.name_cues(CUES, T, TT, C)
+
 ref = 20 * np.log10(np.sqrt(np.mean(voice[np.abs(voice).max(1) > 0.02] ** 2)) + 1e-9)  # the voice's active loudness
 sfx = np.zeros((N, 2), np.float32)
 cache, missing = {}, set()
-for when, name, align, lvl in CUES:
+for k, (when, name, align, lvl) in enumerate(CUES):
     if name not in cache:
         p = vslib.sound_path(name)
         if not p:
@@ -109,12 +115,16 @@ for when, name, align, lvl in CUES:
         cache[name] = (x * db(-rms), int(np.argmax(env)), int(np.argmax(env > env.max() * 0.5)))
     if cache[name] is None: continue
     x, pk, att = cache[name]
-    x = x * db(ref + lvl + SFX_DB)
-    if np.abs(x).max() > db(-8): x *= db(-8) / np.abs(x).max()  # no single click jumps out of the mix
+    g = db(ref + lvl + SFX_DB)
+    if np.abs(x).max() * g > db(-8): g = db(-8) / np.abs(x).max()  # no single click jumps out of the mix
+    x = x * g
+    # what the Review page needs to play this one alone: its sound, the gain it was mixed at, how far before its time it starts
+    named[k].update(solo=name, gain_db=round(float(20 * np.log10(g)), 2), lead=round((pk if align == "peak" else att) / SR, 3))
     s = int(round(when * SR)) - (pk if align == "peak" else att)
     s0, x = max(0, s), x[max(0, -s):]
     x = x[:N - s0]
     sfx[s0:s0 + len(x)] += x
+json.dump(named, open(f"{MIX}/cues.json", "w"), indent=1)
 if missing: print(f"⚠️  not in the library, skipped: {', '.join(sorted(missing))} (vs sfx buys them; vs ingest --as sfx brings your own)")
 print(f"{len(CUES)} effects placed")
 if a.no_sfx: sfx[:] = 0
@@ -123,23 +133,27 @@ write(f"{MIX}/stem-voice.wav", voice); write(f"{MIX}/stem-fx.wav", sfx)
 
 def mux(mix, out):
     write(f"{MIX}/_master.wav", mix * db(-16 - lufs(mix)))
-    # a limiter at -2 dB (AAC overshoots a -1.5 limit to -0.6), AAC 192k onto the untouched picture
+    if os.path.islink(out):  # a linked take is replaced, never written through: the link may point at someone's final
+        os.remove(out)
+    # a limiter at -3 dB, AAC 192k onto the untouched picture: AAC overshoots the limit (-2 read -0.1 dBTP after encoding,
+    # -1.5 read -0.6); -3 reads about -1.8, under qa's -1 dBTP, and the loudness moves 0.1 LU (measured on Socrates, Oct 1)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", a.video, "-i", f"{MIX}/_master.wav", "-map", "0:v", "-map", "1:a", "-c:v", "copy",
-                    "-af", "alimiter=limit=0.8:attack=3:release=60:level=false", "-c:a", "aac", "-b:a", "192k",
+                    "-af", "alimiter=limit=0.708:attack=3:release=60:level=false", "-c:a", "aac", "-b:a", "192k",
                     "-movflags", "+faststart", "-shortest", out], check=True)
     print(out)
 
 
 base = re.sub(r"-v\d+$", "", os.path.splitext(os.path.basename(a.video))[0])
-if not a.final: mux(voice + sfx, f"out/{base}-{a.tag}-sfx.mp4")
-cfg = {"end": END, "narrated": NARRATED, "music_db": MUSIC_DB, "duck_db": DUCK_DB, "sfx_db": SFX_DB, "takes": []}
+if not a.final or (NARRATED and not saved.get("take")): mux(voice + sfx, f"out/{base}-{a.tag}-sfx.mp4")
+cfg = {"end": END, "narrated": NARRATED, "music_db": MUSIC_DB, "duck_db": DUCK_DB, "sfx_db": SFX_DB, "takes": [],
+       "video": a.video, "tag": a.tag}  # which render these stems were mixed against (the Mix panel says so if it differs)
 
 # ── the music: faint, dipping a little more under speech (slow release, so it breathes, never pumps), up ~5 dB for the
 #    end card, faded to the last frame. A reel's own track is already the bed: no takes to choose. ──
 names = vslib.read_json("music/takes.json")
 takes = []
 if NARRATED:
-    takes = a.takes or (sorted(int(f[4:-4]) for f in os.listdir("music") if re.fullmatch(r"take\d+\.mp3", f)) if os.path.isdir("music") else [])
+    takes = a.takes if a.final else a.takes or (sorted(int(f[4:-4]) for f in os.listdir("music") if re.fullmatch(r"take\d+\.mp3", f)) if os.path.isdir("music") else [])
 venv = np.sqrt(np.convolve((voice ** 2).mean(1), np.ones(2400) / 2400, "same"))
 speaking = (venv > db(-45)).astype(np.float32)
 held = np.convolve(speaking, np.ones(int(0.35 * SR)), "same") > 0
@@ -149,10 +163,15 @@ gain = db(-DUCK_DB * duck)
 gain = np.where(tt >= END_T, np.minimum(1, gain + (tt - END_T) / 0.6) * db(np.clip((tt - END_T) / 0.6, 0, 1) * 5), gain)
 gain *= np.clip(tt / 0.4, 0, 1) * np.clip((END - tt) / 1.4, 0, 1)
 spk = venv > db(-45)
+fades = np.clip(tt / 0.4, 0, 1) * np.clip((END - tt) / 1.4, 0, 1)
+raw = {}  # each take before the ducking (with its fades): the Mix panel ducks it live, from the envelope
 for n in takes:
     m = load(f"music/take{n}.mp3")
     if len(m) < N: print(f"⚠️  take{n} is {len(m) / SR:.1f}s, shorter than the video ({END:.1f}s): extend it, or pick a longer take")
-    m = fit(m) * db(-16 + MUSIC_DB - lufs(fit(m))) * gain[:, None]
+    m = fit(m) * db(-16 + MUSIC_DB - lufs(fit(m)))
+    if not a.final:
+        raw[n] = m * fades[:, None]
+    m = m * gain[:, None]
     write(f"{MIX}/stem-music{n}.wav", m)
     under = round(dbf(m[spk].mean(1)) - dbf(voice[spk].mean(1)), 1)  # what the mixer shows as "N dB under the voice"
     cfg["takes"].append({"n": n, "label": (names.get(f"take{n}") or {}).get("label", f"take {n}"), "under": under})
@@ -163,16 +182,37 @@ if a.final:
     print(f"final: take {saved['take']}, music {MUSIC_DB:g}, effects {SFX_DB:+g} dB" + ("" if saved.get("fx_on", True) else " (off)"))
     raise SystemExit
 
-# ── the mixer page: every stem, compressed, plus the picture, the settings, and the page itself (vs mixer serves it) ──
+# ── the Mix panel's data: every stem, compressed, the picture, and the settings (vs mixer opens Review Studio on it) ──
 os.makedirs(f"{MIXER}/media", exist_ok=True)
-for s in ["voice", "fx"] + [f"music{n}" for n in takes]:
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", f"{MIX}/stem-{s}.wav", "-ar", "44100", "-c:a", "aac", "-b:a", "160k", f"{MIXER}/media/{s}.m4a"], check=True)
+aac = lambda src, out: subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-ar", "44100", "-c:a", "aac", "-b:a", "160k", out], check=True)
+for s in ["voice", "fx"]:
+    aac(f"{MIX}/stem-{s}.wav", f"{MIXER}/media/{s}.m4a")
+for n, m in raw.items():  # the music before the ducking: the panel applies it live (the duck envelope below)
+    write(f"{MIX}/_raw.wav", m)
+    aac(f"{MIX}/_raw.wav", f"{MIXER}/media/music{n}.m4a")
+if takes:  # 100 a second is plenty: the envelope is smoothed over half a second
+    json.dump({"rate": 100, "end_t": END_T, "end": END, "db": DUCK_DB,
+               "env": [round(float(v), 4) for v in duck[::SR // 100]]}, open(f"{MIXER}/media/duck.json", "w"))
+    cfg["duck"] = "duck.json"
+# every effect once, alone, at a fixed level (the cue carries the gain it was mixed at): a click on the timeline plays it
+os.makedirs(f"{MIXER}/media/sfx", exist_ok=True)
+solo = {}
+for c in named:
+    if c.get("solo") and c["solo"] not in solo and cache.get(c["solo"]):
+        f = f"sfx/{len(solo) + 1}.m4a"
+        write(f"{MIX}/_solo.wav", cache[c["solo"]][0] * db(-24))  # normalized to 0 dB RMS, so -24 keeps peaks clear
+        aac(f"{MIX}/_solo.wav", f"{MIXER}/media/{f}")
+        solo[c["solo"]] = f
+for c in named:
+    if c.get("solo") in solo:
+        c.update(file=solo[c["solo"]], gain_db=round(c["gain_db"] + 24, 2))
+json.dump(named, open(f"{MIX}/cues.json", "w"), indent=1)
 vid = f"{MIXER}/media/video.mp4"
 if os.path.lexists(vid): os.remove(vid)
 os.symlink(os.path.relpath(os.path.abspath(a.video), f"{MIXER}/media"), vid)
-shutil.copy(os.path.join(vslib.ENGINE, "mixer/index.html"), f"{MIXER}/index.html")
-fonts = os.path.join(vslib.studio_root() or ".", "library/brand/fonts")
-if os.path.isdir(fonts):  # the page's own type, if the studio has it (else the system's)
-    shutil.copytree(fonts, f"{MIXER}/fonts", dirs_exist_ok=True)
 json.dump(cfg, open(f"{MIXER}/config.json", "w"), indent=1)
-print(f"mixer: {MIXER}/index.html  (vs mixer serves it; Save writes mix.json, then: vs mix --video {a.video} --tag {a.tag} --final)")
+vbase = re.match(r"(.*-v\d+)", os.path.splitext(a.video)[0])
+if vbase and os.path.exists(f"{MIX}/cues.json"):  # the version keeps the cues it was mixed with (its timeline's Sound row)
+    os.makedirs(f"{vbase.group(1)}.review", exist_ok=True)
+    shutil.copy(f"{MIX}/cues.json", f"{vbase.group(1)}.review/cues.json")
+print(f"mixer: vs mixer opens the Mix panel (Save writes mix.json, then: vs mix --video {a.video} --tag {a.tag} --final)")

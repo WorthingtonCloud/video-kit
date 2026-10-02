@@ -1,0 +1,16 @@
+{
+ "scar": "explainer · Plan · a word spec that matched an EARLIER word ends a title before it starts (\"One\" hit \"In one big trial\"; the title never left the screen)",
+ "make": {
+  "voice/bed.wav": "tone:12"
+ },
+ "steps": [
+  {
+   "run": "check",
+   "fails_with": "a word that matched too early"
+  },
+  {
+   "run": "plan",
+   "fails_with": "check the word specs"
+  }
+ ]
+}

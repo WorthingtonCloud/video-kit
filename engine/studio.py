@@ -2,14 +2,10 @@
 """vs: the one command. It finds the engine (here), the studio (what you keep) and the project (this video), then runs
 the step. Each skill folder has a `vs` launcher that lands here, wherever the kit is installed.
 
-  vs setup [--studio PATH] [--default]   make the studio, install the engine once, fetch the profile's fonts, check it all
-  vs new <slug> --kind explainer|reel     a new video in studio/projects/<slug>, from the templates and your profile
-  vs where                        the kit, the studio, this project, and what the profile has settled
-  vs spent [--all]                what this video (or every video) has cost, from the studio's ledger
+  vs help                         every step, by what it's for (paid ones say so)
+  vs help <step>                  that step's own notes: what it does, its options, its scars
+  vs help --md                    the command reference, as Markdown
   vs [-p <slug>] <step> …         run a step in a project (default: the folder you're in)
-
-Steps: plan narrate check-take voicebed listen pitch voices · build audit snap crops qa record collage beats gen
-       music sfx mix mixer · ingest learn · fonts doctor compare
 """
 import json, os, shutil, subprocess, sys
 
@@ -18,13 +14,117 @@ KIT = os.path.dirname(ENGINE)
 sys.path.insert(0, os.path.join(ENGINE, "py"))
 import vslib  # noqa: E402
 
-NODE = {"build": "js/pipeline/index.mjs", "audit": "js/audit.mjs", "snap": "js/snap.mjs", "record": "js/record.mjs",
-        "collage": "js/collage.mjs", "doctor": "js/doctor.mjs", "fonts": "js/fonts.mjs"}
-PY = {"plan": "plan.py", "narrate": "narrate.py", "check-take": "check_take.py", "voicebed": "voicebed.py", "listen": "listen.py",
-      "pitch": "pitch.py", "voices": "voices.py", "music": "music.py", "sfx": "sfx.py", "gen": "gen.py", "mix": "mix.py",
-      "beats": "beats.py", "qa": "qa.py", "crops": "crops.py", "ingest": "ingest.py", "learn": "learn.py", "mixer": "serve.py",
-      "compare": "compare.py"}
-ANYWHERE = {"doctor", "fonts", "voices", "compare", "spent"}  # steps that don't need a project
+# Every step, once: name · runs (self: in studio.py) · script · needs a project · paid (who bills it) · group · what
+COMMANDS = [
+    ("setup", "self", None, False, None, "setup", "make the studio, install the engine, fetch the fonts, check it all"),
+    ("new", "self", None, False, None, "setup", "a new video: new <slug> --kind explainer|reel"),
+    ("where", "self", None, False, None, "setup", "the kit, the studio, this project, what's settled"),
+    ("doctor", "node", "js/doctor.mjs", False, None, "setup", "is everything installed and set up"),
+    ("fonts", "node", "js/fonts.mjs", False, None, "setup", "download a Google Font into the studio once"),
+    ("spent", "self", None, False, None, "setup", "what this video (--all: every video) has cost"),
+    ("check", "node", "js/check.mjs", True, None, "checks", "the files against their contracts"),
+    ("migrate", "node", "js/migrate.mjs", True, None, "checks", "mark older files as schema_version 2"),
+    ("inspect", "node", "js/inspect.mjs", True, None, "checks", "map every element; find words and pictures fighting"),
+    ("qa", "py", "qa.py", True, None, "checks", "a rendered cut: sheets, safe zone, cuts, sound"),
+    ("crops", "py", "crops.py", True, None, "checks", "close-ups of inspect's findings"),
+    ("compare", "py", "compare.py", False, None, "checks", "did a change move any pixels (two folders of stills)"),
+    ("test", "self", None, False, None, "checks", "the kit's own tests (--fast skips the browser)"),
+    ("voices", "py", "voices.py", False, None, "voice", "audition narrators from free preview clips"),
+    ("narrate", "py", "narrate.py", True, "elevenlabs", "voice", "read narration.txt with word timings"),
+    ("check-take", "py", "check_take.py", True, "openai", "voice", "transcribe a take, list words that differ"),
+    ("listen", "py", "listen.py", True, None, "voice", "a listening page for the takes"),
+    ("pitch", "py", "pitch.py", True, None, "voice", "is a take monotone"),
+    ("fit", "py", "fit.py", True, None, "voice", "fit a take to a length: shorter pauses, then faster"),
+    ("voicebed", "py", "voicebed.py", True, None, "voice", "the voice bed + word timings"),
+    ("plan", "py", "plan.py", True, None, "picture", "plan.json + words → reel.json (--wide)"),
+    ("build", "node", "js/pipeline/index.mjs", True, None, "picture", "reel.json → composition → render"),
+    ("snap", "node", "js/snap.mjs", True, None, "picture", "stills at any moment, no render"),
+    ("record", "node", "js/record.mjs", True, None, "picture", "record a real page as scroll frames"),
+    ("collage", "node", "js/collage.mjs", True, None, "picture", "the collage wall's tiles"),
+    ("gen", "py", "gen.py", True, "kie.ai, higgsfield", "picture", "generated music, stills and clips"),
+    ("beats", "py", "beats.py", True, None, "sound", "a track's beat grid and first big hit"),
+    ("music", "py", "music.py", True, "kie.ai", "sound", "music beds for an explainer"),
+    ("sfx", "py", "sfx.py", True, "elevenlabs", "sound", "buy sounds the library lacks"),
+    ("mix", "py", "mix.py", True, None, "sound", "voice + music + effects onto the picture"),
+    ("mixer", "py", "serve.py", True, None, "sound", "Review Studio's Mix panel: take, levels, ducking, Save"),
+    ("review", "py", "review.py", True, None, "review", "Review Studio: point at the video, say what's wrong; rounds, choices, rules"),
+    ("ingest", "py", "ingest.py", True, "openai (own narration)", "studio", "bring your own media"),
+    ("learn", "py", "learn.py", True, None, "studio", "after approval: keep what was decided"),
+]
+ALIASES = {"audit": "inspect"}  # the old name for vs inspect
+SELF_HELP = {  # the steps studio.py runs itself
+    "setup": ("vs setup [--studio PATH] [--default]\n"
+              "  Makes the studio (default ~/video-studio, remembered in ~/.config/video-studio), installs the\n"
+              "  engine's packages and a Python with numpy once, fetches the profile's fonts, and runs vs doctor."),
+    "new": ("vs new <slug> --kind explainer|reel\n"
+            "  A new video in studio/projects/<slug>, from the templates. The studio's profile fills in the look,\n"
+            "  the narrator and the levels; anything the project's plan.json or reel.json sets overrides it."),
+    "where": ("vs where\n"
+              "  The kit, the studio, this project, and what the profile has settled (brand, narrator, mix, videos)."),
+    "spent": "vs spent [--all]\n  What this video (or every video) has cost, per vendor, from the studio's ledger.csv.",
+    "test": ("vs test [--fast] [pytest or node --test arguments…]\n"
+             "  The kit's own tests (tests/): unit, contract (the same cases in Python and JavaScript), regression and\n"
+             "  integration (fixtures built and inspected in a browser; --fast skips those). Nothing paid can run:\n"
+             "  VIDEO_KIT_NO_SPEND is set. Python's tests need pytest; the first run installs it into the engine's Python."),
+}
+GROUPS = ["setup", "checks", "voice", "picture", "sound", "review", "studio"]
+CMD = {c[0]: c for c in COMMANDS}
+NODE = {n: sc for n, r, sc, *_ in COMMANDS if r == "node"}
+PY = {n: os.path.basename(sc) for n, r, sc, *_ in COMMANDS if r == "py"}
+ANYWHERE = {n for n, r, sc, proj, *_ in COMMANDS if not proj and r != "self"} | {"spent"}
+
+
+def header(name):
+    """A step's own notes: the Python docstring or the JavaScript file's leading // comments."""
+    n, runs, script, *_ = CMD[name]
+    if runs == "self":
+        return SELF_HELP[name]
+    path = os.path.join(ENGINE, script if runs == "node" else os.path.join("py", script))
+    src = open(path).read()
+    if runs == "py":
+        import ast
+        return ast.get_docstring(ast.parse(src)) or ""
+    lines = [l for l in src.splitlines() if not l.startswith("#!")]
+    out = []
+    for l in lines:
+        if not l.startswith("//"):
+            break
+        out.append(l[3:] if l.startswith("// ") else l[2:])
+    return "\n".join(out)
+
+
+def help_cmd(args):
+    if args and args[0] == "--md":
+        print("# vs: the command reference\n\nEvery step is `<skill>/vs <step>`; `vs -p <slug> <step>` runs it in a studio "
+              "project from anywhere. Paid steps print the cost and stop until you add `--yes`.\n")
+        for g in GROUPS:
+            print(f"## {g}\n")
+            for n, runs, script, proj, paid, grp, what in COMMANDS:
+                if grp != g:
+                    continue
+                al = [a for a, t in ALIASES.items() if t == n]
+                print(f"### vs {n}" + (f" (also: vs {', vs '.join(al)})" if al else "") + "\n")
+                print(f"{what}." + (f" **Paid:** {paid}." if paid else "") + ("" if proj else " Runs anywhere.") + "\n")
+                print("```\n" + header(n).strip() + "\n```\n")
+        return
+    if args:
+        n = ALIASES.get(args[0], args[0])
+        if n not in CMD:
+            sys.exit(f"⛔ no step {args[0]!r}: vs help lists them")
+        _, runs, script, proj, paid, grp, what = CMD[n]
+        print(f"vs {n}: {what}")
+        print(f"  {'paid: ' + paid + ' (prints the cost and stops until --yes)' if paid else 'free'} · "
+              f"{'runs in a project folder (or vs -p <slug>)' if proj else 'runs anywhere'}"
+              + (f" · {script if runs == 'node' else 'py/' + script}" if script else ""))
+        print("\n" + header(n).strip())
+        return
+    print(__doc__)
+    for g in GROUPS:
+        print(f"{g}:")
+        for n, runs, script, proj, paid, grp, what in COMMANDS:
+            if grp == g:
+                print(f"  {n:11s} {what}" + (f"   [paid: {paid}]" if paid else ""))
+    print("\nvs help <step> for its own notes.")
 
 
 def python():
@@ -69,8 +169,10 @@ def setup(args):
     elif vslib.read_json(cfg).get("studio") != studio:
         print(f"  (the default studio stays {vslib.read_json(cfg).get('studio')}; --default makes this one the default)")
     os.environ["VIDEO_STUDIO"] = studio
-    if not os.path.exists(os.path.join(ENGINE, "node_modules/.bin/hyperframes")):
-        print("  installing the engine's packages once (HyperFrames renders, GSAP animates, puppeteer brings a Chrome): about 190 MB")
+    want = json.load(open(os.path.join(ENGINE, "package.json"))).get("dependencies", {})
+    if not all(os.path.exists(os.path.join(ENGINE, "node_modules", p, "package.json")) for p in want):
+        print("  installing the engine's packages (HyperFrames renders, GSAP animates, puppeteer brings a Chrome, ajv checks the"
+              " files): about 190 MB the first time")
         subprocess.run(["npm", "install", "--no-fund", "--no-audit"], cwd=ENGINE, check=True)
     try:
         python()
@@ -122,22 +224,46 @@ def spent(args):
     print(f"({vslib.ledger_path()})" if rows else "nothing logged")
 
 
+def run_tests(args):
+    """Node's built-in runner for the .test.mjs files, pytest for the Python ones; both with nothing paid allowed."""
+    import glob
+    tests, fast = os.path.join(KIT, "tests"), "--fast" in args
+    args = [a for a in args if a != "--fast"]
+    env = {**os.environ, "VIDEO_KIT_NO_SPEND": "1"}
+    py = python()
+    if subprocess.run([py, "-c", "import pytest"], capture_output=True).returncode:
+        print("installing pytest into the engine's Python (for the kit's own tests only)")
+        subprocess.run([py, "-m", "pip", "install", "-q", "pytest"], check=True)
+    mjs = sorted(glob.glob(os.path.join(tests, "**", "*.test.mjs"), recursive=True))
+    js = subprocess.run(["node", "--test", "--test-reporter=dot", *mjs], env=env).returncode if mjs else 0
+    pyt = subprocess.run([py, "-m", "pytest", "-q", "-p", "no:cacheprovider", tests, *(["-m", "not slow"] if fast else []), *args], env=env).returncode
+    print("✓ all passed" if not (js or pyt) else f"⛔ failed: {'JavaScript ' if js else ''}{'Python' if pyt else ''}")
+    sys.exit(js or pyt)
+
+
 def main():
     a = sys.argv[1:]
     proj = None
     if a[:1] in (["-p"], ["--project"]): proj, a = a[1], a[2:]
-    if not a or a[0] in ("-h", "--help", "help"): sys.exit(__doc__)
-    cmd, rest = a[0], a[1:]
+    if not a or a[0] in ("-h", "--help", "help"): return help_cmd(a[1:])
+    cmd, rest = ALIASES.get(a[0], a[0]), a[1:]
     if cmd == "setup": return setup(rest)
     if cmd == "new": return new(rest)
     if cmd == "where": return where()
-    if cmd not in NODE and cmd not in PY and cmd != "spent": sys.exit(f"⛔ unknown step {cmd!r}\n{__doc__}")
+    if cmd == "test": return run_tests(rest)
+    if cmd not in CMD: sys.exit(f"⛔ unknown step {a[0]!r}{near(a[0])}: vs help lists them")
     d = project_dir(proj)
     if not d and cmd not in ANYWHERE: sys.exit("⛔ not in a project folder: cd into one, or vs -p <slug> " + cmd)
     if d: os.chdir(d)
     if cmd == "spent": return spent(rest)
     run = ["node", os.path.join(ENGINE, NODE[cmd])] if cmd in NODE else [python(), os.path.join(ENGINE, "py", PY[cmd])]
     os.execvp(run[0], run + rest)
+
+
+def near(x):
+    import difflib
+    m = difflib.get_close_matches(x, list(CMD) + list(ALIASES), n=1)
+    return f" (did you mean {m[0]!r}?)" if m else ""
 
 
 if __name__ == "__main__":

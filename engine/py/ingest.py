@@ -153,16 +153,16 @@ def voice(p, name, note):
     """Your own narration: the voice is still the clock, so it needs word timings, split into the script's acts."""
     secs = probe(p)["secs"]
     cost = round(secs / 60 * 0.006, 3)
-    if not a.yes:
-        sys.exit(f"Word timings for {secs:.0f}s of narration: OpenAI whisper-1, about ${cost:.3f}. Re-run with --yes once the human says yes.")
+    vslib.gate("openai", f"Word timings for {secs:.0f}s of narration (whisper-1)", usd=cost, yes=a.yes)
     os.makedirs("voice", exist_ok=True)
     mp3 = f"voice/narration-{name}.mp3"
     sh("ffmpeg", "-v", "error", "-y", "-i", p, "-vn", "-ar", "44100", "-c:a", "libmp3lame", "-b:a", "192k", mp3)
     key = vslib.key("OPENAI_API_KEY")
+    row = vslib.log("openai", f"voice timings {name}", usd=cost, note="whisper-1 word timestamps")
     raw = sh("curl", "-s", "https://api.openai.com/v1/audio/transcriptions", "-H", f"Authorization: Bearer {key}", "-F", f"file=@{mp3}",
              "-F", "model=whisper-1", "-F", "response_format=verbose_json", "-F", "timestamp_granularities[]=word")
-    vslib.log("openai", f"voice timings {name}", usd=cost, note="whisper-1 word timestamps")
-    heard = json.loads(raw).get("words") or sys.exit(f"no word timings came back: {raw[:300]}")
+    heard = json.loads(raw).get("words") or (vslib.failed(row), sys.exit(f"no word timings came back: {raw[:300]}"))
+    vslib.done(row)
     # acts: match the heard words to narration.txt (one paragraph per act); without a script, it's all act 1
     acts = [" ".join(l for l in b.splitlines() if l.strip() and not l.startswith("#")) for b in open("narration.txt").read().split("\n\n")] if os.path.exists("narration.txt") else []
     acts = [x for x in acts if x]

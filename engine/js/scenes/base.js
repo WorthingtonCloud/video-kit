@@ -2,6 +2,8 @@
 // scenes/base.js, icons.js, props.js, then the studio's own library scenes, then the project's scenes.js, then layout.js,
 // into the renderer at /*__EXTRA_SCENES__*/, so everything shares the renderer's helpers: tl, ticks, svg, div, tw3, punch,
 // easeOut, easeInOut, clamp, IR, TP, mulberry32, P (the palette), and W, H, LAND (true on a widescreen cut).
+// Names: div(cls, parent, html, style, name), svg(tag, attrs, parent, name), exName(el, name), and the ex* helpers' last
+// argument name what a reviewer will point at ("tier-episodic-label"); the rest gets a derived name (js/reel/55-names.js).
 // The voice is the clock: every cue in R.scenes.<scene>.cues is the absolute time of a word the narrator says (plan.py).
 // Look: flat diagrams (3px rules, near-square panels, mono kickers, one accent color) lit like a dark room: one soft
 // spotlight, dust in the light. Motion carries the meaning; words live in the title zone (below the picture on a vertical
@@ -119,8 +121,8 @@ function exPath(keys, ease = easeInOut) {
   };
 }
 // the accent point, with its glow: the video's motif (in the demo it's the AI, wherever it goes)
-function exPoint(parent, r = 20) {
-  const g = div("", parent, "", "position:absolute;left:0;top:0;width:0;height:0");
+function exPoint(parent, r = 20, name = "") {
+  const g = div("", parent, "", "position:absolute;left:0;top:0;width:0;height:0", name);
   div("ex-glow", g, "", `left:${-r * 4}px;top:${-r * 4}px;width:${r * 8}px;height:${r * 8}px`);
   div(
     "",
@@ -134,11 +136,12 @@ const exAt = (el, x, y, s = 1) => {
   el.style.transform = `translate(${x.toFixed(1)}px,${y.toFixed(1)}px) scale(${s.toFixed(3)})`;
 };
 // a ring that grows and fades from a point in the scene (scene space, so it moves with the camera)
-function exRing(parent, t0, x, y, r1 = 160, dur = 0.7, col = P.accent) {
+function exRing(parent, t0, x, y, r1 = 160, dur = 0.7, col = P.accent, name = "") {
   const s = svg(
     "svg",
     { width: 1, height: 1, style: `position:absolute;left:${x}px;top:${y}px;overflow:visible` },
     parent,
+    name,
   );
   const c = svg("circle", { cx: 0, cy: 0, r: 1, fill: "none", stroke: col, "stroke-width": 5, opacity: 0 }, s);
   ticks.push((t) => {
@@ -152,7 +155,7 @@ function exRing(parent, t0, x, y, r1 = 160, dur = 0.7, col = P.accent) {
   });
 }
 
-// ── Overlap rules (a reviewer, Sep 30, 2026: "a graphic moves over top of text and you can't see it"). audit.mjs enforces them.
+// ── Overlap rules (a reviewer, Sep 30, 2026: "a graphic moves over top of text and you can't see it"). vs inspect enforces them.
 //   · Every tag, chip and label box is SOLID (no rgba backgrounds): a line or a notes page must never show through words.
 //   · A bar or a moving thing stops BESIDE its number or label, never under or over it (the email bar ran under "10.28 h").
 //   · A mover docks on the card's inner corner, not its center (the courier parked on "OTHER TEAM").

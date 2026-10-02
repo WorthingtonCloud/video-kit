@@ -5,26 +5,26 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { launch, loadReel } from "./lib/browser.mjs";
-import { COMP, QA } from "./lib/paths.mjs";
+import { launch } from "./lib/browser.mjs";
+import { COMP, QA, readTimeline } from "./lib/paths.mjs";
 
 const args = process.argv.slice(2),
   opt = (k) => (args.includes(k) ? args.splice(args.indexOf(k), 2)[1] : null);
 const every = opt("--every"),
   out = opt("--out") || `${QA}/snap`;
-const R = loadReel(),
-  [W, H] = R.size;
+const TL = readTimeline(), // the build's timing and size: the composition's own, whatever reel.json says now
+  [W, H] = TL.size;
 const b = await launch(),
   p = await b.newPage();
 await p.setViewport({ width: W, height: H, deviceScaleFactor: 1 });
 await p.goto(pathToFileURL(path.resolve(COMP, "index.html")).href, { waitUntil: "load" });
 await p.evaluate(async () => {
-  await document.fonts.ready;
+  await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 10000))]); // never forever (a rare stall)
   return true;
 });
 let times = args.map(Number);
 if (every) {
-  const end = await p.evaluate(() => window.REEL.end);
+  const end = TL.end;
   times = [];
   for (let t = +every / 2; t < end; t += +every) times.push(+t.toFixed(3));
 }

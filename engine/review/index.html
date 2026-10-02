@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review Studio</title>
+<link rel="icon" href="icon.svg">
+<link rel="stylesheet" href="fonts/Archivo.css">
+<link rel="stylesheet" href="fonts/JetBrainsMono.css">
+<link rel="stylesheet" href="review.css">
+</head>
+<body>
+<header class="top" id="top">
+  <button class="where" id="crumbs" aria-expanded="false" title="Where you are. Click for every step so far.">
+    <span class="proj" id="proj">…</span><span class="stages" id="stages"></span><span class="caret">▾</span>
+  </button>
+  <ol class="loop" id="loop" aria-label="This round's loop"></ol>
+  <div class="top-r">
+    <button class="donebtn" id="donebtn" hidden title="The finals: download them, or send more feedback">✓ Done · the files</button>
+    <button class="quiet" id="friction" title="A problem with this tool, not with the video: it goes to the tool's test log"><span class="long">Report a tool problem</span><span class="short">Tool problem</span></button>
+    <button class="roundbtn" id="roundbtn" aria-expanded="false">This round <b id="todo"></b></button>
+  </div>
+  <div class="plog" id="plog" hidden></div>
+  <div class="friction-box" id="friction-box" hidden>
+    <div class="k">What got in your way?</div>
+    <textarea rows="3" placeholder="A problem with this tool, not with the video."></textarea>
+    <p>It goes to the tool's test log (DOGFOOD.md), not to Claude's fix list for the video.</p>
+    <div class="row"><button data-f="cancel">Cancel</button><button class="primary" data-f="send">Report it ⏎</button></div>
+  </div>
+</header>
+<main class="main" id="main">
+  <section class="player" id="player">
+    <div class="stage" id="stage">
+      <video id="video" playsinline preload="auto"></video>
+      <svg class="overlay" id="overlay" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <span class="tag" id="tag" hidden></span>
+      <div class="banner" id="banner" hidden></div>
+      <button class="fsbtn" id="fs" title="Full screen (F)">⛶ Full screen</button>
+    </div>
+    <iframe class="listen" id="listen" title="The narration, to listen to" hidden></iframe>
+    <p class="notice" id="notice" hidden></p>
+    <button class="drawer-tab" id="dtab">This round <b id="dtabn"></b></button>
+  </section>
+  <aside class="drawer" id="drawer" hidden>
+    <div class="dhead">
+      <div><div class="k" id="dsub"></div><h2>This round</h2></div>
+      <button class="x" id="dclose" title="Fold away">×</button>
+    </div>
+    <div class="dbody" id="dbody">
+      <section class="dsec" id="sec-fixes" hidden><div class="k">Check Claude's fixes <em></em></div><div id="tab-rounds"></div></section>
+      <section class="dsec" id="sec-asks" hidden><div class="k">Claude asks you <em></em></div><div id="asks-q"></div><div id="tab-decide"></div><div id="asks-f"></div><div id="asks-l"></div></section>
+      <section class="dsec" id="sec-notes"><div class="k">Your notes <em></em></div><div id="tab-notes"></div></section>
+      <section class="dsec" id="sec-mix" hidden>
+        <button class="dsec-h" id="mix-h" aria-expanded="false"><span class="k">Mix</span><span class="sub">music, voice, effects: hear it and set it</span><i>▸</i></button>
+        <div id="tab-mix" hidden></div>
+      </section>
+      <section class="dsec" id="sec-verdict"><div class="k">Your verdict</div><div id="verdict-scene"></div><div id="verdict-approve"></div></section>
+    </div>
+    <div class="dfoot"><button class="send primary" id="send" disabled>Review &amp; send</button><p id="sendp"></p></div>
+  </aside>
+</main>
+<footer class="bottom" id="bottom">
+  <div class="transport" id="transport">
+    <button id="t-play" class="play" title="Play or pause (space)">▶</button>
+    <button id="t-back" class="fr" title="One frame back ( ← )">‹</button>
+    <button id="t-fwd" class="fr" title="One frame on ( → )">›</button>
+    <span class="clock"><b id="t-now">00:00.00</b> / <span id="t-end">00:00.00</span></span>
+    <div class="scrub" id="scrub" title="The whole video: drag to move · amber = a check · red = a note"><div class="segs" id="scrub-segs"></div><div class="played" id="scrub-played"></div><div class="marks" id="scrub-marks"></div><div class="ph" id="scrub-ph"></div><div class="tipx" id="scrub-tip" hidden></div></div>
+    <span class="speeds" id="t-speeds"><button data-r="0.25">¼×</button><button data-r="0.5">½×</button><button data-r="1" class="on">1×</button><button data-r="2">2×</button></span>
+    <button class="tltog" id="tl-toggle" aria-expanded="false" title="The timeline: every scene, word, title, sound and note">▴ Timeline</button>
+  </div>
+  <div class="cx" id="c-extra" hidden></div>
+  <div class="notebar" id="notebar">
+    <span class="chip" id="c-chip" hidden></span>
+    <span class="cbox"><textarea id="c-text" rows="1" placeholder="Leave a note at 00:00.00 · click the picture to point at something"></textarea></span>
+    <span class="drawmenu"><button id="drawbtn" aria-haspopup="true" title="Draw on the picture (V A K)">Draw ▾</button>
+      <div class="menu" id="tools" hidden>
+        <button data-tool="point">Point <small>Click a thing, or drag a box (V)</small></button>
+        <button data-tool="arrow">Arrow <small>Drag from this to there (A)</small></button>
+        <button data-tool="keep-clear">Keep clear <small>Drag a zone nothing should cover (K)</small></button>
+        <button id="tool-clear">Let go <small>The marks and the range (Esc)</small></button>
+      </div></span>
+    <button class="primary" id="c-add">Add note</button>
+  </div>
+  <section class="tl" id="tl" aria-label="Timeline (read-only)" hidden>
+    <div class="tl-head">
+      <div class="mini" id="tl-mini" title="The whole video; the box is what the rows show. Click to go there."><i id="tl-win"></i><i class="ph" id="tl-mini-ph"></i></div>
+      <span class="zoom" id="tl-zoom"><button data-z="0">all</button><button data-z="60">60 s</button><button data-z="20" class="on">20 s</button><button data-z="6">6 s</button></span>
+    </div>
+    <div class="tl-rows" id="tl-rows"></div>
+    <div class="keys">space play · ← → a frame (shift: a second) · [ ] scene · n note · shift-N next note · I O range · V A K draw · F full screen · ⌘Z undo · esc let go</div>
+  </section>
+</footer>
+<div class="sheet" id="review-sheet" hidden><div class="scard" role="dialog" aria-labelledby="rv-h">
+  <div class="k" id="rv-k"></div>
+  <h2 id="rv-h">Your feedback, before it goes to Claude</h2>
+  <p>Everything you did this round, in order. Undo anything you don't want, or change a note's words. Nothing has gone to Claude yet.</p>
+  <ol class="flog" id="rv-list"></ol>
+  <div class="sfoot"><button id="rv-back">Keep going</button><button class="primary" id="rv-send">Approve &amp; send to Claude</button></div>
+</div></div>
+<div class="sheet" id="sent-sheet" hidden><div class="scard" role="dialog" aria-labelledby="st-h">
+  <div class="loopmini" id="st-loop"></div>
+  <h2 id="st-h">Sent. Now tell Claude in chat.</h2>
+  <div id="st-tell"><p>Type this in the chat, so Claude knows to look:</p>
+  <div class="say"><code id="st-word">sent</code><button id="st-copy">Copy</button></div></div>
+  <p id="st-sum"></p>
+  <div class="turn" id="st-turn"><span class="pulse"></span><span id="st-turn-t">Waiting for Claude to read it.</span></div>
+  <div class="sfoot"><span class="hint">Anything you add now waits for its own send.</span><button class="primary" id="st-ok">Back to the video</button></div>
+</div></div>
+<div class="sheet" id="finish-sheet" hidden><div class="scard" role="dialog" aria-labelledby="fn-h">
+  <div class="k">Finished</div>
+  <h2 id="fn-h">It's done. Here are the files.</h2>
+  <ul class="fn-files" id="fn-files"></ul>
+  <p>Want to change something? Pick the part, leave a note on the video, and send it: Claude picks it up.</p>
+  <div class="fn-parts" id="fn-parts"></div>
+  <div class="sfoot"><span class="hint" id="fn-when"></span><button class="primary" id="fn-ok">Close</button></div>
+</div></div>
+<div class="tip" id="tip" role="tooltip"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-t"></span><button id="toast-u" hidden>Undo</button></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

@@ -1,20 +1,19 @@
-https://github.com/user-attachments/assets/b84c457f-77d5-42dc-b18d-0e28270cb8e3
+https://github.com/user-attachments/assets/5cdd32b8-3436-4891-95ef-4c7ddf0e8629
 
 <p align="center">
-  2 minutes 56 seconds, sound on. The 58-second reel further down came from the same kit.
+  58 seconds, sound on. This reel was made by the kit, about the kit.
 </p>
 
 # video-kit
 
 **Two skills that let your AI agent make videos by itself**: a narrated explainer (2–3 minutes) and a promo reel (30–60
 seconds). The agent writes it, voices it, draws every scene in code, checks its own frames, and mixes the sound. You
-bring the source and your notes. You never open a video editor.
+watch it in a review page, point at what's wrong, and send. You never open a video editor.
 
-The video above was made this way, for [The Lab](https://lab.worthington.cloud), from one of its notes. An agent pulled
-the ideas and the evidence out of the note, wrote the narration, recorded the narrator, drew every scene, and
-started each move on the word it illustrates. It checked the whole timeline for words and pictures fighting, then laid
-a faint music bed and small sound effects under the voice. The levels were set by ear in a mixer page. The widescreen
-cut is the same plan with one flag.
+The reel above was made this way. One request, music reused from an earlier reel, every scene drawn in code, and the
+Review Studio filmed live from a real round. Its reviewer sent one note ("the red dot over the text makes it hard to
+read"); the agent traced it to the kit itself, fixed it there for every future reel, and the next version was
+approved with no notes. Nothing in it was paid for.
 
 ## Install it
 
@@ -53,6 +52,31 @@ music (12 credits for two takes) and the reel's mood stills; a [Higgsfield](http
 video clips. Or bring your own voice, music, footage and pictures. Every paid step prints its cost and waits for a yes,
 and every call is logged. Drawing, rendering, the checks and the mix cost nothing.
 
+## The Review Studio
+
+Every version opens in a review page on your own machine (`vs review`). Play it, pause anywhere, and click the picture:
+the page names the exact thing under your cursor (that title, that chart, the third row of that table), so "hold this
+a beat longer" lands on the right element at the right frame. Draw an arrow or a keep-clear box when words aren't
+enough.
+
+- **The agent's checks are there too**, each with its advice in plain words and two buttons: leave it, or fix it.
+  Answer once and the answer carries to every later version.
+- **Nothing reaches the agent until you approve and send.** If it's watching (`vs review wait`), it starts on its own.
+  There's nothing to type in chat.
+- **The next version comes back measured:** what moved and by how much, and a flag when your note's target didn't
+  change at all.
+- **Choices come as options you play side by side** (two versions of a scene, two music takes), and the Mix panel
+  sets the levels by ear.
+- **When you approve, the page says Done** and hands you the files.
+
+## It checks its own work
+
+Before you see anything, `vs inspect` maps every element on screen at every moment and looks for the notes a reviewer
+would otherwise have to give: words under a picture, two things to read at once, words that go by too fast, anything
+a phone's status bar, buttons or side crop will cover, a word parked half off the frame, dead air. Nothing renders
+until it finds no errors. After the render, `vs qa` checks the cut itself: flashes, blacks that don't match, black
+holes at the cuts, loudness and peaks, too many sound effects at once.
+
 ## The studio learns
 
 The kit is read-only. Your studio is the folder that grows:
@@ -70,6 +94,10 @@ Your second video asks fewer questions than your first.
 
 ## How an explainer gets made
 
+https://github.com/user-attachments/assets/b84c457f-77d5-42dc-b18d-0e28270cb8e3
+
+A 2:56 explainer made with the kit, for [The Lab](https://lab.worthington.cloud), from one of its notes.
+
 1. **The arc first, as acts:** one idea per act, its evidence and source, and the picture. It explains the ideas, never
    the article: the narrator never says "the author".
 2. **The narration, then the voice.** Stage directions steer the read. Every take is transcribed back to catch a changed
@@ -78,9 +106,7 @@ Your second video asks fewer questions than your first.
    second. Change a line, record only that act again, and the whole video re-times itself.
 4. **Every scene is drawn in code:** literal diagrams of the real thing, one accent color, numbers on screen with their
    source beside them.
-5. **It checks its own frames before you see them.** An audit scrubs the whole timeline for a shape over words, a line
-   through a number, a label hanging off its card, or words where a phone's buttons will cover them. Then stills, every
-   transition, the black levels.
+5. **It checks its own frames before you see them** (see above), then you review it in the Review Studio.
 6. **The sound comes last, without re-rendering.** Music takes, effects pinned to the same words, and a mixer page
    where you switch takes and set the levels live. Press Save and the final is mixed at your levels.
 7. **The other shape is one flag:** `vs plan --wide`, and the approved sound drops straight on.
@@ -92,7 +118,8 @@ https://github.com/user-attachments/assets/124a13f2-d305-40eb-8b2b-6fa91ce82586
 A short grill (what the reel is for, where it posts, what a viewer should get), then the story in a few beats. The
 music comes first and its beat grid sets every cut. Scenes are drawn in code, real web pages are recorded scrolling,
 your own footage and screenshots drop in, and a few paid mood shots fill what code can't draw. Titles stay up long
-enough to read. The agent watches its own render frame by frame, exports a cover, and makes the widescreen cut.
+enough to read. The agent checks its own render, you review it in the Review Studio, and it exports a cover and makes
+the widescreen cut. Above, a 58-second reel the kit made for The Lab.
 
 ## Bring your own
 
@@ -107,19 +134,27 @@ word by word and split into the script's acts, and everything after works the sa
 |---|---|
 | `skills/explainer-video/` | The explainer method: the steps, the gates, the costs, and every mistake that cost a round of notes |
 | `skills/sizzle-reel/` | The reel method, the motion vocabulary, and its own list of mistakes |
-| `engine/` | One engine under both: `studio.py` (the `vs` command), the build, the scene library, the audit, the mixer |
+| `engine/` | One engine under both: `studio.py` (the `vs` command), the build, the scene library, the checks, the Review Studio |
 | `library/sfx/` | 30 sound effects with a measured index (where each starts and peaks, a starting level) |
 | `templates/` | A new studio, a new explainer, a new reel |
 | `examples/meeting-explainer/` | A finished explainer's arc, narration, plan, ten scenes and 95 sound cues, to read |
+| `tests/` | The kit's own tests (`vs test`): unit, contract, regression fixtures and browser scenarios |
 
 ## The rules that cost a round of notes each
 
 The video explains ideas, never the article. One spoken number per act; the rest sit on screen with a source. Words
 need time on screen, and only one place to read at once. Every take is transcribed back before it's trusted. Times
-come from the words, never typed in. No render until the audit says "no overlaps". The music sits about 20 dB under
+come from the words, never typed in. No render until `vs inspect` finds no errors. The music sits about 20 dB under
 the voice and never competes. The picture is never re-rendered for sound. In widescreen, anything that leaves a
 vertical frame has to leave the wide one too. The full lists, with the fix for each, are in each skill's
 `references/scars.md`.
+
+## New in 2.0
+
+The Review Studio (`vs review`, with the mixer as its Mix panel). `vs inspect` replaces the overlap audit and names
+every element it flags. Every paid step goes through one spend gate with a per-video cap. `vs help` lists every step;
+`vs check` validates the project files; `vs test` runs the kit's tests. Projects from 1.x keep working (`vs migrate`
+marks them). After updating, run setup again.
 
 ## Credits
 

@@ -13,12 +13,14 @@ description: >
 # sizzle-reel
 
 A 30–60 second reel the agent makes by itself: it writes it, makes or picks the music, draws the scenes, records the
-real pages, prompts the few paid shots, cuts on the beat, and checks it. The human approves and gives notes; they never
-touch the timeline. Narrated videos with the voice as the clock use the `explainer-video` skill (same engine).
+real pages, prompts the few paid shots, cuts on the beat, and checks it. The human reviews in Review Studio (a note
+pinned to a moment, an element and a mark, or a pick between options); they never touch the timeline. Narrated videos with the voice as the clock use the `explainer-video` skill (same engine).
 
-**How it works:** `reel.json` (the music, the shots, the titles, the segments on the beat grid) → `vs build` writes ONE
-HyperFrames composition (`build/comp/index.html`: the runtime, the scenes, the titles, the transitions, the finish) →
-HyperFrames renders it frame by frame in headless Chrome, audio included → `vs qa`.
+**How it works:** `reel.json` (the music, the shots, the titles, the segments on the beat grid; checked against its
+contract: `vs check`) → `vs build` writes ONE HyperFrames composition (`build/comp/index.html`: the runtime, the scenes,
+the titles, the transitions, the finish) → `vs inspect` maps every element by name and finds words and pictures fighting
+(an error blocks the render) → HyperFrames renders it frame by frame in headless Chrome, audio included → `vs qa` →
+Review Studio (`vs review`): rounds of notes, choices, standing rules.
 
 ## Start here, every time
 
@@ -53,18 +55,45 @@ keeps every version.
 5. **Build free first:** drawn scenes, page recordings (`vs record`), the human's footage and screenshots (`vs ingest`),
    titles, cards, the collage (`vs collage`), push-ins on stills. Paid shots only for textless mood moments nothing on
    the laptop can make. Project-only scenes go in `scenes.js` (`Object.assign(SCENES, {…})`; it shares the runtime's
-   helpers). `vs build --storyboard` → `build/qa/storyboard.jpg` (hero frames, no render): LOOK at every frame; fix.
-6. **Paid shots** (their yes, per batch): `vs gen still|clip …` prints the cost; draft at 480p → `vs qa <clip> --clip` →
-   LOOK → 720p only for the approved draft → QA again. Every generation gets a ledger row, kept or rejected, with why.
-7. **Cut:** `vs build` (~a minute for 58 s), then `vs qa out/<name>-vN.mp4`. Every ⚠️ either prints is a note a human
-   once had to give: fix it, don't explain it. Open the first frame, the safe sheet, and the cuts sheet (one strip per
-   transition: ghosted titles, empty frames, early lines, flashes of black). Bump `version` for every cut they review.
-8. **Send it:** the file, what changed in one line each, the spend so far. Notes come back as "time + what"; each note
-   also becomes a rule in `lessons.md` the same day (one line, dated, with the why). Say the cost of any paid note first.
+   helpers; name what a note is likely to be about: `div()`'s 5th argument, `exName`). `vs build --no-render` → `vs
+   inspect` (must say **no errors**; read the "checked N moments" line) → `vs build --storyboard` →
+   `build/qa/storyboard.jpg` (hero frames, no render): LOOK at every frame; fix.
+6. **Paid shots** (their yes, per batch): `vs gen still|clip …` prints the cost and stops (the spend gate); draft at
+   480p → `vs qa <clip> --clip` → LOOK → 720p only for the approved draft → QA again. Every generation gets a ledger
+   row, kept or rejected, with why.
+7. **Cut:** bump `version` in `reel.json` (the gate never overwrites a version), `vs build` (~a minute for 58 s; it
+   refuses a composition `vs inspect` hasn't passed), then `vs qa out/<name>-vN.mp4`. Every ⚠️ either prints is a note
+   a human once had to give: fix it, don't explain it. Open the first frame, the safe sheet, and the cuts sheet (one
+   strip per transition: ghosted titles, empty frames, early lines, flashes of black).
+8. **Review, every cut, in Review Studio.** `vs review open --stage picture` (a round on the newest render; refused
+   while inspect has open errors, or while the human has feedback they haven't sent) and serve it: a
+   `.claude/launch.json` entry running `<vs> -p <slug> review --port 4470` opens `/review/`. Tell them what changed in
+   one line each, and the spend so far. **The loop, every round:** they give feedback (point at the frame, write, answer
+   your fixes, pick, approve the cut); each thing waits in the page with Undo; they review the list, press **Approve &
+   send**, say "sent". Only what was sent reaches you; a later note waits for its own send. Log steps decided in chat
+   (`vs review step "<what they did>" [--stage brief]`). `vs review show` (it tells the page you have it) → LOOK at each note's still
+   (`review/frames/<note>.jpg`) → fix → answer every note (`vs review resolve <note> --said "…" --files … --tags …`,
+   `ask` when unsure, `--wontdo` with the reason) → the next cut → `vs review open` measures every answer; a claimed fix
+   that measured as nothing is flagged. Say the cost of any paid note first.
+   - **Offer a choice when there's more than one good way** (a timing, a transition, a take): build each, `vs review
+     variant <id> "what it is"`, then `vs review offer "<question>" --option a --option b [--t <from> <to>]`. They play
+     each live in **Decide** and pick; `vs review apply <choice>`. A paid option (`--paid c='<the step>'`) shows its
+     price from the spend gate; picking it is the yes.
+   - **Standing rules:** keep-clear zones and scenes marked done are enforced by `vs inspect` from then on; change a done
+     scene only after they reopen it. **Warnings** (two reading zones, fast text, parked off the frame; flash,
+     loudness, sound density, covered areas) show in plain words, a card per check; advise each first (`vs review advise
+     --check <check> --advice leave|fix --plain "…" --why "…"`). They take your advice in one click, or not: Fix it =
+     real (a note), Leave it = fine. Thresholds in `profile.json → checks`.
+   - **Learning:** every note is one-off until a pattern shows (`vs review learn`); word it as a rule (`vs review
+     propose <tag> "<rule>"`) and they choose Remember, This video only or Ignore. A remembered rule goes to
+     `profile.json` or `lessons.md` (their words, dated, with the why); taste never goes into the kit.
 9. **Finish:** the cover JPEG (the kit writes it); frame one says the hook; widescreen if wanted (the same `reel.json`
    with `size` flipped, LOOKED at again). Effects under the music, if the profile or the human wants them: `cues.py` +
-   `vs mix --video out/<name>-vN.mp4 --tag vN` + `vs mixer` (the human sets the effects against the track and Saves).
-   Then `vs learn --final <files>` (finals filed, the winning track into the library, history) and update `NEXT.md`.
+   `vs mix --video out/<name>-vN.mp4 --tag vN` + `vs mixer` (Review Studio's Mix section: the reel's own track is the
+   reference; they set the effects against it, answer any one sound from the timeline, and Save: in a round it reaches
+   `mix.json` when they send) → `vs mix … --final`.
+   Then `vs learn --final <files>` (finals filed, the winning track into the library, history), `vs review report`
+   (the review's numbers), and update `NEXT.md`.
 
 ## Bring your own
 
@@ -76,14 +105,16 @@ as collage tiles. A reusable one (`--to library`) is named `lib:media/<file>`.
 
 ## Guardrails
 
-- **Paid generation: ask first, every time, with the number.** Budget per the profile (~$15); `vs gen` refuses past it.
+- **Paid generation: ask first, every time, with the number.** One spend gate in every paid step: it prints the
+  estimate and the spend so far, refuses past the profile's caps and budget (~$15), and needs `--yes`.
 - **Text is drawn in code, never by a video model** (models garble labels and invent logos). Paid shots are textless.
 - **Every number on screen is re-checked against a live public page on render day.**
 - **The closing line is spent once:** list the page that says it in `reel.json → "never"` and the kit stops you.
-- **Nothing posts anywhere without the human's explicit go, per post.**
+- **Nothing posts anywhere without the human's explicit go, per post.** Review Studio runs locally; it is not an artifact.
 
 ## References
 
 - `references/motion.md`: the segment, source, transition and emphasis vocabulary (what `reel.json` can say).
 - `references/scars.md`: every mistake that cost a round of notes. Read it before the first cut.
 - `references/costs.md`: what things cost, from real reels.
+- `vs help review`: every Review Studio command, the tags, the standing rules.

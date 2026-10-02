@@ -1,0 +1,291 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/profile.schema.json",
+ "title": "profile.json",
+ "description": "What this studio has settled on: the look, the narrator, the music, the levels, the caps, the history. A project's plan.json or reel.json overrides it.",
+ "type": "object",
+ "additionalProperties": false,
+ "properties": {
+  "_about": {
+   "type": "string"
+  },
+  "brand": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "settled": {
+     "type": "boolean"
+    },
+    "name": {
+     "type": "string"
+    },
+    "palette": {
+     "$ref": "#/$defs/palette"
+    },
+    "font": {
+     "$ref": "#/$defs/font"
+    },
+    "mono": {
+     "$ref": "#/$defs/font"
+    },
+    "finish": {
+     "$ref": "#/$defs/finish"
+    },
+    "endcard": {
+     "type": "object",
+     "additionalProperties": false,
+     "properties": {
+      "mark": {
+       "type": "object",
+       "additionalProperties": false,
+       "properties": {
+        "path": {
+         "type": "string"
+        },
+        "viewBox": {
+         "type": "string"
+        },
+        "point": {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 4,
+         "maxItems": 4
+        },
+        "stroke": {
+         "type": "number"
+        }
+       }
+      },
+      "logo": {
+       "type": "string"
+      },
+      "wordmark": {
+       "type": "string"
+      },
+      "url": {
+       "type": "string"
+      },
+      "word_b": {
+       "type": "number"
+      },
+      "url_b": {
+       "type": "number"
+      }
+     }
+    }
+   }
+  },
+  "formats": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "first": {
+     "enum": [
+      "vertical",
+      "widescreen"
+     ]
+    },
+    "then": {
+     "type": "array",
+     "items": {
+      "enum": [
+       "vertical",
+       "widescreen"
+      ]
+     }
+    }
+   }
+  },
+  "narrator": {
+   "$ref": "plan.schema.json#/$defs/narrator"
+  },
+  "music": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "directions": {
+     "type": "array",
+     "items": {
+      "$ref": "music.schema.json#/$defs/direction"
+     }
+    },
+    "avoid": {
+     "type": "string"
+    },
+    "reel_direction": {
+     "$ref": "music.schema.json#/$defs/direction"
+    }
+   }
+  },
+  "mix": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "music_db": {
+     "type": "number"
+    },
+    "duck_db": {
+     "type": "number"
+    },
+    "sfx_db": {
+     "type": "number"
+    }
+   }
+  },
+  "render": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "fps": {
+     "type": "integer",
+     "minimum": 1,
+     "maximum": 120
+    }
+   }
+  },
+  "spend": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "ask_first": {
+     "type": "boolean"
+    },
+    "usd_per_video": {
+     "type": "number",
+     "minimum": 0
+    },
+    "kie_credits_per_video": {
+     "type": "number",
+     "minimum": 0
+    },
+    "elevenlabs_sfx_credits_per_video": {
+     "type": "number",
+     "minimum": 0
+    },
+    "elevenlabs_voice_credits_per_video": {
+     "type": "number",
+     "minimum": 0
+    }
+   }
+  },
+  "checks": {
+   "type": "object",
+   "description": "your thresholds for the tunable checks (the kit's are in engine/contracts.json \u2192 reading, checks)",
+   "additionalProperties": false,
+   "properties": {
+    "words_per_sec": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "title_min_secs": {
+     "type": "number",
+     "minimum": 0
+    },
+    "offscreen_rest_secs": {
+     "type": "number",
+     "minimum": 0
+    },
+    "cues_per_10s": {
+     "type": "number",
+     "minimum": 1
+    },
+    "loudness_lufs": {
+     "type": "number"
+    },
+    "loudness_tolerance": {
+     "type": "number",
+     "minimum": 0
+    },
+    "true_peak_dbtp": {
+     "type": "number"
+    },
+    "flash_jump": {
+     "type": "number",
+     "minimum": 1,
+     "maximum": 255
+    },
+    "two_zones_words": {
+     "type": "integer",
+     "minimum": 1
+    }
+   }
+  },
+  "history": {
+   "type": "array",
+   "items": {
+    "type": "object"
+   }
+  }
+ },
+ "$defs": {
+  "palette": {
+   "type": "object",
+   "description": "the colors: ground (the background), card, line, dim (quiet words), ink (words), accent (the one signal color)",
+   "additionalProperties": false,
+   "properties": {
+    "ground": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "card": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "line": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "dim": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "ink": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "accent": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    }
+   }
+  },
+  "font": {
+   "type": "object",
+   "required": [
+    "family"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "family": {
+     "type": "string"
+    },
+    "css": {
+     "type": "string"
+    },
+    "weights": {
+     "type": "string"
+    }
+   }
+  },
+  "finish": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "grain": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    },
+    "vignette": {
+     "type": "boolean"
+    },
+    "texture": {
+     "type": "string",
+     "description": "\"dots\" (the default) or anything else for none"
+    }
+   }
+  }
+ }
+}

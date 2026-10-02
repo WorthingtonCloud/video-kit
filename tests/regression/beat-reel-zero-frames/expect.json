@@ -1,0 +1,8 @@
+{
+ "scar": "sizzle · the overlap audit checked 0 frames on every beat-timed reel and said \"no overlaps\" (fixed in 1.0.1)",
+ "use": "../../fixtures/beat-reel",
+ "make": {
+  "music/take1.mp3": "tone:40"
+ },
+ "checked_min": 100
+}

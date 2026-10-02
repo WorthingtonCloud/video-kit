@@ -9,21 +9,16 @@ In plan.json a word spec is "word" (first match in the segment's acts, case and 
 match), or "act:word" to reach into another act; add "+0.3" / "-0.2" to shift. Titles: [id, from, to] with "end".
 A long act can carry two scenes: give the second segment the same act and "start": "<word spec>" (it begins `lead` seconds
 before that word; the segment before it ends there)."""
-import json, re, sys
+import json, os, re, subprocess, sys
+from vslib import CONTRACTS, word_at
 
 P = json.load(open("plan.json"))
-if "--wide" in sys.argv[1:]: P["size"], P["name"] = [1920, 1080], P["name"] + "-16x9"
+if "--wide" in sys.argv[1:]: P["size"], P["name"] = CONTRACTS["sizes"]["wide"], P["name"] + "-16x9"
 WORDS = json.load(open(P["words"]))
-norm = lambda s: re.sub(r"[^a-z0-9]", "", s.lower())
 
 def at(spec, acts):
-    m = re.fullmatch(r"(?:(\d+):)?(.+?)(?:#(\d+))?([+-]\d[\d.]*)?", spec.strip())
-    if not m: raise SystemExit(f"bad word spec {spec!r}")
-    act, word, nth, shift = m.groups()
-    pool = [w for w in WORDS if w["act"] in ([int(act)] if act else acts)]
-    hits = [w for w in pool if norm(w["w"]) == norm(word)]
-    if len(hits) < int(nth or 1): raise SystemExit(f"{spec!r}: not found in acts {acts}")
-    return round(hits[int(nth or 1) - 1]["t0"] + float(shift or 0), 3)
+    try: return word_at(WORDS, spec, acts)[0]
+    except ValueError as e: raise SystemExit(str(e))
 
 def first(act): return min(w["t0"] for w in WORDS if w["act"] == act)
 def last(act): return max(w["t1"] for w in WORDS if w["act"] == act)
@@ -49,10 +44,16 @@ for i, s in enumerate(P["segments"]):
         scenes.setdefault(sc, {})["cues"] = {k: at(v, acts) for k, v in s["cues"].items()}
     print(f"{s['name']:18s} {t0:7.2f} → {t1:7.2f}  ({t1 - t0:5.2f}s)  {len(s.get('cues', {}))} cues, {len(s.get('titles', []))} titles")
 
-reel = {k: P[k] for k in ("name", "version", "size", "fps", "palette", "font", "mono", "finish", "titles", "never") if k in P}
+reel = {k: P[k] for k in ("schema_version", "name", "version", "size", "fps", "palette", "font", "mono", "finish", "titles",
+                           "never") if k in P}
 reel["music"] = {"file": P["voice"], "beat": P.get("beat", 0.5), "first_hit": 0, "fade": 0.3}
+# the voice's acts, first word to last: the timeline's voice row (voice/act-N), so a note can point at one
+reel["acts"] = [{"act": a, "t0": round(first(a), 3), "t1": round(last(a), 3)} for a in sorted({w["act"] for w in WORDS})]
 reel["punches"] = [at(p, list(range(1, 20))) for p in P.get("punches", [])]
 reel["scene_lib"] = "explainer"  # build inlines the engine's scene library around scenes.js
 reel["scenes"], reel["segments"] = scenes, out_segments
 json.dump(reel, open("reel.json", "w"), indent=1)
 print(f"end {out_segments and sum(s['secs'] for s in out_segments):.2f}s → reel.json")
+# the contracts, before anything is built from it (vs check: plan.json, reel.json and the files beside them)
+sys.stdout.flush()
+sys.exit(subprocess.run(["node", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "js/check.mjs")]).returncode)

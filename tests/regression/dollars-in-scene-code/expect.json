@@ -1,0 +1,9 @@
+{
+ "scar": "explainer · Build · \"$$\" rendered as \"$\" (the string replace read $$ as one $)",
+ "make": {
+  "music/take1.mp3": "tone:6"
+ },
+ "element_text": {
+  "s01_money/price": "HEAR IT $$ · $& · $1 · $'"
+ }
+}

@@ -9,7 +9,7 @@
 | Music: one direction, 2 takes of ~3 min | kie.ai Suno V6 | 12 kie credits ($0.06) |
 | A new sound effect | ElevenLabs text-to-sound | 11 credits a second (a 2 s sound = 22) |
 | The 30 bundled sounds, the library's music, anything you bring | the studio | free |
-| Render, audit, mix, mixer | the laptop | free |
+| Render, inspect, mix, Review Studio (variants play live: no render) | the laptop | free |
 
-The first explainer came to about $1 all in. Every paid script prints its cost and stops; `--yes` spends; everything is
+The first explainer came to about $1 all in. Every paid step goes through one spend gate: it prints its cost and stops; `--yes` spends; everything is
 logged in the studio's `ledger.csv` (`vs spent`, `vs spent --all`).

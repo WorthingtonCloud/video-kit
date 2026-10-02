@@ -1,0 +1,12 @@
+{
+ "scar": "elevenlabs · eleven_v4 performs a described vocal action (\"clears its throat\" came back as an \"ahem\", the words missing)",
+ "make": {
+  "voice/bed.wav": "tone:12"
+ },
+ "steps": [
+  {
+   "run": "check",
+   "warns_with": "clears its throat"
+  }
+ ]
+}

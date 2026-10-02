@@ -1,0 +1,73 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/media.schema.json",
+ "title": "media.json / library index.json",
+ "description": "What vs ingest brought in (a project's media.json; library/media, music and brand index.json).",
+ "type": "object",
+ "required": [
+  "items"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "_about": {
+   "type": "string"
+  },
+  "items": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "file"
+    ],
+    "properties": {
+     "kind": {
+      "enum": [
+       "picture",
+       "clip",
+       "music",
+       "logo",
+       "voice",
+       "sfx"
+      ]
+     },
+     "file": {
+      "type": "string"
+     },
+     "w": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "h": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     },
+     "secs": {
+      "type": [
+       "number",
+       "null"
+      ]
+     },
+     "poster": {
+      "type": "string"
+     },
+     "sound": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "label": {
+      "type": "string"
+     },
+     "style": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}

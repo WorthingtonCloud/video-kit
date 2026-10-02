@@ -2,7 +2,8 @@
 // render itself plus the cover still.
 import fs from "node:fs";
 import path from "node:path";
-import { QA } from "../lib/paths.mjs";
+import { QA, TIMELINE } from "../lib/paths.mjs";
+import { archive } from "../lib/archive.mjs";
 import { R, W, LAND, FPS, OUT, COMP, ff, hf, r3, mtime } from "./context.mjs";
 import { SEGS, END } from "./timing.mjs";
 
@@ -55,5 +56,10 @@ export function render() {
   hf(["render", "-o", path.resolve(OUT), "--fps", String(FPS), "--video-frame-format", "png", "--quiet"]);
   // the cover: a still for the platform's thumbnail upload (LinkedIn lets you pick one; most chat apps don't)
   ff("-ss", String(R.cover?.at ?? 2.0), "-i", OUT, "-frames:v", "1", "-q:v", "2", OUT.replace(".mp4", "-cover.jpg"));
-  console.log(`${END.toFixed(2)}s → ${OUT}  (+ cover, + cuts.json for qa.py)`);
+  // the version keeps its own copy of the timing it was rendered with (qa.py reads it; the build's copy moves on)
+  fs.copyFileSync(TIMELINE, OUT.replace(".mp4", ".timeline.json"));
+  // ...and its maps, so a review round, Compare and its outlines still work after build/ moves on
+  const a = archive(OUT);
+  console.log(`${END.toFixed(2)}s → ${OUT}  (+ cover, + timeline.json for qa.py, + ${a.home}/: ${a.kept.join(", ")})`);
+  if (a.skipped.length) console.log(`  ⚠️  ${a.skipped.join(" and ")} weren't made from this composition (rendered --anyway?): not kept`);
 }

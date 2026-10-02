@@ -25,15 +25,16 @@ Object.assign(SCENES, {
 - **The design space is 1080 × 1400.** On a vertical cut a scene is drawn at full size (1 unit = 1 px, design y 0 sits
   28 px above the frame): keep words in x 120–960 and y ≥ 220, panels 860 wide at x 110 (a 3D tilt widens them), and
   content above y ≈ 1130 (the titles live below). A scene whose kicker sits near the top can ride lower on the vertical
-  cut only: `exRideLower(["intro"], 80)` at the end of the file. `vs audit` reports `phone-safe` hits before any render.
+  cut only: `exRideLower(["intro"], 80)` at the end of the file. `vs inspect` reports `phone-safe` hits before any render.
 - **Exits must leave the frame in both shapes:** multiply every exit distance by `EXIT` (2 on a widescreen cut).
 - **Never tween `left`/`top`** (whole-pixel snapping stutters; the HyperFrames lint refuses it): move a wrapper's `x`.
+  Never put a template literal in a selector (`querySelector(\`.x${k}\`)` crashes HyperFrames' bundler): index a list.
   Never tween `letterSpacing`. Scale SVG with `svgOrigin` (and `smoothOrigin: false` if you also move it with x/y).
 - **One accent color, one meaning per video**, stated in SCRIPT.md (the AI; the placebo; the money). Red elsewhere is
   only a stamp or a strike.
 - **One reading zone at a time:** a scene with words gets no title; a titled moment keeps the scene's words quiet.
 
-## The overlap rules (`vs audit` enforces them)
+## The overlap rules (`vs inspect` enforces them)
 
 - Every tag, chip and label box is SOLID (no rgba backgrounds): a line or a page must never show through words.
 - A bar or a moving thing stops BESIDE its number or label, never under or over it.
@@ -42,7 +43,7 @@ Object.assign(SCENES, {
 - A connector runs along the edges or under solid cards, never through a label.
 - A name under an icon sits below the icon's ring, not across it; a line starts below the name.
 - Dim a whole scene with ONE scrim on top, never by fading each card (faded cards go see-through).
-- A scrolling page gets a solid header strip; don't scroll text under a header (the audit counts clipped text as there).
+- A scrolling page gets a solid header strip; don't scroll text under a header (inspect once counted clipped text as there; it clips now, but the header still reads cleaner).
 - A ring around words starts OUTSIDE them (`exRing2`), never from their middle.
 
 ## The library

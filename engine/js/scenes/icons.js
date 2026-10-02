@@ -27,10 +27,15 @@ const GLX = {
   eye2: '<path d="M8 42c12-18 56-18 68 0-12 18-56 18-68 0z" fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round"/><circle cx="42" cy="42" r="9" fill="#fff"/>',
 };
 for (const k in GLX) GLX[k] = GLX[k].replaceAll("#e8402c", P.accent);
-const exIcon = (parent, g, size, x, y) =>
-  div(
+// an icon from the set above; unnamed, it's known by its glyph (~ex-ic:coin)
+const exIcon = (parent, g, size, x, y, name = "") => {
+  const d = div(
     "ex-ic",
     parent,
     `<svg viewBox="0 0 84 84" width="${size}" height="${size}">${GLX[g]}</svg>`,
     `left:${x}px;top:${y}px;width:${size}px;height:${size}px`,
+    name,
   );
+  d.setAttribute("data-hint", g);
+  return d;
+};

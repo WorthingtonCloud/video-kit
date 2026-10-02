@@ -1,0 +1,19 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/studio.schema.json",
+ "title": "studio.json",
+ "description": "Marks a folder as a studio (vs setup writes it).",
+ "type": "object",
+ "additionalProperties": false,
+ "properties": {
+  "kit": {
+   "type": "string"
+  },
+  "version": {
+   "type": "integer"
+  },
+  "python": {
+   "type": "string"
+  }
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "schema_version": 2,
+ "name": "tiny-explainer",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "words": "voice/narration-t1.words.json",
+ "voice": "voice/voice-bed-t1.wav",
+ "total": 13.6,
+ "lead": 0.3,
+ "after_last": 0.45,
+ "beat": 0.5,
+ "titles": {
+  "t_plan": {
+   "kind": "lower",
+   "text": "Start with a <span class=a>plan</span>",
+   "em": "pulse"
+  }
+ },
+ "segments": [
+  {
+   "name": "s01_plan",
+   "acts": [
+    1
+   ],
+   "source": {
+    "scene": "board"
+   },
+   "cues": {
+    "plan": "plan"
+   },
+   "titles": [
+    [
+     "t_plan",
+     "starts",
+     "end"
+    ]
+   ]
+  },
+  {
+   "name": "s02_words",
+   "acts": [
+    2
+   ],
+   "in": "whip",
+   "source": {
+    "scene": "board"
+   },
+   "cues": {
+    "plan": "words"
+   }
+  },
+  {
+   "name": "s03_end",
+   "acts": [
+    3
+   ],
+   "in": "dot",
+   "source": {
+    "scene": "endcard"
+   }
+  }
+ ]
+}

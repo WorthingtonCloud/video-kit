@@ -30,10 +30,10 @@ cost = lambda n: math.ceil(11 * todo[n][0])
 if not todo:
     sys.exit(f"Nothing to buy: the library already has all {len(want)} sounds sfx.json asks for." if want else
              "No sfx.json in this project: the library's sounds are all available (vs sfx list).")
-if "--yes" not in sys.argv:
-    for n in todo:
-        print(f"  {n:10s} {todo[n][0]:.1f}s  ~{cost(n)} credits  {todo[n][1][:70]}")
-    sys.exit(f"Would spend about {sum(cost(n) for n in todo)} ElevenLabs credits on {len(todo)} sounds. Add --yes once the human says yes.")
+for n in todo:
+    print(f"  {n:10s} {todo[n][0]:.1f}s  ~{cost(n)} credits  {todo[n][1][:70]}")
+vslib.gate("elevenlabs", f"{len(todo)} new sounds", credits=sum(cost(n) for n in todo), yes="--yes" in sys.argv,
+           cap_key="elevenlabs_sfx_credits_per_video", cap=CAP, scope="sfx")
 
 s = vslib.studio_root()
 lib = os.path.join(s, "library/sfx") if s else "sfx"
@@ -43,18 +43,18 @@ index = vslib.read_json(index_path, {"sounds": {}})
 key = vslib.key("ELEVENLABS_API_KEY")
 spent = lambda: vslib.spent(project=vslib.project_name(), vendor="elevenlabs", what_prefix="sfx")
 for name, (secs, prompt) in todo.items():
-    if spent() + cost(name) > CAP:
-        sys.exit(f"⛔ {name} would pass the {CAP}-credit cap for this video ({spent():.0f} spent). Ask before raising --cap.")
     req = urllib.request.Request(URL, method="POST", headers={"xi-api-key": key, "Content-Type": "application/json"},
                                  data=json.dumps({"text": prompt, "duration_seconds": secs, "prompt_influence": 0.6,
                                                   "model_id": "eleven_text_to_sound_v2"}).encode())
+    row = vslib.log("elevenlabs", f"sfx {name}", credits=cost(name), note=prompt)  # billed on the call
     try:
         audio = urllib.request.urlopen(req, timeout=120).read()
     except urllib.error.HTTPError as e:
+        vslib.failed(row, note=f"HTTP {e.code}")
         sys.exit(f"{name}: HTTP {e.code} {e.read()[:300]}")
     out = os.path.join(lib, name + ".mp3")
     open(out, "wb").write(audio)
-    vslib.log("elevenlabs", f"sfx {name}", credits=cost(name), note=prompt)  # billed on the call
+    vslib.done(row)
     m = vslib.measure(out)
     index["sounds"][name] = {"file": name + ".mp3", "source": "elevenlabs eleven_text_to_sound_v2", "prompt": prompt,
                              "project": vslib.project_name(), **m}

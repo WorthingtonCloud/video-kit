@@ -1,0 +1,166 @@
+{
+ "_about": "Numbers the Python and JavaScript halves of the engine share. Typed here once; both read this file (vslib.CONTRACTS, lib/paths.mjs CONTRACTS). A studio's profile.json → checks may tighten the reading numbers for its own videos.",
+ "sizes": {
+  "_about": "The two shapes the kit lays out: [width, height] in pixels.",
+  "vertical": [
+   1080,
+   1920
+  ],
+  "wide": [
+   1920,
+   1080
+  ]
+ },
+ "fps": {
+  "_about": "What a new video renders at, and the rates the kit has been proven at (others may work; vs check warns).",
+  "default": 30,
+  "proven": [
+   30
+  ]
+ },
+ "phone_safe": {
+  "_about": "A vertical video in a phone's full-screen player (LinkedIn measured, Sep 2026), as fractions of the frame: the status bar covers the top, the caption and scrubber the bottom, each side is cropped, and the button rail covers the right edge between rail.y and the caption.",
+  "status_bar": 0.1,
+  "caption": 0.84,
+  "side": 0.11,
+  "rail": {
+   "x": 0.8,
+   "y": 0.62
+  }
+ },
+ "reading": {
+  "_about": "How long words need on screen. title_min_secs: the shortest title that read (the Lab reel v13, after cold viewers called v12's 0.94 s titles 'words flying across the screen'); words_per_sec: subtitle convention, about 180 words a minute.",
+  "title_min_secs": 1.9,
+  "words_per_sec": 3
+ },
+ "checks": {
+  "_about": "The thresholds of the checks a reviewer can tune (profile.json → checks overrides any of them). Reading time uses reading above. vs inspect: two_zones_words (a scene showing at least this many words while a title is up is a second reading zone; one or two words are a picture's labels), offscreen_rest_secs (an element parked partly off the frame this long), dead_air_secs (nothing but the backdrop on screen this long). qa.py: cues_per_10s (sound effects in any ten seconds; the busiest approved explainer peaks at 13), loudness_lufs ± loudness_tolerance and true_peak_dbtp (the final mix), flash_jump (the whole frame's mean brightness, 0–255, changing this much from one frame to the next).",
+  "offscreen_rest_secs": 1.0,
+  "cues_per_10s": 14,
+  "loudness_lufs": -16,
+  "loudness_tolerance": 1.5,
+  "true_peak_dbtp": -1.0,
+  "flash_jump": 80,
+  "two_zones_words": 3,
+  "dead_air_secs": 0.6
+ },
+ "stages": {
+  "_about": "A video's stages in order, for Review Studio's top line (where you are in the whole process). vs review open --stage names a round's; vs review step --stage marks one reached outside a round.",
+  "explainer": [
+   "story",
+   "voice",
+   "picture",
+   "sound",
+   "final"
+  ],
+  "reel": [
+   "brief",
+   "music",
+   "picture",
+   "final"
+  ]
+ },
+ "plain": {
+  "_about": "Every check in plain words, for the human in Review Studio: name = what it found (a heading), says = what that means for the video. The finding's own text gives the specifics; vs review advise adds Claude's recommendation.",
+  "covers": {
+   "name": "A shape covers words",
+   "says": "Something is painted over words, so they can't be read while it's there."
+  },
+  "line-through": {
+   "name": "A line runs through words",
+   "says": "A drawn line crosses the words."
+  },
+  "on-photo": {
+   "name": "Words on a picture with nothing behind them",
+   "says": "The words sit straight on a busy picture, which makes them hard to read."
+  },
+  "low-contrast": {
+   "name": "Words hard to read on their background",
+   "says": "The words and what's behind them are too close in brightness."
+  },
+  "title-on-scene": {
+   "name": "A title lands on the drawing",
+   "says": "A title appears on top of the scene's own drawing."
+  },
+  "straddles": {
+   "name": "Words half on a shape, half off",
+   "says": "The words sit across the edge of a shape."
+  },
+  "spills": {
+   "name": "Words run past their card's edge",
+   "says": "The words don't fit inside the card they belong to."
+  },
+  "phone-safe": {
+   "name": "Words where a phone covers the picture",
+   "says": "On a phone, the buttons and captions sit over this spot, so the words would be hidden."
+  },
+  "on-text": {
+   "name": "Two sets of words overlap",
+   "says": "Words are on top of other words."
+  },
+  "two-zones": {
+   "name": "A title and the scene's words at the same time",
+   "says": "The viewer has two things to read at once."
+  },
+  "fast-text": {
+   "name": "Words gone before they can be read",
+   "says": "The words leave the screen faster than a person reads them."
+  },
+  "offscreen-at-rest": {
+   "name": "Something parked partly off the screen",
+   "says": "It sits half off the edge, not moving, as if it were cut off."
+  },
+  "keep-clear": {
+   "name": "Something entered a zone you said to keep clear",
+   "says": "Your keep-clear zone isn't empty."
+  },
+  "done-changed": {
+   "name": "A scene you called done has changed",
+   "says": "It no longer matches the version you approved."
+  },
+  "done-gone": {
+   "name": "A scene you called done is gone",
+   "says": "It's missing from this version."
+  },
+  "covered": {
+   "name": "Something bright near a phone's edges",
+   "says": "A phone covers the outer edges of a vertical video: the clock bar at the top and a sliver at each side."
+  },
+  "blacks": {
+   "name": "A black that doesn't match the rest",
+   "says": "This stretch's dark background is a different shade from the rest of the video."
+  },
+  "black-hole": {
+   "name": "A pure-black frame near a cut",
+   "says": "Most of the frame goes fully black for a moment near a cut."
+  },
+  "audio-drop": {
+   "name": "The sound drops out",
+   "says": "The sound falls far below its usual level here."
+  },
+  "no-audio": {
+   "name": "No sound at all",
+   "says": "This cut has no sound."
+  },
+  "flash": {
+   "name": "The whole frame flashes",
+   "says": "The picture jumps sharply brighter or darker in a single frame."
+  },
+  "loudness": {
+   "name": "The mix is too loud or too quiet",
+   "says": "The overall level is off from what platforms expect."
+  },
+  "true-peak": {
+   "name": "The mix peaks too high",
+   "says": "The loudest moments may distort on some speakers."
+  },
+  "cue-density": {
+   "name": "Too many sound effects close together",
+   "says": "Many effects land within ten seconds, which can feel busy."
+  },
+  "dead-air": {
+   "name": "Nothing on screen but the background",
+   "says": "For a moment the picture is empty: a scene waiting for its word, or a handoff left bare."
+  }
+ }
+}

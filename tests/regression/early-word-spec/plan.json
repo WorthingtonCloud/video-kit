@@ -1,0 +1,42 @@
+{
+ "schema_version": 2,
+ "name": "early",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "words": "voice/w.words.json",
+ "voice": "voice/bed.wav",
+ "total": 10.6,
+ "lead": 0.3,
+ "after_last": 0.45,
+ "beat": 0.5,
+ "titles": {
+  "t_one": {
+   "kind": "stat",
+   "text": "1",
+   "sub": "model won"
+  }
+ },
+ "segments": [
+  {
+   "name": "s01_trial",
+   "acts": [
+    1,
+    2
+   ],
+   "source": {
+    "scene": "endcard"
+   },
+   "titles": [
+    [
+     "t_one",
+     "won",
+     "One"
+    ]
+   ]
+  }
+ ]
+}

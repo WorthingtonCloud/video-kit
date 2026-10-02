@@ -22,19 +22,31 @@
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const NS = "http://www.w3.org/2000/svg";
-  const svg = (tag, attrs, parent) => {
+  // Names (55-names.js gives every element on screen an address, segment/element): name what matters with the last
+  // argument of div() or svg(), or exName(el, "phone-mockup") on anything; what's left gets a derived "~" name.
+  // what the scene code made with div() or svg(): the units a name belongs to. vs inspect sets window.__INSPECT, and then
+  // each one also keeps the call stack that made it, so an element traces back to its line in scenes.js
+  const MADE = new WeakMap(),
+    made = (e) => MADE.set(e, window.__INSPECT ? new Error().stack : true);
+  const exName = (el, name) => {
+    if (name) el.setAttribute("data-el", name);
+    return el;
+  };
+  const svg = (tag, attrs, parent, name = "") => {
     const e = document.createElementNS(NS, tag);
     for (const k in attrs) e.setAttribute(k, attrs[k]);
     if (parent) parent.appendChild(e);
-    return e;
+    made(e);
+    return exName(e, name);
   };
-  const div = (cls, parent, html = "", style = "") => {
+  const div = (cls, parent, html = "", style = "", name = "") => {
     const d = document.createElement("div");
     d.className = cls;
     if (html) d.innerHTML = html;
     if (style) d.style.cssText = style;
     parent.appendChild(d);
-    return d;
+    made(d);
+    return exName(d, name);
   };
   const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
   const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3);

@@ -1,0 +1,504 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/plan.schema.json",
+ "title": "plan.json",
+ "description": "An explainer's plan: acts, scenes and titles pinned to the words the narrator says. vs plan turns it into reel.json.",
+ "type": "object",
+ "required": [
+  "name",
+  "words",
+  "voice",
+  "segments"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "schema_version": {
+   "const": 2
+  },
+  "name": {
+   "type": "string",
+   "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+  },
+  "version": {
+   "type": "integer",
+   "minimum": 1
+  },
+  "size": {
+   "$ref": "#/$defs/size"
+  },
+  "fps": {
+   "type": "integer",
+   "minimum": 1,
+   "maximum": 120
+  },
+  "palette": {
+   "$ref": "#/$defs/palette"
+  },
+  "font": {
+   "$ref": "#/$defs/font"
+  },
+  "mono": {
+   "$ref": "#/$defs/font"
+  },
+  "finish": {
+   "$ref": "#/$defs/finish"
+  },
+  "titles": {
+   "type": "object",
+   "propertyNames": {
+    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+   },
+   "additionalProperties": {
+    "$ref": "#/$defs/title"
+   }
+  },
+  "never": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "words": {
+   "type": "string",
+   "description": "the word timings file (vs narrate writes it)"
+  },
+  "voice": {
+   "type": "string",
+   "description": "the narration audio file"
+  },
+  "narrator": {
+   "$ref": "#/$defs/narrator"
+  },
+  "total": {
+   "type": "number",
+   "exclusiveMinimum": 0
+  },
+  "lead": {
+   "type": "number",
+   "minimum": 0
+  },
+  "after_last": {
+   "type": "number",
+   "minimum": 0
+  },
+  "beat": {
+   "type": "number",
+   "exclusiveMinimum": 0
+  },
+  "punches": {
+   "type": "array",
+   "items": {
+    "type": "string",
+    "minLength": 1,
+    "description": "a word the narrator says: \"word\", \"word#2\", \"act:word\", plus \"+0.3\" / \"-0.2\" to shift"
+   }
+  },
+  "scene_data": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object"
+   }
+  },
+  "segments": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "type": "object",
+    "required": [
+     "name",
+     "source"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+     },
+     "acts": {
+      "type": "array",
+      "items": {
+       "type": "integer",
+       "minimum": 1
+      },
+      "minItems": 1
+     },
+     "start": {
+      "type": "string",
+      "minLength": 1,
+      "description": "a word the narrator says: \"word\", \"word#2\", \"act:word\", plus \"+0.3\" / \"-0.2\" to shift"
+     },
+     "in": {
+      "enum": [
+       "whip",
+       "whipx",
+       "zoom",
+       "dot",
+       "flash",
+       "fade",
+       "cut",
+       "rise",
+       "swing",
+       "depth",
+       "flip",
+       "drop",
+       "over"
+      ]
+     },
+     "source": {
+      "type": "object",
+      "description": "what the segment shows: exactly one of scene, shot, clip, still, card, grid",
+      "allOf": [
+       {
+        "if": {
+         "required": [
+          "scene"
+         ]
+        },
+        "then": {
+         "properties": {
+          "scene": {
+           "type": "string"
+          }
+         },
+         "description": "a drawn scene; any other key is the scene's own setting (it reads seg.source)"
+        }
+       },
+       {
+        "if": {
+         "required": [
+          "shot"
+         ]
+        },
+        "then": {
+         "additionalProperties": false,
+         "properties": {
+          "shot": {
+           "type": "string"
+          },
+          "inset": {
+           "type": "number",
+           "exclusiveMinimum": 0,
+           "maximum": 1
+          }
+         }
+        }
+       },
+       {
+        "if": {
+         "required": [
+          "clip"
+         ]
+        },
+        "then": {
+         "additionalProperties": false,
+         "properties": {
+          "clip": {
+           "type": "string"
+          },
+          "ss": {
+           "type": "number",
+           "minimum": 0
+          },
+          "speed": {
+           "type": "number",
+           "exclusiveMinimum": 0
+          }
+         }
+        }
+       },
+       {
+        "if": {
+         "required": [
+          "still"
+         ]
+        },
+        "then": {
+         "additionalProperties": false,
+         "properties": {
+          "still": {
+           "type": "string"
+          }
+         }
+        }
+       },
+       {
+        "if": {
+         "required": [
+          "card"
+         ]
+        },
+        "then": {
+         "additionalProperties": false,
+         "properties": {
+          "card": {
+           "type": "string"
+          },
+          "at": {
+           "type": "array",
+           "items": {
+            "type": "number"
+           }
+          },
+          "style": {
+           "enum": [
+            "blur",
+            "flap",
+            "slam"
+           ]
+          },
+          "out": {
+           "enum": [
+            "shatter"
+           ]
+          },
+          "rings": {
+           "type": "boolean"
+          }
+         }
+        }
+       },
+       {
+        "if": {
+         "required": [
+          "grid"
+         ]
+        },
+        "then": {
+         "additionalProperties": false,
+         "properties": {
+          "grid": {
+           "type": "array",
+           "items": {
+            "type": "string"
+           },
+           "minItems": 1
+          },
+          "cols": {
+           "type": "integer",
+           "minimum": 1
+          }
+         }
+        }
+       }
+      ]
+     },
+     "titles": {
+      "type": "array",
+      "items": {
+       "type": "array",
+       "minItems": 3,
+       "maxItems": 3,
+       "prefixItems": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "string",
+         "minLength": 1,
+         "description": "a word the narrator says: \"word\", \"word#2\", \"act:word\", plus \"+0.3\" / \"-0.2\" to shift"
+        },
+        {
+         "type": "string",
+         "minLength": 1
+        }
+       ]
+      }
+     },
+     "cues": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "string",
+       "minLength": 1,
+       "description": "a word the narrator says: \"word\", \"word#2\", \"act:word\", plus \"+0.3\" / \"-0.2\" to shift"
+      }
+     }
+    }
+   }
+  }
+ },
+ "$defs": {
+  "palette": {
+   "type": "object",
+   "description": "the colors: ground (the background), card, line, dim (quiet words), ink (words), accent (the one signal color)",
+   "additionalProperties": false,
+   "properties": {
+    "ground": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "card": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "line": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "dim": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "ink": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "accent": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    }
+   }
+  },
+  "font": {
+   "type": "object",
+   "required": [
+    "family"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "family": {
+     "type": "string"
+    },
+    "css": {
+     "type": "string"
+    },
+    "weights": {
+     "type": "string"
+    }
+   }
+  },
+  "finish": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "grain": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    },
+    "vignette": {
+     "type": "boolean"
+    },
+    "texture": {
+     "type": "string",
+     "description": "\"dots\" (the default) or anything else for none"
+    }
+   }
+  },
+  "em": {
+   "description": "one emphasis on the title's key word, on the beat",
+   "anyOf": [
+    {
+     "enum": [
+      "pulse",
+      "box",
+      "check",
+      "beats",
+      "ruler"
+     ]
+    },
+    {
+     "type": "object",
+     "required": [
+      "fx"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "fx": {
+       "enum": [
+        "pulse",
+        "box",
+        "check",
+        "beats",
+        "ruler"
+       ]
+      },
+      "word": {
+       "type": "string"
+      },
+      "b": {
+       "type": "number"
+      },
+      "snap": {
+       "type": "number"
+      }
+     }
+    }
+   ]
+  },
+  "title": {
+   "type": "object",
+   "required": [
+    "text"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "enum": [
+      "lower",
+      "stat",
+      "card"
+     ]
+    },
+    "text": {
+     "type": [
+      "string",
+      "number"
+     ]
+    },
+    "sub": {
+     "type": "string"
+    },
+    "size": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "spark": {
+     "type": "boolean"
+    },
+    "em": {
+     "$ref": "#/$defs/em"
+    }
+   }
+  },
+  "size": {
+   "type": "array",
+   "items": {
+    "type": "integer",
+    "minimum": 16
+   },
+   "minItems": 2,
+   "maxItems": 2,
+   "description": "[width, height] in pixels; the kit lays out 1080×1920 and 1920×1080"
+  },
+  "narrator": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "voice": {
+     "type": "string",
+     "pattern": "^([A-Za-z0-9]{20})?$",
+     "description": "the ElevenLabs voice ID, never its name: two library voices can share one"
+    },
+    "name": {
+     "type": "string"
+    },
+    "model": {
+     "type": "string"
+    },
+    "stability": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    },
+    "similarity": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    },
+    "register": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}

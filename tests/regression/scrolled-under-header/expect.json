@@ -1,0 +1,7 @@
+{
+ "scar": "explainer \u00b7 Picture \u00b7 the audit's own traps: text clipped by an overflow:hidden box still counted (a page scrolled under its header read as 3 on-text hits)",
+ "make": {
+  "music/take1.mp3": "tone:6"
+ },
+ "expect_none": "all"
+}

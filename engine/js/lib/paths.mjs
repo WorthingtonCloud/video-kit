@@ -4,6 +4,7 @@
 //               (sounds, music beds, brand, reusable media, promoted scenes), finals/, ledger.csv
 //   a project   one video inside the studio (studio/projects/<slug>); every script runs with it as the working folder.
 //               Its build/ folder (comp, qa, mix, rec, mixer) is regenerated and safe to delete.
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -16,6 +17,42 @@ export const BUILD = "build";
 export const COMP = "build/comp";
 export const QA = "build/qa";
 export const REC = "build/rec";
+// the numbers both halves of the engine share (engine/contracts.json): safe zones, sizes, frame rates, reading time
+export const CONTRACTS = JSON.parse(fs.readFileSync(path.join(ENGINE, "contracts.json"), "utf8"));
+export const TIMELINE = "build/timeline.json";
+export const SOURCES = "build/sources.json"; // index.html's lines → the files they came from (compose.mjs writes it)
+export const ELEMENTS = "build/elements.json";
+export const FINDINGS = "build/findings.json";
+
+export const hash = (data) => crypto.createHash("sha256").update(data).digest("hex").slice(0, 16);
+// the engine's own fingerprint: the runtime and the scene library every composition is built from
+export function engineHash() {
+  const files = ["js/reel", "js/scenes"].flatMap((d) =>
+    fs
+      .readdirSync(path.join(ENGINE, d))
+      .filter((f) => f.endsWith(".js"))
+      .sort()
+      .map((f) => path.join(ENGINE, d, f)),
+  );
+  return hash(files.map((f) => fs.readFileSync(f, "utf8")).join("\n"));
+}
+
+// The build's timing (vs build writes it beside the composition). Every reader takes its cuts, title times and length
+// from here, never from its own sum of reel.json. Stops with a plain sentence when there's no build yet, or when the
+// composition changed after the timing was written.
+export function readTimeline() {
+  const stop = (msg) => {
+    console.error(`⛔ ${msg}: run vs build --no-render`);
+    process.exit(1);
+  };
+  if (!fs.existsSync(TIMELINE)) stop(`no ${TIMELINE} yet`);
+  const tl = JSON.parse(fs.readFileSync(TIMELINE, "utf8")),
+    html = path.join(COMP, "index.html");
+  if (!fs.existsSync(html)) stop(`no ${html} yet`);
+  if (hash(fs.readFileSync(html)) !== tl.fingerprint) stop(`${html} changed after ${TIMELINE} was written`);
+  if (tl.engine !== engineHash()) stop("the engine changed since this build (a kit update, or an edit to it)");
+  return tl;
+}
 
 // The studio: $VIDEO_STUDIO, else the nearest folder above this one with a studio.json, else the one `vs setup` wrote
 // to ~/.config/video-studio/config.json. null = no studio yet (the engine still runs; nothing is filled in from a profile).
@@ -40,11 +77,42 @@ export function deepMerge(a, b) {
   return out;
 }
 
+// An API key: the environment, else the nearest .env in this folder or any folder above it, else the studio's .env,
+// else ~/.config/video-studio/.env. An empty KEY= line doesn't count. → { value, from } or null. (Python: vslib.key.)
+export function findKey(name) {
+  if (process.env[name]) return { value: process.env[name].trim(), from: "the environment" };
+  const places = [];
+  for (let d = process.cwd(); ; d = path.dirname(d)) {
+    places.push(path.join(d, ".env"));
+    if (path.dirname(d) === d) break;
+  }
+  const S = studioRoot();
+  if (S) places.push(path.join(S, ".env"));
+  places.push(path.join(os.homedir(), ".config/video-studio/.env"));
+  for (const f of places) {
+    if (!fs.existsSync(f)) continue;
+    for (const line of fs.readFileSync(f, "utf8").split(/\r?\n/)) {
+      if (!line.startsWith(name + "=")) continue;
+      const v = line.slice(name.length + 1).trim().replace(/^["']|["']$/g, "");
+      if (v) return { value: v, from: f };
+    }
+  }
+  return null;
+}
+
 // The profile: the kit's defaults, overlaid with the studio's profile.json (what this user has settled on).
 export function profile() {
   const read = (f) => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {});
   const S = studioRoot();
   return deepMerge(read(path.join(KIT, "templates/studio/profile.json")), S ? read(path.join(S, "profile.json")) : {});
+}
+
+// The thresholds of the tunable checks: the kit's (contracts.json → reading, checks), the studio's profile.json → checks
+// over them
+export function checks() {
+  const { _about, ...C } = CONTRACTS.checks || {},
+    { _about: _r, ...R } = CONTRACTS.reading || {};
+  return { ...R, ...C, ...(profile().checks || {}) };
 }
 
 // A font's css (written by fonts.mjs): the studio's library first (downloaded once, shared by every video), then the

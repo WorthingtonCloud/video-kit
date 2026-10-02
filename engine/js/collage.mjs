@@ -116,7 +116,7 @@ for (const [i, t] of C.tiles.entries()) {
   fs.writeFileSync(page, `<html><head><style>${CSS}</style></head><body>${body}</body></html>`);
   await pg.goto(pathToFileURL(page).href, { waitUntil: "load" });
   await pg.evaluate(async (fill) => {
-    await document.fonts.ready;
+    await Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 10000))]); // never forever (a rare stall)
     const im = document.querySelector(".im");
     if (!im) return;
     const img = await new Promise((r) => {

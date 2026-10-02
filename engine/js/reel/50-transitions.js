@@ -32,8 +32,9 @@
       return;
     }
     if (kind === "over") {
-      // this card lands ON the last segment: it dims and keeps moving under the first line,
-      // then collapses into the red point on the second line's beat
+      // this card lands ON the last segment: it dims and keeps moving under the first line, then collapses into the red
+      // point on the second line's beat. Only a collage brightens back for its collapse: a scene with words stays dim, or
+      // its words fight the card's for the last 0.6 s (the reel template's sources under "This video…", Oct 1, 2026)
       tl.set(cur.el, { opacity: 1 }, T);
       const pcam = $(".cam", prev.el),
         hit = T + ((cur.source.at || [])[1] ?? 2) * B,
@@ -44,12 +45,13 @@
         { filter: "brightness(0.28) blur(5px)", duration: 0.35, ease: "power2.out", ...IR },
         T - 0.05,
       );
-      tl.fromTo(
-        pcam,
-        { filter: "brightness(0.28) blur(5px)" },
-        { filter: "brightness(0.85) blur(0px)", duration: 0.2, ease: "power1.out", ...IR },
-        hit - 0.62,
-      );
+      if (tiles.length)
+        tl.fromTo(
+          pcam,
+          { filter: "brightness(0.28) blur(5px)" },
+          { filter: "brightness(0.85) blur(0px)", duration: 0.2, ease: "power1.out", ...IR },
+          hit - 0.62,
+        );
       if (tiles.length) {
         const each = 0.012,
           dur = 0.42,
@@ -73,7 +75,9 @@
         );
       }
       tl.set(prev.el, { opacity: 0 }, hit + 0.02);
-      hitDot(hit, W / 2, H / 2, 20);
+      // the point is where a collage collapses to; with nothing collapsing it only lands on the card's own words
+      // (dead center = the middle line: "The red dot over the text makes it hard to read", video-kit reel, Oct 2, 2026)
+      if (tiles.length) hitDot(hit, W / 2, H / 2, 20);
       punch(hit, 0.05);
       return;
     }

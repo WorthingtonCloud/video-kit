@@ -13,9 +13,12 @@ export function prepareMedia() {
   const offset = +(M.offset || 0),
     fade = +(M.fade ?? 2.2),
     mlen = probe(M.file);
+  // a narrated video's track is its voice bed (the narration + 6 s for the end card), not music (jev-explainer, Oct 1, 2026)
   if (mlen < offset + END - 0.05)
     die(
-      `the music is ${mlen.toFixed(1)}s but the cut needs ${(offset + END).toFixed(1)}s. Shorten the cut, replay whole bars, or extend the track.`,
+      R.acts?.length
+        ? `the voice bed is ${mlen.toFixed(1)}s but the cut needs ${(offset + END).toFixed(1)}s: lower plan.json → "total" to ${(mlen - offset).toFixed(1)} or less, then vs plan.`
+        : `the music is ${mlen.toFixed(1)}s but the cut needs ${(offset + END).toFixed(1)}s. Shorten the cut, replay whole bars, or extend the track.`,
     );
   const bedKey = `${M.file}|${mtime(M.file)}|${offset}|${END}|${fade}`;
   if (!fresh(`${A}/bed.wav`, bedKey)) {
@@ -135,7 +138,7 @@ export function prepareMedia() {
         ? { w: (lh * mw) / mh, h: lh, x: W * 0.96 - (lh * mw) / mh }
         : { w: W * inset, h: H * inset, x: (W * (1 - inset)) / 2 };
       const radius = inset >= 1 && !LAND ? 0 : 34;
-      inner = `<div class="panel" style="left:${r3(box.x)}px;top:${r3((H - box.h) / 2)}px;width:${r3(box.w)}px;height:${r3(box.h)}px;border-radius:${radius}px">${v(path.relative(COMP, out))}</div>`;
+      inner = `<div class="panel" data-el="page" style="left:${r3(box.x)}px;top:${r3((H - box.h) / 2)}px;width:${r3(box.w)}px;height:${r3(box.h)}px;border-radius:${radius}px">${v(path.relative(COMP, out))}</div>`;
       footage = true;
     } else if (src.clip) {
       const out = `${A}/clip-${i}.mp4`,
@@ -160,17 +163,18 @@ export function prepareMedia() {
         );
         stamp(out, key);
       }
-      inner = `<div class="full">${v(path.relative(COMP, out))}</div>`;
+      inner = `<div class="full" data-el="clip">${v(path.relative(COMP, out))}</div>`;
       footage = true;
     } else if (src.still) {
       const out = `${A}/still-${i}${path.extname(src.still)}`;
       copy(src.still, out);
-      inner = `<div class="full"><img src="${path.relative(COMP, out)}" alt=""></div>`;
+      inner = `<div class="full" data-el="still"><img src="${path.relative(COMP, out)}" alt=""></div>`;
       footage = true;
     }
     const words = seg.titles.some((tt) => ["lower", "stat", undefined].includes(R.titles[tt.id]?.kind));
-    const scrim = footage && words && seg.scrim !== false ? `<div class="scrim"></div>` : "";
-    return `<div class="seg" id="seg-${i}"><div class="mover"><div class="cam">${inner}</div></div>${scrim}</div>`;
+    const scrim = footage && words && seg.scrim !== false ? `<div class="scrim" data-el="scrim"></div>` : "";
+    // data-seg: the segment's name, the first half of every address on it (segment/element; js/reel/55-names.js)
+    return `<div class="seg" id="seg-${i}" data-seg="${seg.name}"><div class="mover"><div class="cam">${inner}</div></div>${scrim}</div>`;
   });
 
   // grid tiles: files, frames of clips ("clip.mp4@1.5"), or frames of this very reel ("@5.2", snapshotted below)

@@ -1,0 +1,44 @@
+{
+ "schema_version": 2,
+ "name": "over",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "scene_lib": "explainer",
+ "music": {
+  "file": "music/take1.mp3",
+  "beat": 0.5,
+  "first_hit": 0,
+  "fade": 0.3
+ },
+ "titles": {
+  "t_card": {
+   "kind": "card",
+   "text": "This video<br>says one thing"
+  }
+ },
+ "segments": [
+  {
+   "name": "s01_words",
+   "beats": 8,
+   "source": {
+    "scene": "words"
+   }
+  },
+  {
+   "name": "s02_card",
+   "beats": 8,
+   "in": "over",
+   "source": {
+    "card": "t_card",
+    "at": [
+     0,
+     3
+    ]
+   }
+  }
+ ]
+}

@@ -2,10 +2,13 @@
 // Build the video from reel.json as ONE HyperFrames composition (build/comp/index.html), check it, render it.
 // Nothing here spends money. Re-run end to end any time; footage and music are only re-cut when their inputs change.
 //
-//   vs build                       prepare, lint, check the safe zone, render out/<name>-v<N>.mp4 + cover + cuts
+//   vs build                       prepare, lint, check the safe zone, render out/<name>-v<N>.mp4 + cover + the
+//                                  version's timeline.json, once vs inspect has passed THIS composition (gate.mjs)
+//   vs build --anyway              render past vs inspect's open errors, and say so
 //   vs build --storyboard          prepare and lint, then snapshot hero frames to build/qa/storyboard/ (no render):
 //                                  LOOK at it before paying the render's time, fix, repeat
 //   vs build --no-render           prepare and check only
+// The cheap-first ladder: vs build --no-render → vs inspect → vs build --storyboard (or vs snap) → vs build.
 //
 // Segment shape (reel.json → "segments"):
 //   {"name": "s02_hub", "beats": 12, "in": "whip", "source": {"scene": "hub"}, "titles": [["t_layers", 0, 6], ["t_plugged", 6, "end"]]}
@@ -46,17 +49,28 @@
 // Titles (reel.json → "titles"): "spark": true on a stat fires it out of the scene's anchor; "em" = one emphasis on the
 // key word, on the beat ("b" beats after the title's slot): {"fx": "pulse" | "box" | "check" | "beats" | "ruler",
 // "word": "checked" (default: the accent words), "b": 1, "snap": 3 (ruler: the beat its marker lands)}.
-// The steps, in order: context.mjs (the reel and the helpers) → timing → checks → media → css → compose → the HyperFrames
-// lint → the safe zone → collage frames → storyboard or render.
-import { STORY, NORENDER, hf } from "./context.mjs";
-import { checkTitles, checkNever } from "./checks.mjs";
-import { prepareMedia } from "./media.mjs";
-import { css } from "./css.mjs";
-import { compose } from "./compose.mjs";
-import { checkSafeZone } from "./safezone.mjs";
-import { snapTiles, storyboard, render } from "./render.mjs";
+// The steps, in order: vs check (the contracts, check.mjs) → context.mjs (the reel and the helpers) → timing → checks →
+// media → css → compose (writes build/comp/index.html and build/timeline.json, the one timing every later step reads) →
+// the HyperFrames lint → the safe zone → collage frames → storyboard, or the render gate (gate.mjs) and the render.
+import { check } from "../check.mjs";
 
-checkTitles();
+// the contracts first, before any step loads (they read reel.json as they load): a misspelled scene used to fail inside
+// the browser mid-build, a wrong path deep in ffmpeg
+const chk = check({ quiet: true });
+chk.warnings.forEach((w) => console.log(`  ⚠️  ${w}`));
+if (chk.errors.length) {
+  console.error(`⛔ vs check found ${chk.errors.length} problem(s):\n${chk.errors.map((e) => `   ✗ ${e}`).join("\n")}`);
+  process.exit(1);
+}
+const { STORY, NORENDER, hf } = await import("./context.mjs");
+const { checkNever } = await import("./checks.mjs");
+const { prepareMedia } = await import("./media.mjs");
+const { css } = await import("./css.mjs");
+const { compose } = await import("./compose.mjs");
+const { checkSafeZone } = await import("./safezone.mjs");
+const { snapTiles, storyboard, render } = await import("./render.mjs");
+const { gate } = await import("./gate.mjs");
+
 checkNever();
 const m = prepareMedia();
 compose({ segHTML: m.segHTML, media: m.media, CSS: css(m) });
@@ -64,4 +78,7 @@ hf(["lint"]);
 await checkSafeZone();
 snapTiles(m.snapTimes);
 if (STORY) storyboard();
-if (!NORENDER) render();
+if (!NORENDER) {
+  gate();
+  render();
+}

@@ -1,6 +1,12 @@
 // The reel runtime, part 4 of 7. build concatenates js/reel/*.js in name order into ONE closure (00 opens it, 60
 // closes it), so a part is not a module on its own: it shares every const and helper defined in the parts before it.
   // ───────── scenes ─────────
+  // the kit's scenes name their parts (js/reel/55-names.js), keyed by their own words: ring-episodic, node-slack
+  const key = (w) =>
+    String(w)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "");
   const SCENES = {
     chat(stage, seg) {
       const c = R.scenes.chat || {},
@@ -9,9 +15,11 @@
       const box = div(
         "chat",
         rig,
-        `<div class="chat-h"><span class="hd">${c.header || "New session"}</span></div>
-        <div class="chat-b"><div class="bub-q"></div><div class="bub-a"></div></div><div class="scan"></div>
-        <div class="chat-in"><span class="caret"></span><span class="ph">${c.placeholder || "Ask anything"}</span><span class="send" data-anchor></span></div>`,
+        `<div class="chat-h" data-el="chat-header"><span class="hd">${c.header || "New session"}</span></div>
+        <div class="chat-b"><div class="bub-q" data-el="question"></div><div class="bub-a" data-el="answer"></div></div><div class="scan" data-el="scan"></div>
+        <div class="chat-in" data-el="chat-input"><span class="caret"></span><span class="ph">${c.placeholder || "Ask anything"}</span><span class="send" data-anchor></span></div>`,
+        "",
+        "chat",
       );
       const q = $(".bub-q", box),
         a = $(".bub-a", box),
@@ -140,6 +148,7 @@
             transform: `rotate(-90 ${C.x} ${C.y})`,
           },
           gRings,
+          `ring-${key(label)}`,
         );
         // short labels sitting ON their ring: a long one notches the ring above it and the circles read tall
         const lab = svg(
@@ -159,6 +168,7 @@
             class: "mono",
           },
           gLabels,
+          `ring-${key(label)}-label`,
         );
         lab.textContent = label;
         tl.to(ring, { attr: { "stroke-dashoffset": 0 }, duration: 0.6, ease: "power2.inOut" }, t0);
@@ -185,6 +195,7 @@
               opacity: 0,
             },
             gComets,
+            `ring-${key(label)}-comet`,
           );
         const sp = [52, -38, 27][k],
           tOn = t0 + 0.6;
@@ -221,24 +232,28 @@
             "stroke-dashoffset": len,
           },
           gSpokes,
+          `spoke-${key(label)}`,
         );
         const trail = svg(
           "line",
           { stroke: P.accent, "stroke-width": 5, "stroke-linecap": "round", opacity: 0 },
           gNodes,
+          `node-${key(label)}-trail`,
         );
         const fly = svg("g", { opacity: 0 }, gNodes),
-          nd = svg("g", {}, fly),
+          nd = svg("g", {}, fly, `node-${key(label)}`),
           w = 26 + label.length * 15.5;
         const rect = svg(
           "rect",
           { x: -w / 2, y: -30, width: w, height: 60, rx: 30, fill: P.card, stroke: P.line, "stroke-width": 3 },
           nd,
+          `node-${key(label)}-pill`,
         );
         svg(
           "text",
           { y: 10, "text-anchor": "middle", fill: P.ink, "font-weight": 600, "font-size": 27, class: "sans" },
           nd,
+          `node-${key(label)}-label`,
         ).textContent = label;
         rects.push(rect);
         const t0 = at(toolsAt + i * tstep),
@@ -289,8 +304,12 @@
         const start = at(toolsAt + i * tstep) + 0.6;
         [0, 0.5].forEach((off) => {
           // two per spoke, half a cycle apart: one heading in while the other heads out
-          const tail = svg("line", { stroke: P.accent, "stroke-width": 5, "stroke-linecap": "round", opacity: 0 }, tr);
-          const head = svg("circle", { r: 8, fill: P.accent, opacity: 0 }, tr);
+          const tail = svg(
+            "line",
+            { class: "traffic-tail", stroke: P.accent, "stroke-width": 5, "stroke-linecap": "round", opacity: 0 },
+            tr,
+          );
+          const head = svg("circle", { class: "traffic", r: 8, fill: P.accent, opacity: 0 }, tr);
           ticks.push((t) => {
             if (t < start || t < seg.t0 || t > seg.t1 + 0.1) {
               tail.setAttribute("opacity", 0);
@@ -314,8 +333,8 @@
           });
         });
       });
-      const core = svg("g", {}, svg("g", { transform: `translate(${C.x} ${C.y})` }, g));
-      svg("circle", { r: 70, fill: P.card, stroke: P.accent, "stroke-width": 5, "data-anchor": "" }, core);
+      const core = svg("g", {}, svg("g", { transform: `translate(${C.x} ${C.y})` }, g), "core");
+      svg("circle", { r: 70, fill: P.card, stroke: P.accent, "stroke-width": 5, "data-anchor": "" }, core, "core-disc");
       svg(
         "text",
         {
@@ -399,6 +418,8 @@
           ]
             .map(([w, y]) => `<div class="bar" style="width:${w}px;top:${y}px"></div>`)
             .join(""),
+        "",
+        "claim",
       );
       tl.fromTo(
         claim,
@@ -446,6 +467,7 @@
           rig,
           `<div class="k mono">${k}</div><svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="${P.ink}" stroke-width="3" stroke-linejoin="round" stroke-linecap="round">${GLYPH[k] || GLYPH.PAPER}</svg><div class="t">${t}</div>`,
           `left:${x}px;top:${y}px;opacity:0`,
+          `source-${key(k)}`,
         );
         const [mx, my] = MARKS[i],
           x0 = FX + mx,
@@ -460,11 +482,12 @@
             "stroke-width": 3,
           },
           links,
+          `link-${key(k)}`,
         );
         const len = p.getTotalLength();
         p.setAttribute("stroke-dasharray", len);
         p.setAttribute("stroke-dashoffset", len);
-        const mk = svg("circle", { cx: x0, cy: y0, r: 9, fill: P.accent, opacity: 0 }, marks);
+        const mk = svg("circle", { cx: x0, cy: y0, r: 9, fill: P.accent, opacity: 0 }, marks, `mark-${key(k)}`);
         const t0 = seg.t0 + 0.45 + (i * B) / 2,
           fr = FROM[i];
         paths.push({ p, len, mk, x0, y0, tOn: t0 + 0.8 });
@@ -545,7 +568,7 @@
       const c = R.scenes.endcard || {},
         t0 = seg.t0,
         land = t0 + 2 * B; // the point lands on the beat
-      const tile = div("tileicon", stage);
+      const tile = div("tileicon", stage, "", "", "mark");
       if (c.mark) {
         // a drawn mark: the stroke draws, then the accent point drops and lands with a squash (the motif, home)
         const m = c.mark,
@@ -561,7 +584,7 @@
         tl.to(path, { attr: { "stroke-dashoffset": 0 }, duration: 0.6, ease: "power2.inOut" }, t0 + 0.15);
         if (m.point) {
           const [px, py, pw, ph] = m.point,
-            pt = svg("rect", { x: px, y: py, width: pw, height: ph, fill: P.accent, opacity: 0 }, s);
+            pt = svg("rect", { x: px, y: py, width: pw, height: ph, fill: P.accent, opacity: 0 }, s, "mark-point");
           tl.fromTo(
             pt,
             { attr: { y: py - 26 }, opacity: 0 },
@@ -588,7 +611,7 @@
           punch(land, 0.03);
         }
       } else if (c.logo) {
-        div("logo", tile, `<img src="${R.media.logo}" alt="">`);
+        div("logo", tile, `<img src="${R.media.logo}" alt="">`, "", "logo");
       }
       tl.fromTo(
         tile,
@@ -600,8 +623,10 @@
         "word",
         stage,
         [...(c.wordmark || "")].map((ch) => `<span class="ch">${ch === " " ? "&nbsp;" : ch}</span>`).join(""),
+        "",
+        "wordmark",
       );
-      const url = div("url", stage, c.url || "");
+      const url = div("url", stage, c.url || "", "", "url");
       if (c.word_b != null) {
         // on the beat: the name slams in so its letters land ON a beat, the address on a later one
         const tw = land + c.word_b * B,

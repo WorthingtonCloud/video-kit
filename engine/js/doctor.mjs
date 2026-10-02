@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { findPuppeteer, findChrome } from "./lib/browser.mjs";
-import { ENGINE, NODE_MODULES, studioRoot, profile, fontCss } from "./lib/paths.mjs";
+import { ENGINE, NODE_MODULES, studioRoot, profile, fontCss, findKey } from "./lib/paths.mjs";
 
 const rows = [];
 const add = (need, name, ok, detail, fix) => rows.push({ need, name, ok, detail, fix });
@@ -36,6 +36,7 @@ const hfBin = path.join(NODE_MODULES, ".bin", process.platform === "win32" ? "hy
 const hfv = fs.existsSync(hfBin) ? sh(hfBin, ["--version"]) : null;
 add("required", "hyperframes", !!hfv, (hfv || "not installed").trim().split("\n").pop(), "vs setup   (installs the engine's packages once)");
 add("required", "gsap", fs.existsSync(path.join(NODE_MODULES, "gsap/dist/gsap.min.js")), "engine/node_modules/gsap", "vs setup");
+add("required", "ajv", fs.existsSync(path.join(NODE_MODULES, "ajv/package.json")), "engine/node_modules/ajv (vs check)", "vs setup");
 const pp = findPuppeteer();
 add("required", "puppeteer", !!pp, pp ? pp.name : "not found", "vs setup");
 if (pp?.name === "puppeteer-core") add("required", "Chrome", !!findChrome(), findChrome() || "not found", "set CHROME=/path/to/chrome");
@@ -55,17 +56,7 @@ for (const k of ["font", "mono"]) {
 add("optional", "narrator", !!pr.narrator?.voice, pr.narrator?.voice || "not chosen yet", "vs voices (free previews), then profile.json → narrator.voice");
 
 // keys: the environment, else the nearest .env in this folder or above, the studio's .env, or ~/.config/video-studio/.env
-const envKey = (k) => {
-  if (process.env[k]) return true;
-  const places = [];
-  for (let d = process.cwd(); ; d = path.dirname(d)) {
-    places.push(path.join(d, ".env"));
-    if (path.dirname(d) === d) break;
-  }
-  if (S) places.push(path.join(S, ".env"));
-  places.push(path.join(os.homedir(), ".config/video-studio/.env"));
-  return places.some((f) => fs.existsSync(f) && new RegExp(`^${k}=.+`, "m").test(fs.readFileSync(f, "utf8")));
-};
+const envKey = (k) => !!findKey(k);
 add("paid", "ELEVENLABS_API_KEY", envKey("ELEVENLABS_API_KEY"), "narration, new sound effects", "ElevenLabs → API key → .env (library voices need a paid plan over the API)");
 add("paid, optional", "OPENAI_API_KEY", envKey("OPENAI_API_KEY"), "checking a take; word timings for your own narration (about a cent)", "OpenAI → API key → .env");
 add("paid, optional", "KIE_AI_API_KEY", envKey("KIE_AI_API_KEY"), "music beds, stills (or bring your own)", "kie.ai → API key → .env");
@@ -77,6 +68,6 @@ for (const r of rows) {
   if (!r.ok && r.need === "required") bad++;
   console.log(`${mark} ${r.name.padEnd(22)} ${r.need.padEnd(15)} ${r.ok ? r.detail : `${r.detail} → ${r.fix}`}`);
 }
-console.log(bad ? `\n${bad} required item(s) missing.` : "\nReady. Drawing, the audit, the mix and anything you bring cost nothing; voices, music, new sounds and clips are paid, and each asks first.");
+console.log(bad ? `\n${bad} required item(s) missing.` : "\nReady. Drawing, the checks (vs inspect), the mix and anything you bring cost nothing; voices, music, new sounds and clips are paid, and each asks first.");
 console.log("HyperFrames telemetry: vs build turns it off (HYPERFRAMES_NO_TELEMETRY=1). Running hyperframes by hand? Set it yourself.");
 process.exit(bad ? 1 : 0);

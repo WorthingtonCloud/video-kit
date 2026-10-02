@@ -41,6 +41,7 @@
   "ask_first": true,
   "usd_per_video": 15,
   "kie_credits_per_video": 48,
+  "elevenlabs_voice_credits_per_video": 1000,
   "elevenlabs_sfx_credits_per_video": 1000
  },
  "history": []

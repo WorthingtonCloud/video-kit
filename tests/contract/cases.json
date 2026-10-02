@@ -1,0 +1,61 @@
+{
+ "_about": "One set of answers both halves of the engine must give: Python (test_contract.py) and JavaScript (contract.test.mjs) each run every case. A tree is written into a fresh folder ({root} is that folder); env is set (HOME is always {root}/home, so nobody's real ~/.config is read); cwd is where the case runs. A null answer means 'none' (or an error, for timing and word specs).",
+ "studio": [
+  {"name": "VIDEO_STUDIO beats the walk-up", "tree": {"a/studio.json": {}, "b/studio.json": {}, "a/projects/x/reel.json": {}},
+   "cwd": "a/projects/x", "env": {"VIDEO_STUDIO": "{root}/b"}, "expect": "{root}/b"},
+  {"name": "the nearest studio.json above wins", "tree": {"a/studio.json": {}, "a/inner/studio.json": {}, "a/inner/projects/x/reel.json": {}},
+   "cwd": "a/inner/projects/x", "expect": "{root}/a/inner"},
+  {"name": "no studio above: the one vs setup remembered", "tree": {"home/.config/video-studio/config.json": {"studio": "{root}/c"}, "c/studio.json": {}, "elsewhere/x/reel.json": {}},
+   "cwd": "elsewhere/x", "expect": "{root}/c"},
+  {"name": "a remembered studio that's gone counts as none", "tree": {"home/.config/video-studio/config.json": {"studio": "{root}/gone"}, "elsewhere/x/reel.json": {}},
+   "cwd": "elsewhere/x", "expect": null},
+  {"name": "no studio anywhere", "tree": {"elsewhere/x/reel.json": {}}, "cwd": "elsewhere/x", "expect": null}
+ ],
+ "profile": [
+  {"name": "the studio's profile overlays the kit's defaults, key by key", "tree": {"s/studio.json": {}, "s/profile.json": {"mix": {"music_db": -12}, "brand": {"name": "Test"}}},
+   "cwd": "s", "expect": {"mix.music_db": -12, "mix.duck_db": 6, "brand.name": "Test", "spend.kie_credits_per_video": 48, "render.fps": 30}},
+  {"name": "a list replaces, never merges", "tree": {"s/studio.json": {}, "s/profile.json": {"formats": {"then": []}}},
+   "cwd": "s", "expect": {"formats.then": [], "formats.first": "vertical"}},
+  {"name": "no studio: the kit's defaults alone", "tree": {"x/reel.json": {}}, "cwd": "x", "expect": {"mix.music_db": -16, "brand.name": ""}}
+ ],
+ "keys": [
+  {"name": "the environment beats any .env", "tree": {"p/.env": "K=from-file\n"}, "cwd": "p", "env": {"K": "from-env"}, "expect": "from-env"},
+  {"name": "the nearest .env above wins", "tree": {"a/.env": "K=outer\n", "a/b/.env": "K=inner\n", "a/b/c/.keep": ""}, "cwd": "a/b/c", "expect": "inner"},
+  {"name": "an empty KEY= doesn't count", "tree": {"a/.env": "K=outer\n", "a/b/.env": "K=\n"}, "cwd": "a/b", "expect": "outer"},
+  {"name": "quotes come off", "tree": {"p/.env": "OTHER=1\nK=\"quoted value\"\n"}, "cwd": "p", "expect": "quoted value"},
+  {"name": "the studio's .env after the folders", "tree": {"s/studio.json": {}, "s/.env": "K=studio\n", "elsewhere/x/.keep": ""}, "cwd": "elsewhere/x", "env": {"VIDEO_STUDIO": "{root}/s"}, "expect": "studio"},
+  {"name": "~/.config/video-studio/.env last", "tree": {"home/.config/video-studio/.env": "K=home\n", "x/.keep": ""}, "cwd": "x", "expect": "home"},
+  {"name": "none anywhere", "tree": {"x/.keep": ""}, "cwd": "x", "expect": null}
+ ],
+ "timing": [
+  {"name": "a to_hit opening, then beats, then seconds", "reel": {"music": {"beat": 0.5, "first_hit": 2.0}, "segments": [
+     {"name": "a", "to_hit": true, "titles": [["t1", 0.5, "end"]]}, {"name": "b", "beats": 4, "titles": [["t2", 1, 3]]}, {"name": "c", "secs": 1.25}]},
+   "expect": {"T": {"a": 0, "b": 2, "c": 4}, "TT": {"t1": 0.5, "t2": 2.5}, "END": 5.25}},
+  {"name": "a beat that doesn't divide evenly rounds like the build", "reel": {"music": {"beat": 0.6317, "first_hit": 0}, "segments": [
+     {"name": "a", "beats": 3, "titles": [["t1", 1.5, 3]]}, {"name": "b", "beats": 5, "titles": [["t2", 2.5, "end"]]}, {"name": "c", "beats": 7}]},
+   "expect": {"T": {"a": 0, "b": 1.895, "c": 5.054}, "TT": {"t1": 0.948, "t2": 3.474}, "END": 9.476}},
+  {"name": "a to_hit after the hit is an error", "reel": {"music": {"beat": 0.5, "first_hit": 2}, "segments": [{"name": "a", "secs": 3}, {"name": "b", "to_hit": true}]},
+   "expect": null}
+ ],
+ "words": {
+  "words": [{"w": "In", "t0": 0.1, "t1": 0.2, "act": 1}, {"w": "one", "t0": 0.3, "t1": 0.5, "act": 1}, {"w": "big", "t0": 0.6, "t1": 0.8, "act": 1},
+            {"w": "trial,", "t0": 0.9, "t1": 1.3, "act": 1}, {"w": "One,", "t0": 2.0, "t1": 2.2, "act": 2}, {"w": "Socrates'", "t0": 2.5, "t1": 3.0, "act": 2}],
+  "cases": [
+   {"spec": "one", "acts": [1], "expect": 0.3},
+   {"spec": "TRIAL", "acts": [1], "expect": 0.9},
+   {"spec": "One", "acts": [2], "expect": 2.0},
+   {"spec": "one#2", "acts": [1, 2], "expect": 2.0},
+   {"spec": "2:one", "acts": [1], "expect": 2.0},
+   {"spec": "one+0.25", "acts": [1], "expect": 0.55},
+   {"spec": "big-0.1", "acts": [1], "expect": 0.5},
+   {"spec": "socrates", "acts": [2], "expect": 2.5},
+   {"spec": "one#3", "acts": [1, 2], "expect": null},
+   {"spec": "zebra", "acts": [1], "expect": null},
+   {"spec": "big", "acts": [2], "expect": null}
+  ]
+ },
+ "hash": [
+  {"text": "abc", "expect": "ba7816bf8f01cfea"},
+  {"text": "", "expect": "e3b0c44298fc1c14"}
+ ]
+}

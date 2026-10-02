@@ -1,9 +1,20 @@
 {
   "name": "video-kit",
-  "description": "Two video skills on one engine: narrated explainers (voice as the clock, a mixer for the sound) and beat-cut sizzle reels, drawn in code and rendered with HyperFrames. A studio folder learns the user's look, voice, music and levels with every video; 30 sound effects come free.",
-  "version": "1.0.1",
-  "author": { "name": "Rick Worthington", "url": "https://github.com/WorthingtonCloud" },
+  "description": "Two video skills on one engine: narrated explainers (voice as the clock) and beat-cut sizzle reels, drawn in code and rendered with HyperFrames. The agent checks its own frames; you point at what's wrong in a review page, and a studio folder turns your notes into rules for every video after. 30 sound effects come free.",
+  "version": "2.0.0",
+  "author": {
+    "name": "Rick Worthington",
+    "url": "https://github.com/WorthingtonCloud"
+  },
   "homepage": "https://github.com/WorthingtonCloud/video-kit",
   "license": "MIT",
-  "keywords": ["video", "explainer", "sizzle reel", "hyperframes", "motion graphics", "narration", "sound design"]
+  "keywords": [
+    "video",
+    "explainer",
+    "sizzle reel",
+    "hyperframes",
+    "motion graphics",
+    "narration",
+    "sound design"
+  ]
 }

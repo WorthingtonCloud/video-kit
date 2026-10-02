@@ -1,0 +1,1 @@
+A three-act explainer small enough to build in seconds: its words file is written by hand (no narration was bought); the test makes the voice bed (a quiet tone). Its own scene names one panel (the-board); the label and the chip get derived names.

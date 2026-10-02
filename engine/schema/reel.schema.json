@@ -1,0 +1,652 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/reel.schema.json",
+ "title": "reel.json",
+ "description": "What's in the video: the one file vs build reads. An explainer's is written by vs plan from plan.json; a reel's by hand.",
+ "type": "object",
+ "required": [
+  "name",
+  "size",
+  "music",
+  "segments"
+ ],
+ "additionalProperties": false,
+ "properties": {
+  "schema_version": {
+   "const": 2
+  },
+  "name": {
+   "type": "string",
+   "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+  },
+  "version": {
+   "type": "integer",
+   "minimum": 1
+  },
+  "size": {
+   "$ref": "#/$defs/size"
+  },
+  "fps": {
+   "type": "integer",
+   "minimum": 1,
+   "maximum": 120
+  },
+  "palette": {
+   "$ref": "#/$defs/palette"
+  },
+  "font": {
+   "$ref": "#/$defs/font"
+  },
+  "mono": {
+   "$ref": "#/$defs/font"
+  },
+  "finish": {
+   "$ref": "#/$defs/finish"
+  },
+  "titles": {
+   "type": "object",
+   "propertyNames": {
+    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+   },
+   "additionalProperties": {
+    "$ref": "#/$defs/title"
+   }
+  },
+  "music": {
+   "type": "object",
+   "required": [
+    "file",
+    "beat"
+   ],
+   "additionalProperties": false,
+   "description": "the clock: a reel's track and its beat grid (vs beats), or an explainer's voice",
+   "properties": {
+    "file": {
+     "type": "string"
+    },
+    "beat": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "first_hit": {
+     "type": "number",
+     "minimum": 0
+    },
+    "fade": {
+     "type": "number",
+     "minimum": 0
+    },
+    "offset": {
+     "type": "number",
+     "minimum": 0
+    }
+   }
+  },
+  "punches": {
+   "type": "array",
+   "items": {
+    "type": "number",
+    "minimum": 0
+   }
+  },
+  "scene_lib": {
+   "enum": [
+    "explainer"
+   ]
+  },
+  "scenes": {
+   "type": "object",
+   "description": "each scene's own data (its words, pictures, settings); cues are seconds",
+   "additionalProperties": {
+    "type": "object",
+    "properties": {
+     "cues": {
+      "type": "object",
+      "additionalProperties": {
+       "type": "number"
+      }
+     }
+    }
+   }
+  },
+  "segments": {
+   "type": "array",
+   "minItems": 1,
+   "items": {
+    "$ref": "#/$defs/segment"
+   }
+  },
+  "acts": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "act",
+     "t0",
+     "t1"
+    ],
+    "additionalProperties": false,
+    "properties": {
+     "act": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "t0": {
+      "type": "number"
+     },
+     "t1": {
+      "type": "number"
+     }
+    }
+   }
+  },
+  "never": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "pages that must never be on screen"
+  },
+  "budget_usd": {
+   "type": "number",
+   "minimum": 0,
+   "description": "vs gen stops past this unless --over"
+  },
+  "cover": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "at": {
+     "type": "number",
+     "minimum": 0
+    }
+   }
+  },
+  "shots": {
+   "type": "object",
+   "propertyNames": {
+    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+   },
+   "additionalProperties": {
+    "$ref": "#/$defs/shot"
+   }
+  },
+  "shot_inset": {
+   "type": "number",
+   "exclusiveMinimum": 0,
+   "maximum": 1
+  },
+  "collage": {
+   "type": "object",
+   "required": [
+    "tiles"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "out": {
+     "type": "string"
+    },
+    "tiles": {
+     "type": "array",
+     "items": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "cover": {
+        "type": "string"
+       },
+       "image": {
+        "type": "string"
+       },
+       "kicker": {
+        "type": "string"
+       },
+       "title": {
+        "type": "string"
+       },
+       "fill": {
+        "type": "boolean"
+       },
+       "from": {
+        "type": "string"
+       },
+       "width": {
+        "type": "number"
+       },
+       "height": {
+        "type": "number"
+       },
+       "to": {
+        "type": "string"
+       }
+      }
+     }
+    }
+   }
+  }
+ },
+ "$defs": {
+  "palette": {
+   "type": "object",
+   "description": "the colors: ground (the background), card, line, dim (quiet words), ink (words), accent (the one signal color)",
+   "additionalProperties": false,
+   "properties": {
+    "ground": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "card": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "line": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "dim": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "ink": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    },
+    "accent": {
+     "type": "string",
+     "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$"
+    }
+   }
+  },
+  "font": {
+   "type": "object",
+   "required": [
+    "family"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "family": {
+     "type": "string"
+    },
+    "css": {
+     "type": "string"
+    },
+    "weights": {
+     "type": "string"
+    }
+   }
+  },
+  "finish": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "grain": {
+     "type": "number",
+     "minimum": 0,
+     "maximum": 1
+    },
+    "vignette": {
+     "type": "boolean"
+    },
+    "texture": {
+     "type": "string",
+     "description": "\"dots\" (the default) or anything else for none"
+    }
+   }
+  },
+  "em": {
+   "description": "one emphasis on the title's key word, on the beat",
+   "anyOf": [
+    {
+     "enum": [
+      "pulse",
+      "box",
+      "check",
+      "beats",
+      "ruler"
+     ]
+    },
+    {
+     "type": "object",
+     "required": [
+      "fx"
+     ],
+     "additionalProperties": false,
+     "properties": {
+      "fx": {
+       "enum": [
+        "pulse",
+        "box",
+        "check",
+        "beats",
+        "ruler"
+       ]
+      },
+      "word": {
+       "type": "string"
+      },
+      "b": {
+       "type": "number"
+      },
+      "snap": {
+       "type": "number"
+      }
+     }
+    }
+   ]
+  },
+  "title": {
+   "type": "object",
+   "required": [
+    "text"
+   ],
+   "additionalProperties": false,
+   "properties": {
+    "kind": {
+     "enum": [
+      "lower",
+      "stat",
+      "card"
+     ]
+    },
+    "text": {
+     "type": [
+      "string",
+      "number"
+     ]
+    },
+    "sub": {
+     "type": "string"
+    },
+    "size": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "spark": {
+     "type": "boolean"
+    },
+    "em": {
+     "$ref": "#/$defs/em"
+    }
+   }
+  },
+  "size": {
+   "type": "array",
+   "items": {
+    "type": "integer",
+    "minimum": 16
+   },
+   "minItems": 2,
+   "maxItems": 2,
+   "description": "[width, height] in pixels; the kit lays out 1080×1920 and 1920×1080"
+  },
+  "segment": {
+   "type": "object",
+   "required": [
+    "name",
+    "source"
+   ],
+   "additionalProperties": false,
+   "description": "one part of the video; its length is exactly one of beats, secs, to_hit",
+   "properties": {
+    "name": {
+     "type": "string",
+     "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+    },
+    "beats": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "secs": {
+     "type": "number",
+     "exclusiveMinimum": 0
+    },
+    "to_hit": {
+     "const": true
+    },
+    "in": {
+     "enum": [
+      "whip",
+      "whipx",
+      "zoom",
+      "dot",
+      "flash",
+      "fade",
+      "cut",
+      "rise",
+      "swing",
+      "depth",
+      "flip",
+      "drop",
+      "over"
+     ]
+    },
+    "source": {
+     "$ref": "#/$defs/source"
+    },
+    "titles": {
+     "type": "array",
+     "items": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "number",
+        "minimum": 0
+       },
+       {
+        "anyOf": [
+         {
+          "type": "number",
+          "minimum": 0
+         },
+         {
+          "const": "end"
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "push": {
+     "type": "number"
+    },
+    "scrim": {
+     "type": "boolean"
+    },
+    "fx": {
+     "type": "object"
+    }
+   }
+  },
+  "source": {
+   "type": "object",
+   "description": "what the segment shows: exactly one of scene, shot, clip, still, card, grid",
+   "allOf": [
+    {
+     "if": {
+      "required": [
+       "scene"
+      ]
+     },
+     "then": {
+      "properties": {
+       "scene": {
+        "type": "string"
+       }
+      },
+      "description": "a drawn scene; any other key is the scene's own setting (it reads seg.source)"
+     }
+    },
+    {
+     "if": {
+      "required": [
+       "shot"
+      ]
+     },
+     "then": {
+      "additionalProperties": false,
+      "properties": {
+       "shot": {
+        "type": "string"
+       },
+       "inset": {
+        "type": "number",
+        "exclusiveMinimum": 0,
+        "maximum": 1
+       }
+      }
+     }
+    },
+    {
+     "if": {
+      "required": [
+       "clip"
+      ]
+     },
+     "then": {
+      "additionalProperties": false,
+      "properties": {
+       "clip": {
+        "type": "string"
+       },
+       "ss": {
+        "type": "number",
+        "minimum": 0
+       },
+       "speed": {
+        "type": "number",
+        "exclusiveMinimum": 0
+       }
+      }
+     }
+    },
+    {
+     "if": {
+      "required": [
+       "still"
+      ]
+     },
+     "then": {
+      "additionalProperties": false,
+      "properties": {
+       "still": {
+        "type": "string"
+       }
+      }
+     }
+    },
+    {
+     "if": {
+      "required": [
+       "card"
+      ]
+     },
+     "then": {
+      "additionalProperties": false,
+      "properties": {
+       "card": {
+        "type": "string"
+       },
+       "at": {
+        "type": "array",
+        "items": {
+         "type": "number"
+        }
+       },
+       "style": {
+        "enum": [
+         "blur",
+         "flap",
+         "slam"
+        ]
+       },
+       "out": {
+        "enum": [
+         "shatter"
+        ]
+       },
+       "rings": {
+        "type": "boolean"
+       }
+      }
+     }
+    },
+    {
+     "if": {
+      "required": [
+       "grid"
+      ]
+     },
+     "then": {
+      "additionalProperties": false,
+      "properties": {
+       "grid": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        },
+        "minItems": 1
+       },
+       "cols": {
+        "type": "integer",
+        "minimum": 1
+       }
+      }
+     }
+    }
+   ]
+  },
+  "shot": {
+   "type": "object",
+   "additionalProperties": false,
+   "description": "a real page: a url record.mjs scrolls, or a \"video\" / \"dir\" of frames you recorded",
+   "properties": {
+    "url": {
+     "type": "string"
+    },
+    "anchor": {
+     "type": "string"
+    },
+    "from": {
+     "type": "number"
+    },
+    "to": {
+     "type": "number"
+    },
+    "frames": {
+     "type": "integer",
+     "minimum": 1
+    },
+    "hide": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "wait": {
+     "type": "number",
+     "minimum": 0
+    },
+    "dir": {
+     "type": "string"
+    },
+    "video": {
+     "type": "string"
+    },
+    "ss": {
+     "type": "number",
+     "minimum": 0
+    },
+    "inset": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "maximum": 1
+    }
+   }
+  }
+ }
+}

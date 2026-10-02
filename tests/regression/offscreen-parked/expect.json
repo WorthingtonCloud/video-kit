@@ -1,0 +1,15 @@
+{
+ "scar": "explainer · Motion · 15 of the twenty people parked off a vertical frame (svgOrigin drift)",
+ "make": {
+  "music/take1.mp3": "tone:6"
+ },
+ "expect": [
+  {
+   "check": "offscreen-at-rest",
+   "element": "s01_parked/half-off"
+  }
+ ],
+ "expect_none": [
+  "fast-text"
+ ]
+}

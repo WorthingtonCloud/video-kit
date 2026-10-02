@@ -6,9 +6,11 @@
     vs gen clip  --image stills/x.png --prompt "…" --out clips/x_480p.mp4 [--res 480p|720p] [--dur 5] [--via higgsfield|kie]
     vs gen spent                                   total spend so far, from ledger.csv
 
-Without --yes it only prints the estimated cost and exits: that is the moment to ask the human.
-With --yes it spends, then appends a row to the studio's ledger.csv (kept = "pending" until someone decides).
-It refuses to run past reel.json → "budget_usd" unless you add --over.
+Every call goes through the spend gate (vslib.gate): without --yes it only prints the estimated cost and this video's
+spend so far, and exits: that is the moment to ask the human. It refuses past reel.json → "budget_usd" (else the profile's
+usd_per_video, every vendor together) unless you add --over, and music past the video's music credit cap (vs music's
+too). With --yes it spends; each job is a ledger row from the moment it's submitted (kept = "pending" until someone
+decides; status submitted → done).
 
 Keys, from the environment, a .env in this folder or any folder above it, or the studio's .env:
     KIE_AI_API_KEY       kie.ai  — music (Suno), stills (Seedream), clips (Kling), and hosting for input images
@@ -90,23 +92,17 @@ def spent():
     return vslib.spent_usd(project=vslib.project_name())
 
 
-def log(shot, tool, model, resolution, seconds, cost_usd, why):
-    return vslib.log(tool, shot, usd=cost_usd, kept="pending", note=f"{model} · {resolution} · {seconds}s · {why}")
+def log(shot, tool, model, resolution, seconds, cost_usd=None, why="", credits=""):
+    return vslib.log(tool, shot, credits=credits, usd="" if cost_usd is None else cost_usd, kept="pending",
+                     note=f"{model} · {resolution} · {seconds}s · {why}")
 
 
-def amend(i, shot=None, why=None):
-    vslib.amend(i, **({"what": shot} if shot else {}), **({"note": why[:160]} if why else {}))
+def amend(row, shot=None, why=None):
+    vslib.amend(row, **({"what": shot} if shot else {}), **({"note": why[:160]} if why else {}))
 
 
-def gate(est, what, a):
-    budget = json.load(open("reel.json")).get("budget_usd") if os.path.exists("reel.json") else None
-    budget = budget if budget is not None else vslib.profile().get("spend", {}).get("usd_per_video")
-    so_far = spent()
-    print(f"{what}: about ${est:.2f}. Spent so far: ${so_far:.2f}" + (f" of a ${budget:.2f} budget." if budget is not None else "."))
-    if budget is not None and so_far + est > budget and not a.over:
-        sys.exit("⛔ that would pass the budget. Ask the human; re-run with --over only if they say so.")
-    if not a.yes:
-        sys.exit("Not spent. Re-run with --yes once the human has approved this cost.")
+def gate(vendor, what, a, **cost):
+    vslib.gate(vendor, what, yes=a.yes, over=a.over, **cost)
 
 
 ap = argparse.ArgumentParser()
@@ -125,11 +121,11 @@ if a.cmd == "spent":
 elif a.cmd == "music":
     if not a.style:
         sys.exit("--style is required: genre, tempo, energy, instruments, and what it should build to")
-    gate(0.06, "Two ~45s instrumental takes (Suno V6 on kie.ai, 12 credits)", a)
+    gate("kie.ai", "Two ~45s instrumental takes (Suno V6)", a, credits=12, cap_key="kie_credits_per_video", scope="music")
     # the model name is NESTED: outer "ai-music-api/generate", inner "V6". A top-level "V6" returns 422.
     tid = kie_task("ai-music-api/generate", {"custom_mode": True, "instrumental": True, "title": a.title, "style": a.style,
                                              "negative_tags": a.negative, "duration": a.duration, "model": "V6"})
-    row = log(shot="music (submitted)", tool="kie.ai", model="suno V6", resolution="n/a", seconds=a.duration, cost_usd=0.06,
+    row = log(shot="music (submitted)", tool="kie.ai", model="suno V6", resolution="n/a", seconds=a.duration, credits=12,
               why=f"task {tid} · {a.style[:120]}")
     res = kie_wait(tid, "music")
     os.makedirs("music", exist_ok=True)
@@ -140,20 +136,23 @@ elif a.cmd == "music":
     # Keep each take's audio id: extending a take later (Suno "extend") needs it, and kie.ai forgets it after 14 days.
     ids = " ".join(f"take{i}={t.get('id', '?')}" for i, t in enumerate(res.get("data", []), have + 1))
     amend(row, shot=f"music takes {have + 1}-{have + len(res.get('data', []))}", why=f"{ids} · {a.style[:120]}")
+    vslib.done(row)
 
 elif a.cmd == "still":
     if not (a.prompt and a.out):
         sys.exit("--prompt and --out are required")
-    gate(0.14, f"One still ({a.ar}, Seedream 5 Pro on kie.ai)", a)
+    gate("kie.ai", f"One still ({a.ar}, Seedream 5 Pro)", a, credits=28)
     inp = {"prompt": a.prompt, "aspect_ratio": a.ar, "quality": "high", "output_format": "png", "nsfw_checker": False}
     model = "seedream/5-pro-text-to-image"
     if a.ref:
         model, inp["image_urls"] = "seedream/5-pro-image-to-image", [host(a.ref)]
     tid = kie_task(model, inp)
-    log(shot=os.path.basename(a.out), tool="kie.ai", model=model, resolution=a.ar, seconds=0, cost_usd=0.14, why=f"task {tid} · {a.prompt[:120]}")
+    row = log(shot=os.path.basename(a.out), tool="kie.ai", model=model, resolution=a.ar, seconds=0, credits=28,
+              why=f"task {tid} · {a.prompt[:120]}")
     res = kie_wait(tid, os.path.basename(a.out))
     urls = res.get("resultUrls") or res.get("result_urls") or []
     fetch(urls[0], a.out)
+    vslib.done(row)
     print(a.out)
 
 elif a.cmd == "clip":
@@ -163,26 +162,27 @@ elif a.cmd == "clip":
         h = {"480p": 480, "720p": 720}[a.res]
         # Higgsfield bills tokens = h × w × seconds × 24 / 1024 at $0.0214 per 1,000 (5s: ~$1.03 at 480p, ~$2.31 at 720p)
         est = h * round(h * 16 / 9) * a.dur * 24 / 1024 / 1000 * 0.0214
-        gate(est, f"One {a.dur}s {a.res} clip (Seedance 2.5 on Higgsfield; the shape follows the input image)", a)
+        gate("higgsfield", f"One {a.dur}s {a.res} clip (Seedance 2.5; the shape follows the input image)", a, usd=round(est, 2))
         body = {"image_url": host(a.image), "prompt": a.prompt, "duration": a.dur, "resolution": a.res, "generate_audio": False}
         r = call(HF, body, {"Authorization": f"Key {key('HIGGSFIELD_API_KEY')}"})
         rid = r.get("request_id") or r.get("id")
         print(f"submitted {rid}", flush=True)
-        log(shot=os.path.basename(a.out), tool=a.via, model="seedance-2.5 image-to-video", resolution=a.res, seconds=a.dur,
-            cost_usd=round(est, 2), why=f"request {rid} · {a.prompt[:120]}")
+        row = log(shot=os.path.basename(a.out), tool=a.via, model="seedance-2.5 image-to-video", resolution=a.res,
+                  seconds=a.dur, cost_usd=round(est, 2), why=f"request {rid} · {a.prompt[:120]}")
 
         def fn():
             s = call(HF_STATUS.format(rid), headers={"Authorization": f"Key {key('HIGGSFIELD_API_KEY')}"})
             st = s.get("status")
             return st, (s.get("video") or {}).get("url") if st == "completed" else None
         fetch(poll(os.path.basename(a.out), fn), a.out)
+        vslib.done(row)
     else:
-        est = 0.80
-        gate(est, f"One {a.dur}s clip (Kling 2.1 Pro on kie.ai)", a)
+        gate("kie.ai", f"One {a.dur}s clip (Kling 2.1 Pro)", a, credits=160)
         tid = kie_task("kling/v2-1-pro", {"prompt": a.prompt, "image_url": host(a.image), "duration": str(a.dur),
                        "negative_prompt": "blur, distortion, warping, morphing, text, watermark, cut, scene change", "cfg_scale": 0.5})
-        log(shot=os.path.basename(a.out), tool=a.via, model="kling v2.1 pro", resolution=a.res, seconds=a.dur, cost_usd=est,
-            why=f"task {tid} · {a.prompt[:120]}")
+        row = log(shot=os.path.basename(a.out), tool="kie.ai", model="kling v2.1 pro", resolution=a.res, seconds=a.dur,
+                  credits=160, why=f"task {tid} · {a.prompt[:120]}")
         res = kie_wait(tid, os.path.basename(a.out))
         fetch((res.get("resultUrls") or [])[0], a.out)
+        vslib.done(row)
     print(a.out, "— now run: vs qa", a.out, "--clip")

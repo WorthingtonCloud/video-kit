@@ -1,0 +1,16 @@
+{
+ "scar": "sizzle-reel · Pacing · words flying across the screen (the Lab reel v12: titles at 0.94 s)",
+ "make": {
+  "music/take1.mp3": "tone:6"
+ },
+ "expect": [
+  {
+   "check": "fast-text",
+   "element": "s01_text/quick-label"
+  }
+ ],
+ "expect_none": [
+  "two-zones",
+  "offscreen-at-rest"
+ ]
+}

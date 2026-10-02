@@ -1,0 +1,27 @@
+{
+ "schema_version": 2,
+ "name": "parked",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "scene_lib": "explainer",
+ "music": {
+  "file": "music/take1.mp3",
+  "beat": 0.5,
+  "first_hit": 0,
+  "fade": 0.3
+ },
+ "titles": {},
+ "segments": [
+  {
+   "name": "s01_parked",
+   "secs": 4.0,
+   "source": {
+    "scene": "parked"
+   }
+  }
+ ]
+}

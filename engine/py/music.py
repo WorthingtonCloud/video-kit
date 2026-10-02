@@ -4,7 +4,8 @@ Directions come from the project's music.json ([{"label": "B modern pulse", "sty
 profile's music → directions (the ones this user has settled on), else the two defaults below (the demo explainer's,
 Sep 30, 2026: the "modern pulse" won, at -20 dB under the voice). Takes land in the project's music/; the one that wins
 moves to the studio's library/music when the video is done (vs learn), so the next video can reuse it for free.
-Refuses past --cap credits for this video in the studio ledger. Needs --yes (the human's go, with the number said first).
+Paid, through the spend gate (vslib.gate): it refuses past --cap credits of music for this video (vs gen music counts
+too), past the video's dollar budget, and without --yes (the human's go, with the number said first).
 
     vs music                    print the cost and stop (the moment to ask)
     vs music --yes [--duration 180] [--cap 48]
@@ -47,10 +48,6 @@ def spent():
     return vslib.spent(project=vslib.project_name(), vendor="kie.ai", what_prefix="music")
 
 
-def log(what, credits, note):
-    vslib.log("kie.ai", what, credits=credits, note=note)
-
-
 def decoded_secs(path):
     r = subprocess.run(["ffmpeg", "-hide_banner", "-i", path, "-f", "null", "-"], capture_output=True, text=True).stderr
     t = [x for x in r.replace("\r", "\n").split() if x.startswith("time=")]
@@ -74,21 +71,19 @@ if sys.argv[1:2] == ["spent"]:
     sys.exit(print(f"{spent()} music credits logged"))
 cost = PER_CALL * len(DIRS)
 if os.path.exists("reel.json"):
-    total = vslib.timeline(json.load(open("reel.json")))[2]
+    total = vslib.timing(quiet=True)[2]
     if DUR < total + 3: print(f"⚠️  --duration {DUR}s is shorter than the video ({total:.0f}s): Suno extend, or a longer take")
-if "--yes" not in sys.argv:
-    sys.exit(f"{len(DIRS)} directions × 2 takes of ~{DUR}s = {cost} kie.ai credits (${cost * 0.005:.2f}). Re-run with --yes once the human has said yes to that number.")
-if spent() + cost > CAP:
-    sys.exit(f"⛔ would pass the {CAP}-credit cap ({spent()} logged). Ask the human before raising --cap.")
+vslib.gate("kie.ai", f"{len(DIRS)} music directions × 2 takes of ~{DUR}s (Suno V6)", credits=cost, yes="--yes" in sys.argv,
+           cap_key="kie_credits_per_video", cap=CAP, scope="music")
 
 print("balance before:", call("/api/v1/chat/credit").get("data"), flush=True)
-tasks = {}
+tasks, rows = {}, {}
 for d in DIRS:
     r = call("/api/v1/jobs/createTask", {"model": "ai-music-api/generate", "input": {  # model NESTED: outer generate, inner V6
         "custom_mode": True, "instrumental": True, "title": f"Explainer bed {d['label'][0]}", "style": d["style"],
         "negative_tags": d.get("negative", NEG), "duration": DUR, "model": "V6"}})
     tid = (r.get("data") or {}).get("taskId") or sys.exit(f"createTask: {json.dumps(r)[:300]}")
-    log(f"music {d['label']} (submitted {tid})", PER_CALL, d["style"][:100])  # billed on submit
+    rows[tid] = vslib.log("kie.ai", f"music {d['label']} (submitted {tid})", credits=PER_CALL, note=d["style"][:100])  # billed on submit
     tasks[tid] = d["label"]
     print(f"submitted {d['label']}: {tid}", flush=True)
 
@@ -109,6 +104,7 @@ while len(done) < len(tasks) and time.time() - t0 < 1200:
             res = d.get("resultJson"); res = json.loads(res) if isinstance(res, str) else res
             json.dump(res, open(f"music/{tid}.json", "w"), indent=1)
             done.add(tid)
+            vslib.done(rows[tid])
             for t in tracks(res):
                 n += 1
                 got = fetch([t.get("audio_url"), t.get("stream_audio_url")], f"music/take{n}.mp3", float(t.get("duration") or DUR))
@@ -117,5 +113,5 @@ while len(done) < len(tasks) and time.time() - t0 < 1200:
                 names[f"take{n}"] = {"label": label, "id": t.get("id"), "secs": round(got, 2)}  # mix.py + the mixer read this
                 json.dump(names, open("music/takes.json", "w"), indent=1)
         elif st in ("fail", "failed", "canceled"):
-            done.add(tid); print(f"  {label}: FAILED {json.dumps(d)[:300]}", flush=True)
+            done.add(tid); vslib.failed(rows[tid]); print(f"  {label}: FAILED {json.dumps(d)[:300]}", flush=True)
 print("balance after:", call("/api/v1/chat/credit").get("data"), flush=True)

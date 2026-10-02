@@ -1,0 +1,792 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/review.schema.json",
+ "title": "review/state.json",
+ "description": "Review Studio's snapshot: review/log.jsonl folded (py/review.py writes it after every event; nobody edits it). What the agent reads, and where the render gate reads findings.<id>.status.",
+ "type": "object",
+ "required": [
+  "review",
+  "events",
+  "round",
+  "rounds",
+  "notes",
+  "findings",
+  "choices",
+  "mix",
+  "approved",
+  "lessons",
+  "friction"
+ ],
+ "additionalProperties": false,
+ "$defs": {
+  "box": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 4,
+   "maxItems": 4,
+   "description": "x0, y0, x1, y1 as fractions of the frame"
+  },
+  "point": {
+   "type": "array",
+   "items": {
+    "type": "number"
+   },
+   "minItems": 2,
+   "maxItems": 2,
+   "description": "x, y as fractions of the frame"
+  },
+  "time": {
+   "type": "object",
+   "anyOf": [
+    {
+     "required": [
+      "t"
+     ]
+    },
+    {
+     "required": [
+      "t0",
+      "t1"
+     ]
+    }
+   ],
+   "properties": {
+    "t": {
+     "type": "number",
+     "minimum": 0
+    },
+    "t0": {
+     "type": "number",
+     "minimum": 0
+    },
+    "t1": {
+     "type": "number",
+     "minimum": 0
+    }
+   }
+  },
+  "mark": {
+   "type": "object",
+   "required": [
+    "type"
+   ],
+   "properties": {
+    "type": {
+     "enum": [
+      "none",
+      "click",
+      "box",
+      "arrow",
+      "keep-clear"
+     ]
+    },
+    "at": {
+     "$ref": "#/$defs/point"
+    },
+    "box": {
+     "$ref": "#/$defs/box"
+    },
+    "from": {
+     "$ref": "#/$defs/point"
+    },
+    "to": {
+     "$ref": "#/$defs/point"
+    },
+    "under_from": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "under_to": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "over": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "keeps": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "keep-clear: what sat mostly inside the zone when it was drawn (what it protects)"
+    }
+   }
+  },
+  "entry": {
+   "type": "object",
+   "required": [
+    "by",
+    "type",
+    "text",
+    "at"
+   ],
+   "properties": {
+    "by": {
+     "enum": [
+      "human",
+      "agent"
+     ]
+    },
+    "type": {
+     "type": "string"
+    },
+    "text": {
+     "type": "string"
+    },
+    "at": {
+     "type": "string"
+    }
+   }
+  }
+ },
+ "properties": {
+  "review": {
+   "const": 1
+  },
+  "events": {
+   "type": "integer",
+   "minimum": 0
+  },
+  "round": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "rounds": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "n",
+     "version",
+     "video",
+     "status",
+     "notes"
+    ],
+    "properties": {
+     "n": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "version": {
+      "type": "integer"
+     },
+     "cut": {
+      "enum": [
+       "9x16",
+       "16x9",
+       null
+      ]
+     },
+     "video": {
+      "type": "string"
+     },
+     "size": {
+      "type": [
+       "array",
+       "null"
+      ]
+     },
+     "status": {
+      "enum": [
+       "open",
+       "sent",
+       "closed"
+      ]
+     },
+     "notes": {
+      "type": "array",
+      "items": {
+       "type": "string",
+       "pattern": "^n-\\d{4,}$"
+      }
+     },
+     "asked": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "stage": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "sends": {
+      "type": "integer",
+      "description": "how many times the human pressed Approve & send in this round"
+     },
+     "last_sent": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "read": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "description": "when the agent read what was sent (vs review show)"
+     },
+     "read_sends": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "notes": {
+   "type": "object",
+   "propertyNames": {
+    "pattern": "^n-\\d{4,}$"
+   },
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "id",
+     "round",
+     "version",
+     "time",
+     "mark",
+     "status",
+     "thread"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "round": {
+      "type": "integer"
+     },
+     "version": {
+      "type": "integer"
+     },
+     "cut": {
+      "enum": [
+       "9x16",
+       "16x9",
+       null
+      ]
+     },
+     "time": {
+      "$ref": "#/$defs/time"
+     },
+     "segment": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "scene": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "target": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "properties": {
+       "el": {
+        "type": "string"
+       },
+       "box": {
+        "$ref": "#/$defs/box"
+       }
+      }
+     },
+     "crumbs": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "mark": {
+      "$ref": "#/$defs/mark"
+     },
+     "also": {
+      "type": "array",
+      "items": {
+       "$ref": "#/$defs/mark"
+      }
+     },
+     "visible": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "findings": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "comment": {
+      "type": "string"
+     },
+     "follows": {
+      "type": "string"
+     },
+     "status": {
+      "enum": [
+       "draft",
+       "sent",
+       "question",
+       "resolved",
+       "wontdo",
+       "accepted",
+       "reopened",
+       "withdrawn"
+      ]
+     },
+     "late": {
+      "type": "boolean"
+     },
+     "thread": {
+      "type": "array",
+      "items": {
+       "$ref": "#/$defs/entry"
+      }
+     },
+     "resolution": {
+      "type": [
+       "object",
+       "null"
+      ]
+     },
+     "measured": {
+      "type": [
+       "object",
+       "null"
+      ]
+     },
+     "sound": {
+      "type": "object",
+      "required": [
+       "el"
+      ],
+      "description": "a note about one sound effect (the timeline's Sound row): its cue, and the human's answer",
+      "properties": {
+       "el": {
+        "type": "string",
+        "pattern": "^sfx/"
+       },
+       "t": {
+        "type": "number"
+       },
+       "sound": {
+        "type": "string"
+       },
+       "db": {
+        "type": [
+         "number",
+         "null"
+        ]
+       },
+       "ask": {
+        "enum": [
+         "quieter",
+         "louder",
+         "different",
+         "remove"
+        ]
+       }
+      }
+     }
+    }
+   }
+  },
+  "findings": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "status"
+    ],
+    "properties": {
+     "status": {
+      "enum": [
+       "confirmed",
+       "dismissed"
+      ]
+     },
+     "reason": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "check": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "followed": {
+      "type": [
+       "boolean",
+       "null"
+      ],
+      "description": "whether the decision took Claude's advice (null: there was none)"
+     },
+     "carried": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "description": "an earlier round's answer to this same finding, carried (vs review open)"
+     }
+    }
+   }
+  },
+  "choices": {
+   "type": "object",
+   "propertyNames": {
+    "pattern": "^c-\\d{4,}$"
+   },
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "id",
+     "question",
+     "options"
+    ],
+    "properties": {
+     "id": {
+      "type": "string"
+     },
+     "question": {
+      "type": "string"
+     },
+     "cost": {
+      "type": "string"
+     },
+     "for": {
+      "type": "string",
+      "pattern": "^n-\\d{4,}$"
+     },
+     "time": {
+      "$ref": "#/$defs/time"
+     },
+     "options": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+       "type": "object",
+       "required": [
+        "id"
+       ],
+       "properties": {
+        "id": {
+         "type": "string",
+         "not": {
+          "const": "none"
+         }
+        },
+        "kind": {
+         "enum": [
+          "variant",
+          "take",
+          "video",
+          "image",
+          "audio",
+          "paid"
+         ]
+        },
+        "preview": {
+         "type": "string"
+        },
+        "label": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "take": {
+         "type": "integer",
+         "minimum": 1
+        },
+        "end": {
+         "type": [
+          "number",
+          "null"
+         ]
+        },
+        "timing": {
+         "type": "string"
+        },
+        "paid": {
+         "type": "boolean"
+        },
+        "run": {
+         "type": "string"
+        },
+        "cost": {
+         "type": "string"
+        },
+        "estimate": {
+         "type": "object"
+        }
+       }
+      }
+     },
+     "picked": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "said": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "picked_at": {
+      "type": "string"
+     },
+     "picks": {
+      "type": "array",
+      "items": {
+       "type": "object",
+       "required": [
+        "pick",
+        "at"
+       ]
+      }
+     },
+     "applied": {
+      "type": [
+       "object",
+       "null"
+      ],
+      "required": [
+       "pick",
+       "at"
+      ]
+     },
+     "offered": {
+      "type": "string"
+     },
+     "round": {
+      "type": [
+       "integer",
+       "null"
+      ]
+     }
+    }
+   }
+  },
+  "mix": {
+   "type": [
+    "object",
+    "null"
+   ]
+  },
+  "approved": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "version"
+    ]
+   }
+  },
+  "lessons": {
+   "type": "object",
+   "propertyNames": {
+    "pattern": "^l-\\d{4,}$"
+   },
+   "additionalProperties": {
+    "type": "object",
+    "properties": {
+     "decision": {
+      "enum": [
+       "remember",
+       "video",
+       "ignore",
+       null
+      ]
+     }
+    }
+   }
+  },
+  "friction": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "text"
+    ]
+   }
+  },
+  "time": {
+   "type": "object",
+   "description": "the page's own clock: seconds reviewing (visible and in use), and of those, playing",
+   "properties": {
+    "secs": {
+     "type": "number"
+    },
+    "playing": {
+     "type": "number"
+    }
+   }
+  },
+  "done": {
+   "type": "object",
+   "description": "scenes the human marked done: vs inspect holds their frames to that version",
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "version",
+     "at"
+    ],
+    "properties": {
+     "version": {
+      "type": "integer"
+     },
+     "cut": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "video": {
+      "type": "string"
+     },
+     "at": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "advice": {
+   "type": "object",
+   "description": "Claude's advice on the round's findings (vs review advise), by finding id: what it is in plain words, leave or fix, and why",
+   "additionalProperties": {
+    "type": "object",
+    "required": [
+     "advice",
+     "plain"
+    ],
+    "properties": {
+     "advice": {
+      "enum": [
+       "leave",
+       "fix"
+      ]
+     },
+     "plain": {
+      "type": "string"
+     },
+     "why": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "check": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "ids": {
+      "type": "array",
+      "items": {
+       "type": "string"
+      }
+     },
+     "at": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "steps": {
+   "type": "array",
+   "description": "the human's steps in plain words (the page's \"How we got here\"), oldest first, each with its stage and its line(s) in the log",
+   "items": {
+    "type": "object",
+    "required": [
+     "seq",
+     "seqs",
+     "at",
+     "kind",
+     "text",
+     "pending"
+    ],
+    "properties": {
+     "seq": {
+      "type": "integer"
+     },
+     "seqs": {
+      "type": "array",
+      "items": {
+       "type": "integer"
+      }
+     },
+     "at": {
+      "type": "string"
+     },
+     "kind": {
+      "type": "string"
+     },
+     "by": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "text": {
+      "type": "string"
+     },
+     "pending": {
+      "type": "boolean"
+     },
+     "stage": {
+      "type": [
+       "string",
+       "null"
+      ]
+     }
+    }
+   }
+  },
+  "stage": {
+   "type": [
+    "string",
+    "null"
+   ],
+   "description": "where the video is (contracts.json \u2192 stages): the latest stage a round or a logged step named"
+  },
+  "pending": {
+   "type": "array",
+   "items": {
+    "type": "integer"
+   },
+   "description": "the human's held feedback, not sent yet, by line in the log (empty in state.json: the agent sees only what was sent)"
+  },
+  "finished": {
+   "type": [
+    "object",
+    "null"
+   ],
+   "description": "the finals the agent filed (vs review finish): files [{url, name, cut}], at, round"
+  }
+ }
+}
