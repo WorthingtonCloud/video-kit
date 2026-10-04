@@ -1,7 +1,7 @@
 // Review Studio's page: the panels, wired to the core, the keys, and the poll that brings the agent's answers in.
 // The video gets the room: the round's panel and the timeline start folded (each remembered per browser), and F puts the
 // video on the whole screen with the strip under it floating over the picture.
-import { app, $, load, fit, toast } from "./core.js";
+import { app, $, load, fit, toast, cuts, setCut } from "./core.js";
 import { player, setup, sceneJump } from "./player.js";
 import { timeline, zoomStep } from "./timeline.js";
 import { notes } from "./notes.js";
@@ -51,6 +51,12 @@ export function timelineShown(on = $("#tl").hidden) {
   fit();
 }
 $("#roundbtn").onclick = () => drawer();
+// both shapes: the switch (and S) puts the other one on screen at the same moment
+$("#shapes").onclick = (e) => {
+  const b = e.target.closest("button[data-cut]");
+  if (b) setCut(b.dataset.cut);
+};
+const otherCut = () => cuts()?.find((c) => c.cut !== app.cut)?.cut;
 $("#dtab").onclick = () => drawer(true);
 $("#dclose").onclick = () => drawer(false);
 $("#tl-toggle").onclick = () => timelineShown();
@@ -91,6 +97,7 @@ document.addEventListener("keydown", (e) => {
   else if (k === "-") zoomStep(1);
   else if (k === "=" || k === "+") zoomStep(-1);
   else if (k === "f" || k === "F") fullscreen();
+  else if ((k === "s" || k === "S") && otherCut()) setCut(otherCut());
   else if (k === "i" || k === "I") mark("in");
   else if (k === "o" || k === "O") mark("out");
   else if (k === "v" || k === "V") setTool("point");

@@ -72,6 +72,46 @@
       },
       "url_b": {
        "type": "number"
+      },
+      "hold": {
+       "type": "number",
+       "minimum": 0,
+       "description": "seconds the address must stay on screen before the end card ends (default 1.2); a card too short for word_b/url_b pulls them onto earlier beats"
+      },
+      "mark3d": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "frames"
+       ],
+       "description": "a rendered mark (e.g. a Blender render) played in place of the drawn mark: a folder of see-through frames, its point landing on the end card's beat",
+       "properties": {
+        "frames": {
+         "type": "string",
+         "description": "folder of f0001.png … (relative = the studio)"
+        },
+        "fps": {
+         "type": "number"
+        },
+        "land_frame": {
+         "type": "integer",
+         "minimum": 1,
+         "description": "the frame where the point touches down"
+        },
+        "box": {
+         "type": "array",
+         "items": {
+          "type": "number"
+         },
+         "minItems": 3,
+         "maxItems": 3,
+         "description": "left, top, size on the 1080 stage"
+        },
+        "source": {
+         "type": "string",
+         "description": "how the frames were made"
+        }
+       }
       }
      }
     }
@@ -172,7 +212,7 @@
   },
   "checks": {
    "type": "object",
-   "description": "your thresholds for the tunable checks (the kit's are in engine/contracts.json \u2192 reading, checks)",
+   "description": "your thresholds for the tunable checks (the kit's are in engine/contracts.json → reading, checks)",
    "additionalProperties": false,
    "properties": {
     "words_per_sec": {

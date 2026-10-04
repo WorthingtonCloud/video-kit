@@ -1,0 +1,46 @@
+{
+ "schema_version": 2,
+ "name": "late",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "music": {
+  "file": "music/take1.mp3",
+  "beat": 0.6317,
+  "first_hit": 0,
+  "fade": 0.3
+ },
+ "titles": {},
+ "scenes": {
+  "endcard": {
+   "mark": {
+    "path": "M5 3 v16 h16",
+    "point": [14, 6, 4.5, 4.5],
+    "viewBox": "-3 -3 30 30"
+   },
+   "wordmark": "THE LAB",
+   "url": "lab.example.com",
+   "word_b": 2,
+   "url_b": 4
+  }
+ },
+ "segments": [
+  {
+   "name": "s01_late",
+   "secs": 2.5,
+   "source": {
+    "scene": "late"
+   }
+  },
+  {
+   "name": "s02_end",
+   "secs": 3.5,
+   "source": {
+    "scene": "endcard"
+   }
+  }
+ ]
+}

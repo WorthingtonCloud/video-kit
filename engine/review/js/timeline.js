@@ -3,7 +3,7 @@
 // beats), the titles, the current scene's elements, the sound cues, the findings, the notes. The playhead drives it
 // all; hovering an element's row outlines it in the frame, and hovering the frame lights up the row of what's under
 // the pointer.
-import { app, $, fmt, esc, liveNotes } from "./core.js";
+import { app, $, fmt, esc, liveNotes, onCut } from "./core.js";
 import { player, sceneJump } from "./player.js";
 import { element, onAt, boxAt, segmentAt, findings } from "./maps.js";
 import { hit, boxOf, draft, point, setRange } from "./point.js";
@@ -100,7 +100,7 @@ function draw() {
         b = "t" in c.time ? a + 0.3 : c.time.t1;
       return block(`ch${c.picked ? " picked" : ""}`, a, b, esc(c.id), `data-t="${a}" data-choice="${esc(c.id)}" data-tip="${esc(c.id)} · ${esc(c.question)}${c.picked ? " · picked " + esc(c.picked) : " · waiting"}"`);
     }).join(""), "grp"));
-  const N = liveNotes();
+  const N = liveNotes().filter(onCut); // both shapes: the pins of the one on screen
   out.push(row("Notes", N.map((n) => ("t" in n.time
     ? pip(`pin ${n.status}`, n.time.t, "", `data-t="${n.time.t}" data-note="${n.id}" data-tip="${n.id} · ${esc((n.comment || "").slice(0, 60))}"`)
     : block(`rng ${n.status}`, n.time.t0, n.time.t1, "", `data-t="${n.time.t0}" data-note="${n.id}" data-tip="${n.id} · ${esc((n.comment || "").slice(0, 60))}"`))).join(""), "grp"));
@@ -283,6 +283,7 @@ export const timeline = {
   noteJump(dir) {
     const t = player.t(),
       ts = liveNotes()
+        .filter(onCut)
         .map((n) => ["t" in n.time ? n.time.t : n.time.t0, n.id])
         .sort((a, b) => a[0] - b[0]);
     const n = dir > 0 ? ts.find((x) => x[0] > t + 0.02) : ts.reverse().find((x) => x[0] < t - 0.02);

@@ -22,7 +22,26 @@ def kit_version():
 
 
 def url(p):
-    return "/" + p.replace(os.sep, "/") if p else None
+    """A project file's address. A file in a project beside this one (a reel's widescreen cut lives in <slug>-16x9/)
+    is /@<that project>/…: the server serves only its out/, and only for a project the open round names."""
+    if not p:
+        return None
+    p = os.path.normpath(p)
+    if p.startswith(".." + os.sep):
+        parts = p.split(os.sep)
+        return "/@" + "/".join(parts[1:])
+    return "/" + p.replace(os.sep, "/")
+
+
+def neighbors():
+    """The projects beside this one the open round shows a shape from (the only ones /@… may read)."""
+    R = review.current(review.state())
+    out = set()
+    for c in (R or {}).get("cuts") or []:
+        p = os.path.normpath(c["video"]).split(os.sep)
+        if p[0] == ".." and len(p) > 2:
+            out.add(p[1])
+    return out
 
 
 def context(S):
@@ -52,37 +71,44 @@ def context(S):
     R = review.current(S)
     if not R:
         return ctx
-    n, base = review.version_of(R["video"])
-    vtl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
-    btl = vslib.read_json("build/timeline.json")
-    fp = (vtl or {}).get("fingerprint")
-    same = bool(btl and fp and btl.get("fingerprint") == fp)
-
-    def pick(name):
-        if os.path.exists(f"{base}.review/{name}"):
-            return url(f"{base}.review/{name}"), True
-        f = f"build/{name}"
-        F = vslib.read_json(f)
-        if F:
-            return url(f), bool(fp and F.get("fingerprint") == fp)
-        return None, False
-
-    els, els_exact = pick("elements.json")
-    fnd, fnd_exact = pick("findings.json")
-    comp = same and os.path.exists("build/comp/index.html")  # the composition that made this version, to hit-test
     words = (vslib.read_json("plan.json") or {}).get("words")  # an explainer's clock: the narrator's words
-    ctx["round"] = {
-        "video": url(R["video"]), "version": n, "cut": R["cut"], "size": R.get("size"),
-        "timeline": url(f"{base}.review/timeline.json") if os.path.exists(f"{base}.review/timeline.json")
-        else url(f"{base}.timeline.json") if vtl else url("build/timeline.json") if btl else None,
-        "elements": els, "findings": fnd,
-        "words": url(words) if words and os.path.exists(words) else None,
-        "cues": url(f"{base}.review/cues.json") if os.path.exists(f"{base}.review/cues.json")
-        else url("build/mix/cues.json") if same and os.path.exists("build/mix/cues.json") else None,
-        "qa": url(f"{base}.review/qa.json") if os.path.exists(f"{base}.review/qa.json") else None,  # qa.py's warnings
-        "comp": url("build/comp/index.html") if comp else None,
-        "exact": {"timeline": bool(vtl), "elements": els_exact, "findings": fnd_exact, "comp": comp},
-    }
+
+    def shape(video, cut, size):
+        """One render's files: its version's own maps first, this project's build only when it's the same composition."""
+        n, base = review.version_of(video)
+        here = not os.path.normpath(video).startswith("..")
+        vtl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
+        btl = vslib.read_json("build/timeline.json") if here else None
+        fp = (vtl or {}).get("fingerprint")
+        same = bool(btl and fp and btl.get("fingerprint") == fp)
+
+        def pick(name):
+            if os.path.exists(f"{base}.review/{name}"):
+                return url(f"{base}.review/{name}"), True
+            F = vslib.read_json(f"build/{name}") if here else None
+            if F:
+                return url(f"build/{name}"), bool(fp and F.get("fingerprint") == fp)
+            return None, False
+
+        els, els_exact = pick("elements.json")
+        fnd, fnd_exact = pick("findings.json")
+        comp = same and os.path.exists("build/comp/index.html")  # the composition that made this version, to hit-test
+        return {
+            "video": url(video), "version": n, "cut": cut, "size": size,
+            "timeline": url(f"{base}.review/timeline.json") if os.path.exists(f"{base}.review/timeline.json")
+            else url(f"{base}.timeline.json") if vtl else url("build/timeline.json") if btl else None,
+            "elements": els, "findings": fnd,
+            "words": url(words) if words and os.path.exists(words) else None,
+            "cues": url(f"{base}.review/cues.json") if os.path.exists(f"{base}.review/cues.json")
+            else url("build/mix/cues.json") if same and os.path.exists("build/mix/cues.json") else None,
+            "qa": url(f"{base}.review/qa.json") if os.path.exists(f"{base}.review/qa.json") else None,  # qa.py's warnings
+            "comp": url("build/comp/index.html") if comp else None,
+            "exact": {"timeline": bool(vtl), "elements": els_exact, "findings": fnd_exact, "comp": comp},
+        }
+
+    ctx["round"] = shape(R["video"], R["cut"], R.get("size"))
+    if R.get("cuts"):  # both shapes: the page shows one at a time (ctx.round = the one it opens on)
+        ctx["round"]["cuts"] = [shape(c["video"], c["cut"], c.get("size")) for c in R["cuts"]]
     return ctx
 
 
@@ -122,6 +148,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if p.startswith("/fonts/"):
                 root, p = os.path.join(vslib.studio_root() or "", "library/brand/fonts"), p[len("/fonts"):]
         parts = [w for w in posixpath.normpath(p).split("/") if w and w not in (".", "..")]
+        if p.startswith("/@") and parts:
+            # a shape from the project beside this one: its out/ only, and only one the open round names
+            nb = parts[0][1:]
+            if nb not in neighbors() or len(parts) < 3 or parts[1] != "out":
+                return os.path.join(root, ".not-served")
+            return os.path.join(os.path.dirname(root), nb, *parts[1:])
         return os.path.join(root, *parts) + ("/" if p.endswith("/") else "")
 
     def do_GET(self):

@@ -1,6 +1,6 @@
 // Reading the round's maps: when an element is on screen and where its box is, from build/elements.json (vs inspect
 // kept a box whenever one moved; a box holds until the next). Shared by the timeline and the pointer.
-import { app } from "./core.js";
+import { app, cutPrefix } from "./core.js";
 
 const M = () => app.maps || {};
 let index = null,
@@ -42,11 +42,15 @@ export function stackAt(pt, t) {
 // The findings a round shows: vs inspect's warnings (things that can be by design: the human confirms or dismisses
 // them), its errors only when they were put to the human (errors never reach a round otherwise), and qa.py's warnings on
 // this render. Each carries where it came from.
+// With both shapes in a round, these are the shape on screen's, named as vs review names them (the other shape's ids
+// carry its cut: "16x9:f-…"), so an answer about one shape never answers the other.
 export function findings() {
-  const asked = new Set(app.state?.rounds.at(-1)?.asked || []);
+  const asked = new Set(app.state?.rounds.at(-1)?.asked || []),
+    pre = cutPrefix(),
+    named = (f, source) => ({ ...f, id: pre + f.id, source });
   return [
-    ...(M().findings?.items || []).filter((f) => asked.has(f.id) || f.severity === "warning").map((f) => ({ ...f, source: "inspect" })),
-    ...(M().qa?.items || []).map((f) => ({ ...f, source: "qa" })),
+    ...(M().findings?.items || []).filter((f) => asked.has(pre + f.id) || f.severity === "warning").map((f) => named(f, "inspect")),
+    ...(M().qa?.items || []).map((f) => named(f, "qa")),
   ].sort((a, b) => a.t0 - b.t0);
 }
 // the ones live at a moment (and touching an element, when there is one)

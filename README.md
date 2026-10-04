@@ -1,4 +1,4 @@
-https://github.com/user-attachments/assets/43214abb-b2b9-479e-af4c-6dab79d13c17
+https://github.com/user-attachments/assets/83dad20d-f32f-4455-9f84-5b578088c0dd
 
 <p align="center">
   58 seconds, sound on. This reel was made by the kit, about the kit.
@@ -11,9 +11,9 @@ seconds). The agent writes it, voices it, draws every scene in code, checks its 
 watch it in a review page, point at what's wrong, and send. You never open a video editor.
 
 The reel above was made this way. One request, music reused from an earlier reel, every scene drawn in code, and the
-Review Studio filmed live from a real round. Its reviewer gave five notes over four rounds, from "the red dot over the
-text makes it hard to read" to "this has to look like a polished million dollar product." The agent traced each one to
-the kit and fixed it there, so every reel after this one gets the fix too. Nothing in it was paid for.
+Review Studio filmed live from a real round. Its reviewer gave eight notes over seven rounds, from "the red dot over the
+text makes it hard to read" to "the end card never shows the address." The agent traced each one to the kit and fixed it
+there, so every reel after this one gets the fix too. Nothing in it was paid for.
 
 ## Install it
 
@@ -45,6 +45,10 @@ renderer), GSAP (the animation), puppeteer and its Chrome, and a Python with num
 studio folder (`~/video-studio`). macOS and Linux run it as is; on Windows, use WSL. After a plugin update, run setup
 again: the engine's packages live beside the new version.
 
+**Optional, and free: [Blender](https://www.blender.org).** If it's installed, `vs mark3d` builds your end card's mark
+as a lit 3D tile: it swings in, its lines draw, and the accent point drops onto the beat. Without it, the end card draws
+the flat mark.
+
 **The paid parts, all optional to start:** an [ElevenLabs](https://elevenlabs.io) key for the narrator and any new
 sound effects (library voices need a paid plan over the API). An [OpenAI](https://platform.openai.com) key transcribes
 each take back to catch a changed word, or times your own recording (about a cent). A [kie.ai](https://kie.ai) key makes
@@ -67,13 +71,17 @@ enough.
   change at all.
 - **Choices come as options you play side by side** (two versions of a scene, two music takes), and the Mix panel
   sets the levels by ear.
+- **Both shapes in one round.** When the vertical and widescreen cuts are both rendered, a switch puts either one on
+  screen at the same moment. Each note, check and approval belongs to the shape you're looking at, so each gets its own
+  feedback.
 - **When you approve, the page says Done** and hands you the files.
 
 ## It checks its own work
 
 Before you see anything, `vs inspect` maps every element on screen at every moment and looks for the notes a reviewer
 would otherwise have to give: words under a picture, two things to read at once, words that go by too fast, anything
-a phone's status bar, buttons or side crop will cover, a word parked half off the frame, dead air. Nothing renders
+a phone's status bar, buttons or side crop will cover, a word parked half off the frame, dead air, words that never
+reach the screen, words a cut takes away before they're read, an animation that silently never moves. Nothing renders
 until it finds no errors. After the render, `vs qa` checks the cut itself: flashes, blacks that don't match, black
 holes at the cuts, loudness and peaks, too many sound effects at once.
 
@@ -148,6 +156,14 @@ come from the words, never typed in. No render until `vs inspect` finds no error
 the voice and never competes. The picture is never re-rendered for sound. In widescreen, anything that leaves a
 vertical frame has to leave the wide one too. The full lists, with the fix for each, are in each skill's
 `references/scars.md`.
+
+## New in 2.1
+
+Review both shapes in one round, each with its own notes and approval. A 3D end card if Blender is installed
+(`vs mark3d`). Four new checks, each from a note a reviewer once had to give by eye: words that never reach the screen,
+words a cut takes away before they're read, an animation that silently never moves, and a cue word said twice in its
+line (`vs plan` says which one it took). The end card now fits its beats into a short card, and the reel's hub scene fits
+its labels into its time: both had been timing words past their scene's end.
 
 ## New in 2.0
 

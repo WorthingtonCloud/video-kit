@@ -20,6 +20,18 @@ def at(spec, acts):
     try: return word_at(WORDS, spec, acts)[0]
     except ValueError as e: raise SystemExit(str(e))
 
+# a bare word said more than once in its acts takes the first, maybe not the one meant (a parody ad, Oct 2, 2026:
+# "job" hit "doing a job" early, so the punchline fired a line too soon): say so, and how to point at the later one
+norm = lambda x: re.sub(r"[^a-z0-9]", "", str(x).lower())
+def twice(seg, what, spec, acts):
+    m = re.fullmatch(r"(?:(\d+):)?(.+?)(?:#(\d+))?([+-]\d[\d.]*)?", str(spec).strip())
+    if not m or m.group(1) or m.group(3) or spec == "end": return
+    hits = [w for w in WORDS if w["act"] in acts and norm(w["w"]) == norm(m.group(2))]
+    if len(hits) > 1:
+        when = ", ".join(f"{w['t0']:.2f}s" for w in hits)
+        print(f"⚠️  {seg} → {what} \"{spec}\": said {len(hits)} times in act{'s' if len(acts) > 1 else ''} "
+              f"{', '.join(map(str, acts))} ({when}); it takes the first. The later one: \"{m.group(2)}#2\"")
+
 def first(act): return min(w["t0"] for w in WORDS if w["act"] == act)
 def last(act): return max(w["t1"] for w in WORDS if w["act"] == act)
 
@@ -34,6 +46,8 @@ for i, s in enumerate(P["segments"]):
     seg = {"name": s["name"], "secs": round(t1 - t0, 3), "source": s["source"]}
     if i: seg["in"] = s.get("in", "whip")
     rel = lambda spec: round((t1 - t0) if spec == "end" else at(spec, acts) - t0, 3)
+    for k, v in (s.get("cues") or {}).items(): twice(s["name"], f"cue {k}", v, acts)
+    for tid, a, b in s.get("titles") or []: twice(s["name"], f"title {tid}", a, acts)
     if s.get("titles"):
         seg["titles"] = [[tid, max(0, rel(a)), rel(b) if b != "end" else "end"] for tid, a, b in s["titles"]]
         for tid, a, b in seg["titles"]:  # a word that matched too early makes a title end before it starts: it never leaves

@@ -143,7 +143,15 @@ export function withBrand(R) {
     const e = { ...b.endcard },
       S = studioRoot();
     if (e.logo && S && !path.isAbsolute(e.logo)) e.logo = path.join(S, e.logo);
+    if (e.mark3d?.frames && S && !path.isAbsolute(e.mark3d.frames))
+      e.mark3d = { ...e.mark3d, frames: path.join(S, e.mark3d.frames) };
     R.scenes = { ...(R.scenes || {}), endcard: { ...e, ...end } };
+  } else if (end && !end.mark3d && b.endcard?.mark3d && JSON.stringify(end.mark) === JSON.stringify(b.endcard.mark)) {
+    // a reel that spells out the studio's own mark still gets the studio's rendered one
+    const S = studioRoot(),
+      m3 = { ...b.endcard.mark3d };
+    if (m3.frames && S && !path.isAbsolute(m3.frames)) m3.frames = path.join(S, m3.frames);
+    R.scenes.endcard = { ...end, mark3d: m3 };
   }
   return R;
 }

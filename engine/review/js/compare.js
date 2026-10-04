@@ -1,7 +1,7 @@
 // Compare: the version a note was made on and the version that answered it, side by side at the note's moment, the
 // target outlined in both (its old box, and the box the new version's element map measured). They play, pause and
 // step together. Esc closes it.
-import { app, $, fmt, esc } from "./core.js";
+import { app, $, fmt, esc, asCut, href } from "./core.js";
 
 let box = null;
 const fps = () => app.maps?.timeline?.fps || 30;
@@ -9,8 +9,8 @@ const fps = () => app.maps?.timeline?.fps || 30;
 export function compare(n) {
   const S = app.state,
     m = n.measured,
-    old = S.rounds[n.round - 1],
-    now = S.rounds.at(-1);
+    old = asCut(S.rounds[n.round - 1], n.cut), // both shapes in a round: the note's own shape, then and now
+    now = asCut(S.rounds.at(-1), n.cut);
   if (!m || !old || !now) return;
   const sound = !!n.sound || (m.moment && (m.audio?.changed_secs || 0) >= 0.1), // a sound note, or a moment whose sound changed
     t = "t" in n.time ? n.time.t : n.time.t0,
@@ -22,8 +22,8 @@ export function compare(n) {
     return (mixed.find((x) => x.video.endsWith(`-take${app.ctx.mixer?.saved?.take}.mp4`)) || mixed[0])?.video.slice(1) || R.video;
   };
   const pane = (v, label, b, at) => `
-    <figure><div class="cmp-stage" style="--ar:${(now.size || [9, 16]).join("/")}">
-      <video src="/${esc(v)}" muted playsinline preload="auto" data-t="${at}"></video>
+    <figure><div class="cmp-stage" style="--ar:${(now.size || [9, 16]).join("/")};--arn:${((now.size || [9, 16])[0] / (now.size || [9, 16])[1]).toFixed(4)}">
+      <video src="${esc(href(v))}" muted playsinline preload="auto" data-t="${at}"></video>
       ${b ? `<svg viewBox="0 0 1 1" preserveAspectRatio="none"><rect x="${b[0]}" y="${b[1]}" width="${b[2] - b[0]}" height="${b[3] - b[1]}" vector-effect="non-scaling-stroke"/></svg>` : ""}
     </div><figcaption>${label} · ${fmt(at)}</figcaption></figure>`;
   close();

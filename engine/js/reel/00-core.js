@@ -65,6 +65,36 @@
   }
 
   const tl = gsap.timeline({ paused: true });
+  // A tween value that can't be a number (an object where a number goes, NaN) makes GSAP skip it without a word: the
+  // thing never moves, and no check can see a move that never happened (contextual-ui v1, Oct 2, 2026: exPath returns
+  // {x, y}, used as a number, so the chat stack never scrolled; only stills showed it). Under vs inspect every tween's
+  // values are checked as it's made, and the bad ones are listed for its dead-tween check.
+  if (window.__INSPECT) {
+    window.__badTweens = [];
+    const OBJ = new Set(["stagger", "keyframes", "motionPath", "modifiers", "snap", "startAt", "callbackScope", "data", "ease", "text"]);
+    const bad = (v) =>
+      (typeof v === "number" && !Number.isFinite(v)) ||
+      (v && typeof v === "object" && !Array.isArray(v)) ||
+      (typeof v === "string" && /\bNaN\b|\[object /.test(v));
+    const check = (targets, vars) => {
+      if (!vars || typeof vars !== "object") return;
+      const found = [];
+      for (const [k, v] of Object.entries(vars)) {
+        if (OBJ.has(k) || typeof v === "function") continue;
+        if (k === "attr" || k === "css") {
+          for (const [k2, v2] of Object.entries(v || {})) if (typeof v2 !== "function" && bad(v2)) found.push(`${k}.${k2}`);
+        } else if (bad(v)) found.push(k);
+      }
+      if (found.length)
+        for (const el of gsap.utils.toArray(targets)) if (el?.nodeType === 1) window.__badTweens.push({ el, props: found, stack: new Error().stack });
+    };
+    for (const m of ["to", "from", "set"]) {
+      const f = tl[m].bind(tl);
+      tl[m] = (t, v, ...r) => (check(t, v), f(t, v, ...r));
+    }
+    const ft = tl.fromTo.bind(tl);
+    tl.fromTo = (t, a, b, ...r) => (check(t, a), check(t, b), ft(t, a, b, ...r));
+  }
   const ticks = []; // per-frame work: (t) => void
   const IR = { immediateRender: false }; // later tweens must not paint their start state at load
   const TP = { transformPerspective: 1800 };

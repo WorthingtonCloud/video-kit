@@ -100,12 +100,21 @@
     hub(stage, seg, f) {
       const c = R.scenes.hub || {},
         C = { x: 540, y: 700 },
-        step = c.step ?? 3,
-        tstep = c.tstep ?? 0.5;
+        step = c.step ?? 3;
       const rings = (c.rings || ["TIER 1", "TIER 2", "TIER 3"]).slice(0, 3),
         nodes = (c.nodes || []).slice(0, 8);
-      const toolsAt = c.tools_at ?? rings.length * step,
-        NR = 342;
+      let toolsAt = c.tools_at ?? rings.length * step,
+        tstep = c.tstep ?? 0.5;
+      // the last tool must land `hold` seconds before the scene ends: a segment too short for the schedule packs the
+      // tools tighter (quarter beats), then starts them sooner (half beats, never before the last ring draws). Oct 4,
+      // 2026: the kit's own template hub (12 beats) timed Wiki and Video after its end, so they never showed
+      const M = (seg.t1 - seg.t0 - (c.hold ?? 0.6) - 0.42) / B,
+        n1 = Math.max(nodes.length - 1, 0);
+      if (n1 && toolsAt + n1 * tstep > M) {
+        tstep = Math.max(0.25, Math.floor(((M - toolsAt) / n1) * 4) / 4);
+        if (toolsAt + n1 * tstep > M) toolsAt = Math.max((rings.length - 1) * step + 1, Math.floor((M - n1 * tstep) * 2) / 2);
+      }
+      const NR = 342;
       const rig = div("rig3d", stage);
       const s = svg("svg", { width: 1080, height: 1400, viewBox: "0 0 1080 1400", style: "overflow:visible" }, rig),
         g = svg("g", {}, s);
@@ -568,11 +577,28 @@
       const c = R.scenes.endcard || {},
         t0 = seg.t0,
         land = t0 + 2 * B; // the point lands on the beat
-      const tile = div("tileicon", stage, "", "", "mark");
+      const tile = div("tileicon", stage, "", "", "mark"),
+        frames = c.mark3d && R.media.mark3d;
+      let m3 = null;
+      if (frames) {
+        // a rendered mark (a 3D render as see-through frames) plays in place of the drawn one: its tile swings in, its
+        // stroke draws, and its point lands on the same beat a drawn point would (frame land_frame = land)
+        const o = c.mark3d,
+          fps = o.fps || 30,
+          [bx, by, bs] = o.box || [300, 327, 490],
+          s0 = land - ((o.land_frame || 1) - 1) / fps;
+        tile.classList.add("is-3d");
+        m3 = div("mark3d", stage, frames.map((u) => `<img src="${u}" alt="">`).join(""), `left:${bx}px;top:${by}px;width:${bs}px;height:${bs}px`, "mark-3d");
+        $$("img", m3).forEach((im, i, all) => {
+          tl.set(im, { visibility: "visible" }, s0 + i / fps);
+          if (i < all.length - 1) tl.set(im, { visibility: "hidden" }, s0 + (i + 1) / fps);
+        });
+      }
       if (c.mark) {
         // a drawn mark: the stroke draws, then the accent point drops and lands with a squash (the motif, home)
         const m = c.mark,
           s = svg("svg", { width: 240, height: 240, viewBox: m.viewBox || "-3 -3 30 30" }, tile);
+        if (frames) s.style.visibility = "hidden"; // kept only to place the landing ring
         const path = svg(
           "path",
           { d: m.path, fill: "none", stroke: P.ink, "stroke-width": m.stroke || 2.2, "stroke-linecap": "square" },
@@ -615,7 +641,7 @@
       }
       tl.fromTo(
         tile,
-        { scale: 0.7, opacity: 0 },
+        { scale: frames ? 1 : 0.7, opacity: 0 },
         { scale: 1, opacity: 1, duration: 0.32, ease: "back.out(1.8)", ...IR },
         t0 - 0.05,
       );
@@ -628,9 +654,17 @@
       );
       const url = div("url", stage, c.url || "", "", "url");
       if (c.word_b != null) {
-        // on the beat: the name slams in so its letters land ON a beat, the address on a later one
-        const tw = land + c.word_b * B,
-          tu = land + (c.url_b ?? c.word_b + 2) * B,
+        // on the beat: the name slams in so its letters land ON a beat, the address on a later one. A card too short
+        // for those beats pulls both onto earlier ones, so the address still holds `hold` seconds before the card ends:
+        // first the gap between name and address closes, then the name joins the landing (Oct 4, 2026: the video-kit
+        // reel's 3.5 s card at 0.63 s beats ended before url_b: 4 came round, so its address never showed through v6–v8)
+        const hold = c.hold ?? 1.2,
+          room = Math.max(0, Math.floor((seg.t1 - hold - land) / B + 1e-6));
+        let ub = c.url_b ?? c.word_b + 2,
+          wb = c.word_b;
+        if (ub > room) (ub = room), (wb = Math.min(wb, Math.max(1, ub - 1), ub));
+        const tw = land + wb * B,
+          tu = land + ub * B,
           chs = $$(".ch", word),
           st = 0.025;
         tl.set(word, { opacity: 1 }, tw - 0.3);
@@ -643,7 +677,7 @@
         punch(tw, 0.03);
         tl.fromTo(url, { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: "power3.out" }, tu - 0.18);
         tl.fromTo(
-          tile,
+          m3 ? [tile, m3] : tile,
           { scale: 1 },
           { scale: 1.06, duration: 0.12, yoyo: true, repeat: 1, ease: "power2.out", ...IR },
           tu,

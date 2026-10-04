@@ -2,7 +2,7 @@
 // and writes only the human's events (notes, sends, answers, decisions); the agent's answers arrive in the same snapshot,
 // so main.js polls it. Panels import this and register with app.parts; nothing here imports a panel.
 export const $ = (s) => document.querySelector(s);
-export const app = { state: null, ctx: null, maps: null, video: $("#video"), parts: [] };
+export const app = { state: null, ctx: null, raw: null, cut: null, maps: null, video: $("#video"), parts: [] };
 export const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 // the round's maps: the timeline (when), the element map (what is where), the findings, the words, the sound cues.
@@ -53,13 +53,69 @@ export async function load() {
 }
 // what in the context can change while the page is open (a new mix, a new take to listen to, Claude starting or
 // stopping its watch): any of these redraws, like a new event does
-const ctxKey = (c) => JSON.stringify([c?.mixer?.tag, c?.mixer?.video, c?.listen, c?.waiting, c?.round?.video, c?.versions?.length]);
+const ctxKey = (c) => JSON.stringify([c?.mixer?.tag, c?.mixer?.video, c?.listen, c?.waiting, c?.round?.video, c?.round?.cuts?.length, c?.versions?.length]);
 function take(j) {
-  const changed = !app.state || j.state.events !== app.state.events || ctxKey(j.context) !== ctxKey(app.ctx);
+  const changed = !app.state || j.state.events !== app.state.events || ctxKey(j.context) !== ctxKey(app.raw);
   app.state = j.state;
-  app.ctx = j.context;
+  app.raw = j.context;
+  app.ctx = onScreen(j.context);
   if (changed) render();
 }
+
+// ── both shapes in one round (vs review open finds the other render of the version): the page shows one at a time.
+// ctx.round is the one on screen (its video, maps, composition), round() says its cut and video, so every note, finding
+// decision and approval the page makes is about the shape the human is looking at. Each shape gets its own feedback.
+export const cuts = () => app.raw?.round?.cuts || null;
+function onScreen(ctx) {
+  const cs = ctx?.round?.cuts,
+    R = app.state?.rounds.at(-1);
+  if (!cs?.length) {
+    app.cut = null;
+    return ctx;
+  }
+  if (!cs.some((c) => c.cut === app.cut)) {
+    let kept = null;
+    try {
+      kept = localStorage.getItem(`review.cut.${R?.n}`);
+    } catch {}
+    app.cut = cs.some((c) => c.cut === kept) ? kept : ctx.round.cut;
+  }
+  return { ...ctx, round: { ...ctx.round, ...cs.find((c) => c.cut === app.cut) } };
+}
+// switch the shape on screen: the same moment, the other picture, still playing if it was (a reviewer, Oct 4, 2026: flipping
+// back and forth stopped the video each time, and the button still said pause)
+export function setCut(cut, t = app.video.currentTime, play = !app.video.paused && !app.video.ended) {
+  if (!cuts()?.some((c) => c.cut === cut) || cut === app.cut) return false;
+  app.cut = cut;
+  try {
+    localStorage.setItem(`review.cut.${round()?.n}`, cut);
+  } catch {}
+  app.ctx = onScreen(app.raw);
+  const v = app.video;
+  v.addEventListener(
+    "loadedmetadata",
+    () => {
+      v.currentTime = Math.min(t, v.duration || t);
+      if (play) v.play().catch(() => {});
+    },
+    { once: true },
+  );
+  render();
+  return true;
+}
+// the other shape's findings carry its name (vs review: "16x9:f-…"), so the same check on both is two answers
+export const cutPrefix = () => (cuts() && app.cut !== app.state?.rounds.at(-1)?.cut ? `${app.cut}:` : "");
+// is this note about the shape on screen (a round with one shape: always)
+export const onCut = (n) => !cuts() || (n.cut || app.state?.rounds[n.round - 1]?.cut) === app.cut;
+export const shapeName = (c) => (c === "16x9" ? "widescreen" : "vertical");
+// a round as one shape: its cut, video and size (a round with both shapes keeps each in cuts)
+export const asCut = (R, cut) => {
+  const c = cut && R?.cuts?.find((x) => x.cut === cut);
+  return c ? { ...R, cut: c.cut, video: c.video, size: c.size } : R;
+};
+// a project path's address on this server (review_server.url): a reel's widescreen cut lives in the project beside this
+// one, served as /@<that project>/out/…
+export const href = (p) => (p.startsWith("../") ? `/@${p.slice(3)}` : `/${p.replace(/^\.\//, "")}`);
 
 let tt;
 // a message under the picture; with undo, it carries an Undo button for as long as it shows
@@ -76,7 +132,11 @@ export function toast(msg, err = false, undo = null) {
 }
 
 export const fmt = (t) => `${String(Math.floor(t / 60)).padStart(2, "0")}:${(t % 60).toFixed(2).padStart(5, "0")}`;
-export const round = () => app.state?.rounds.at(-1) || null;
+export const round = () => {
+  const R = app.state?.rounds.at(-1);
+  const c = R?.cuts?.find((x) => x.cut === app.cut);
+  return c ? { ...R, cut: c.cut, video: c.video, size: c.size } : R || null;
+};
 // the notes in play: this round's, plus earlier ones still open (a question, a resolution to accept, a reopened note).
 // The Notes panel lists them, the timeline pins them, N jumps between them.
 export function liveNotes() {
@@ -91,7 +151,16 @@ export function render() {
     C = app.ctx;
   $("#proj").textContent = C.project;
   document.title = `${C.project} · Review Studio`;
-  $("#dsub").textContent = R ? `Round ${R.n} · v${R.version} · ${R.cut === "16x9" ? "widescreen" : "vertical"}` : "no round open";
+  $("#dsub").textContent = R ? `Round ${R.n} · v${R.version} · ${shapeName(R.cut)}${cuts() ? " (both shapes in this round)" : ""}` : "no round open";
+  const sh = $("#shapes"),
+    cs = cuts();
+  sh.hidden = !cs;
+  if (cs) {
+    const count = (c) => liveNotes().filter((n) => (n.cut || R.cut) === c && ["draft", "sent", "reopened"].includes(n.status)).length || "";
+    sh.innerHTML = cs
+      .map((c) => `<button data-cut="${c.cut}" aria-pressed="${c.cut === app.cut}" title="Watch the ${shapeName(c.cut)} cut: notes you add are about it"><span class="ic ${c.cut === "16x9" ? "w" : "v"}"></span>${c.cut === "16x9" ? "Widescreen" : "Vertical"}<b>${count(c.cut)}</b></button>`)
+      .join("");
+  }
   if (C.round && app.video.dataset.src !== C.round.video) {
     app.video.dataset.src = C.round.video;
     app.video.src = C.round.video;

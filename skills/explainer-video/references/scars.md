@@ -24,6 +24,12 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
 - 🚨 **A word spec that matches an EARLIER word ends a title before it starts, and the title never leaves the screen**
   ("One" hit "In one big trial"; a stat sat over every scene to the end). `vs plan` refuses it now; use `"One#2"` or
   `"act:word"`. ‹test: regression/early-word-spec›
+- ⚠️ **A cue's bare word said twice in its act fires on the first one**: "job" hit "doing a job" a line early, so a
+  parody ad's punchline landed too soon (Oct 2, 2026). `vs plan` warns with every time it's said; point at the later
+  one with `"job#2"`. ‹test: regression/cue-word-twice›
+- ⚠️ **A payoff that arrives late in its scene gets cut off**: punchlines got ~0.3 s before the next scene (a parody
+  ad, before v1), a payoff 0.8 s (the Jev explainer, v1). vs inspect's `cut-short` warns when words arrive
+  mid-scene and the cut takes them before they can be read. ‹guard: vs inspect cut-short (words; a picture's payoff is still your eyes)›
 
 ## Picture
 
@@ -50,6 +56,11 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
   in plain sight → `EXIT`. ‹partly: regression/offscreen-parked · human: the layout's balance›
 
 ## Build and checks
+
+- 🚨 **A tween given an object or NaN where a number goes does nothing, silently**: `exPath()` returns `{x, y}`, used as
+  a number, so the chat stack never scrolled (contextual-ui v1, Oct 2, 2026; only stills showed it, since a move that
+  never happens fights nothing). Under vs inspect every tween's values are checked as it's made; `dead-tween` (an error)
+  names the element and the line. ‹test: regression/nan-tween›
 
 - 🚨 **A `$` in scene code was rewritten by the build**: the scenes were inlined with a string replace, which reads `$$`
   as "one dollar sign", so "HEAR IT $$" rendered as "HEAR IT $" in an approved video (found Oct 1, 2026). The build

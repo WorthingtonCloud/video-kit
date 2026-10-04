@@ -4,8 +4,12 @@ snapshot and answers in the same diary. The page only ever writes feedback: neve
 source file (mix.json is the one exception, as in the mixer: a level set by ear is the human's setting).
 
   vs review [--port 4470]               serve the review page on this machine only: http://localhost:4470/review/
-  vs review open [--video out/<name>-vN[-takeK].mp4] [--ask] [--stage picture]
-                                        a new round on a rendered version (default: the newest). Refused while vs inspect
+  vs review open [--video out/<name>-vN[-takeK].mp4] [--ask] [--stage picture] [--also <the other shape> | --only]
+                                        a new round on a rendered version (default: the newest). Both shapes when both
+                                        are rendered at that version (an explainer's out/<name>-16x9-vN…, a reel's
+                                        ../<slug>-16x9/out/…; --also names it, --only shows one): the page switches
+                                        between them, and every note, finding and approval is about the one on screen,
+                                        so each gets its own feedback (vs review show labels them). Refused while vs inspect
                                         has open errors for it (errors never reach a round); --ask puts them in front
                                         of the human to confirm or dismiss instead. Refused while the human has feedback
                                         they haven't sent. --stage: where the video is (contracts.json → stages)
@@ -93,7 +97,7 @@ ALL_STAGES = {s for v in STAGES.values() for s in v}
 
 def check_of(fid):
     """A finding's check from its id (vs inspect's f-<check>-…, qa.py's q-<check>-…): the longest check name that fits."""
-    body = re.sub(r"^[fq]-", "", fid or "")
+    body = re.sub(r"^[fq]-", "", re.sub(r"^(9x16|16x9):", "", fid or ""))  # the other shape's carry its name first
     return max((c for c in PLAIN if body == c or body.startswith(c + "-")), key=len, default=None)
 MARKS = {"none", "click", "box", "arrow", "keep-clear"}
 # a note's life: draft (in an open round) → sent → question ⇄ (answered: sent) → resolved | wontdo → accepted | reopened
@@ -329,7 +333,7 @@ def _step(S, e, seq, pending):
             return
     elif t == "version.approved":
         text = f"Approved v{e.get('version')}" + (" (widescreen)" if e.get("cut") == "16x9" else "") + ": it's done"
-        x = {"version": e.get("version")}
+        x = {"version": e.get("version"), "cut": e.get("cut")}
     elif t == "lesson.decided":
         lz = S["lessons"][e["id"]]
         text = f"Lesson “{_q(lz.get('text'), 48)}”: " + {"remember": "remember it", "video": "this video only", "ignore": "ignore it"}[e["decision"]]
@@ -420,6 +424,7 @@ def apply(S, e):
         if R:
             R["status"] = "closed"
         S["rounds"].append({"n": len(S["rounds"]) + 1, "version": e["version"], "cut": e.get("cut"), "video": e["video"],
+                            **({"cuts": e["cuts"]} if e.get("cuts") else {}),
                             "size": e.get("size"), "status": "open", "opened": at, "sent": None, "notes": [],
                             "asked": e.get("asked", []), "stage": e.get("stage"), "sends": 0, "last_sent": None,
                             "read": None, "read_sends": 0})
@@ -441,6 +446,8 @@ def apply(S, e):
             raise Refused(f"mark {m.get('type')!r} isn't one of: {', '.join(sorted(MARKS))}")
         if not (n.get("comment") or "").strip() and not n.get("target") and m["type"] == "none":
             raise Refused("a note needs words, a target or a mark")
+        if n.get("cut") and R.get("cuts") and n["cut"] not in [c["cut"] for c in R["cuts"]]:
+            raise Refused(f"round {R['n']} has no {n['cut']} cut")
         # added after Send: held, it waits for its own send; from an older page, it went straight to the agent
         late = R["status"] == "sent"
         n.update({"round": R["n"], "version": R["version"], "cut": n.get("cut") or R["cut"], "mark": m,
@@ -830,6 +837,43 @@ def version_of(video):
         raise Refused(f"{video}: not a rendered version (out/<name>-vN.mp4)")
     base = os.path.join(os.path.dirname(video), b[: m.start()] + f"-v{m.group(1)}")
     return int(m.group(1)), base
+
+
+def partner(video):
+    """The same version in the other shape, when it's rendered: an explainer keeps both in out/ (<name>-vN… and
+    <name>-16x9-vN…); a reel's widescreen cut is its own project beside this one (<slug>-16x9/out/<slug>-16x9-vN.mp4),
+    and the vertical's is <slug> beside a -16x9 project. The same take when there is one, else the bare render."""
+    d, b = os.path.split(video)
+    m = re.search(r"-v(\d+)((?:-(?:take\d+|sfx|mixed))?)\.mp4$", b)
+    if not m:
+        return None
+    name, v, tail = b[: m.start()], m.group(1), m.group(2)
+    proj = os.path.basename(os.getcwd())
+    if name.endswith("-16x9"):
+        other = name[:-5]
+        cands = [os.path.join(d, f"{other}-v{v}{{}}.mp4")]
+        if proj.endswith("-16x9"):
+            cands.append(os.path.join("..", proj[:-5], "out", f"{other}-v{v}{{}}.mp4"))
+    else:
+        cands = [os.path.join(d, f"{name}-16x9-v{v}{{}}.mp4"), os.path.join("..", f"{proj}-16x9", "out", f"{name}-16x9-v{v}{{}}.mp4")]
+    for t in ([tail, ""] if tail else [""]):
+        for c in cands:
+            if os.path.exists(c.format(t)):
+                return c.format(t)
+    return None
+
+
+def cut_of(video):
+    W, H, _ = probe(video)
+    return "16x9" if W > H else "9x16"
+
+
+def cut_video(R, cut):
+    """The round's render of one shape (its own video when the round shows one shape)."""
+    for c in (R or {}).get("cuts") or []:
+        if c["cut"] == cut:
+            return c["video"]
+    return (R or {}).get("video")
 
 
 _probes = {}
@@ -1232,7 +1276,7 @@ def frames_for(S, events):
         n = S["notes"][nid]
         R = S["rounds"][n["round"] - 1]
         try:
-            made.append(make_frame(n, R["video"]))
+            made.append(make_frame(n, cut_video(R, n.get("cut") or R["cut"])))
         except Exception as x:
             print(f"⚠️  no still for {nid}: {x}", flush=True)
     return made
@@ -1316,15 +1360,18 @@ def round_findings(S=None):
     R = current(S)
     if not R:
         return []
-    try:
-        base = version_of(R["video"])[1]
-    except Refused:
-        return []
-    tl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
-    F = inspected(base, tl and tl.get("fingerprint")) or {}
-    asked = set(R.get("asked") or [])
-    out = [f for f in F.get("items", []) if f.get("severity") == "warning" or f["id"] in asked]
-    out += (vslib.read_json(f"{base}.review/qa.json") or {}).get("items", [])
+    asked, out = set(R.get("asked") or []), []
+    for c in R.get("cuts") or [{"cut": R.get("cut"), "video": R["video"]}]:
+        try:
+            base = version_of(c["video"])[1]
+        except Refused:
+            continue
+        pre = "" if c["cut"] == R.get("cut") else f"{c['cut']}:"  # the other shape's carry its name (open_round)
+        tl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
+        F = inspected(base, tl and tl.get("fingerprint")) or {}
+        mine = [f for f in F.get("items", []) if f.get("severity") == "warning" or pre + f["id"] in asked]
+        mine += (vslib.read_json(f"{base}.review/qa.json") or {}).get("items", [])
+        out += [{**f, "id": pre + f["id"], "cut": c["cut"]} if pre else f for f in mine]
     return out
 
 
@@ -1341,7 +1388,8 @@ def show(args):
     else:
         notes = [n for n in S["notes"].values() if (n["round"] == R["n"] or n["status"] in WAITING | {"question", "resolved", "wontdo"}) and n["status"] not in ("withdrawn", "draft")]
         sends = R.get("sends") or 0
-        print(f"Round {R['n']} · v{R['version']} ({R['cut']}) · {R['video']} · {R['status']}"
+        both = " + ".join(f"{c['cut']} {c['video']}" for c in R["cuts"]) if R.get("cuts") else f"({R['cut']}) · {R['video']}"
+        print(f"Round {R['n']} · v{R['version']} {both} · {R['status']}"
               + (f" {(R['last_sent'] or R['sent'])[:16].replace('T', ' ')}" if R["sent"] else "")
               + (f" ({sends} sends)" if sends > 1 else "") + f" · {len(notes)} note(s)" + (f" · stage: {R['stage']}" if R.get("stage") else ""))
         H = state("human")
@@ -1349,7 +1397,8 @@ def show(args):
             print(f"(the human has {len(H['pending'])} more thing(s) in the page, not sent yet: you'll see them when they send)")
     for n in notes:
         tgt = (n.get("target") or {}).get("el")
-        print(f"\n{n['id']}  {when(n)}  {n.get('segment') or '—'}{' › ' + tgt.split('/', 1)[-1] if tgt else ''}  [{n['status']}]"
+        shape = f"  ({'WIDESCREEN' if n.get('cut') == '16x9' else 'VERTICAL'})" if (S["rounds"][n["round"] - 1].get("cuts")) else ""
+        print(f"\n{n['id']}{shape}  {when(n)}  {n.get('segment') or '—'}{' › ' + tgt.split('/', 1)[-1] if tgt else ''}  [{n['status']}]"
               + (" (added after Send)" if n.get("late") else ""))
         if n.get("sound"):
             sd = n["sound"]
@@ -1431,30 +1480,52 @@ def open_round(args):
     version, base = version_of(video)
     W, H, _ = probe(video)
     cut = "16x9" if W > H else "9x16"
-    tl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
-    F = inspected(base, tl and tl.get("fingerprint"))
-    asked = []
-    if F is None:
-        print(f"⚠️  no vs inspect findings for v{version}: can't tell whether it has open errors")
-    else:
-        dismissed = state()["findings"]
-        errs = [f for f in F["items"] if f.get("severity") == "error" and dismissed.get(f["id"], {}).get("status") != "dismissed"]
+    # both shapes in one round when both are rendered at this version: the human watches either, and each note, finding
+    # and approval belongs to the one on screen (a reviewer, Oct 4, 2026: "view both … and give feedback on each independently")
+    named = getattr(args, "also", None)
+    other = None if getattr(args, "only", False) else (named or partner(video))
+    if named:
+        if not os.path.exists(named):
+            raise Refused(f"{named} doesn't exist")
+        if version_of(named)[0] != version:
+            raise Refused(f"{named} is v{version_of(named)[0]}, the round is v{version}: render both shapes at one version")
+        if cut_of(named) == cut:
+            raise Refused(f"{named} is the same shape as {video}: --also takes the other one")
+    elif other and cut_of(other) == cut:
+        other = None  # found by its name, but it isn't the other shape after all
+    shapes = [(video, base, cut)] + ([(other, version_of(other)[1], cut_of(other))] if other else [])
+    asked, maps = [], {}
+    dismissed = state()["findings"]
+    for v, b, c in shapes:
+        tl = vslib.read_json(f"{b}.review/timeline.json") or vslib.read_json(f"{b}.timeline.json")
+        F = inspected(b, tl and tl.get("fingerprint"))
+        pre = "" if c == cut else f"{c}:"  # the other shape's findings carry its name: the same check on both is two answers
+        maps[c] = (v, element_map(b, tl and tl.get("fingerprint")), list(probe(v)[:2]))
+        if F is None:
+            print(f"⚠️  no vs inspect findings for v{version} ({c}): can't tell whether it has open errors")
+            continue
+        errs = [f for f in F["items"] if f.get("severity") == "error" and dismissed.get(pre + f["id"], {}).get("status") != "dismissed"]
         if errs and not args.ask:
-            raise Refused(f"v{version} has {len(errs)} open error(s) from vs inspect (first: {errs[0]['check']} "
+            raise Refused(f"v{version} ({c}) has {len(errs)} open error(s) from vs inspect (first: {errs[0]['check']} "
                           f"{' × '.join(errs[0]['elements'])} at {errs[0]['t0']:.1f}s): errors never reach a round. "
                           "Fix them, or --ask to put them to the human")
-        asked = [f["id"] for f in errs]
-    # every answer since the last round, measured in this version's element map: the human sees the claim and the proof
-    E = element_map(base, tl and tl.get("fingerprint"))
+        asked += [pre + f["id"] for f in errs]
+    # every answer since the last round, measured in this version's element map (of the note's own shape): the human
+    # sees the claim and the proof
     cues = vslib.read_json(f"{base}.review/cues.json") or vslib.read_json("build/mix/cues.json")  # vs mix's, for this version
     S0, measured = state(), []
     for n in S0["notes"].values():
         if n["status"] in ("resolved", "wontdo") and n["version"] != version and (n.get("measured") or {}).get("to") != version:
-            old, new = bare(S0["rounds"][n["round"] - 1]["video"]), bare(video)
+            nc = n.get("cut") or cut
+            if nc not in maps:
+                print(f"⚠️  {n['id']} is about the {'widescreen' if nc == '16x9' else 'vertical'} cut, not in this round: not measured")
+                continue
+            nv, E, size = maps[nc]
+            old, new = bare(cut_video(S0["rounds"][n["round"] - 1], nc)), bare(nv)
             if n.get("sound"):
                 m = measure_sound(n, cues)
             elif (n.get("target") or {}).get("box"):
-                m = measure(n, E, [W, H]) if E else None
+                m = measure(n, E, size) if E else None
                 # the box didn't move: look at its pixels (a color, a fade, a line's weight change nothing a box can show)
                 if m and not m.get("gone") and (m.get("flag") or "").startswith("nothing measurable"):
                     px = _safely(measure_pixels, old, new, m["t"], m.get("new_box"))
@@ -1471,10 +1542,12 @@ def open_round(args):
     kind = "explainer" if os.path.exists("plan.json") else "reel"
     if args.stage and args.stage not in STAGES[kind]:
         raise Refused(f"no stage {args.stage!r} for a {kind}: {', '.join(STAGES[kind])}")
+    cuts = [{"cut": c, "video": v, "size": maps[c][2]} for v, _, c in shapes] if other else None
     S, _ = append([{"type": "round.opened", "version": version, "cut": cut, "video": video, "size": [W, H],
-                    "asked": asked, **({"stage": stage} if stage else {})}] + measured, "agent")
+                    "asked": asked, **({"cuts": cuts} if cuts else {}), **({"stage": stage} if stage else {})}] + measured, "agent")
     R = current(S)
-    print(f"round {R['n']} open on v{version} ({cut}): {video}" + (f" · stage: {stage}" if stage else "")
+    print(f"round {R['n']} open on v{version} ({cut}): {video}" + (f" + the {cut_of(other)} cut: {other}" if other else "")
+          + (f" · stage: {stage}" if stage else "")
           + (f" · {len(asked)} finding(s) put to the human" if asked else ""))
     carried = carry_findings(S, R)
     if carried:
@@ -1487,7 +1560,7 @@ def open_round(args):
     for e in measured:
         m = e["measured"]
         print(f"  {e['id']} {(m['el'] or 'the moment').split('/', 1)[-1]}: {describe_measured(m)}")
-    if not E and any(n["status"] == "resolved" and n.get("target") for n in S0["notes"].values()):
+    if not maps[cut][1] and any(n["status"] == "resolved" and n.get("target") for n in S0["notes"].values()):
         print(f"⚠️  no element map for v{version} (vs inspect): the resolutions can't be measured")
 
 
@@ -1892,6 +1965,7 @@ def main():
     ap.add_argument("--port", type=int, default=4470)
     sub = ap.add_subparsers(dest="cmd")
     o = sub.add_parser("open"); o.add_argument("--video"); o.add_argument("--ask", action="store_true")
+    o.add_argument("--also"); o.add_argument("--only", action="store_true")
     o.add_argument("--stage", choices=sorted(ALL_STAGES))
     av = sub.add_parser("advise"); av.add_argument("finding", nargs="*"); av.add_argument("--check")
     av.add_argument("--advice", choices=["leave", "fix"], required=True); av.add_argument("--plain", required=True); av.add_argument("--why")

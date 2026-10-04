@@ -1,7 +1,7 @@
 // The note box under the video (what the note is pinned to, the words, Add), your notes in the round's panel, Claude's
 // questions back on them, and the scene at the playhead ("This scene is done"). Every one of these waits, held, with
 // Undo, until you Approve & send.
-import { app, $, post, undo, fmt, round, toast, esc, liveNotes } from "./core.js";
+import { app, $, post, undo, fmt, round, toast, esc, liveNotes, cuts, setCut, shapeName } from "./core.js";
 import { player } from "./player.js";
 import { point, draft, crumb, clear, followUp, soundOf } from "./point.js";
 import { solo } from "./mix.js";
@@ -98,7 +98,7 @@ function item(n) {
     tgt = n.target?.el ? ` · ${esc(short(n.target.el))}` : "";
   return `<div class="item ${n.status}" data-id="${n.id}">
     <span class="ico">${n.sound ? "♪" : "t" in n.time ? "●" : "▬"}</span>
-    <div><span class="seek" data-t="${"t" in n.time ? n.time.t : n.time.t0}">${n.sound?.ask ? `${esc(ASKS[n.sound.ask])}: ${esc(n.sound.sound)}${n.comment ? " · " : ""}` : ""}${esc(n.comment) || (n.sound?.ask ? "" : "<i>(a mark, no words)</i>")}</span>
+    <div>${cuts() ? `<span class="shape" title="About the ${shapeName(n.cut)} cut">${n.cut === "16x9" ? "wide" : "tall"}</span>` : ""}<span class="seek" data-t="${"t" in n.time ? n.time.t : n.time.t0}">${n.sound?.ask ? `${esc(ASKS[n.sound.ask])}: ${esc(n.sound.sound)}${n.comment ? " · " : ""}` : ""}${esc(n.comment) || (n.sound?.ask ? "" : "<i>(a mark, no words)</i>")}</span>
       <small>${when(n)}${n.segment ? " · " + esc(n.segment) : ""}${tgt}${n.follows ? " · follows " + esc(n.follows) : ""}${n.step ? " · about a step" : ""} <span class="status ${n.status}">${esc(STATUS[n.status] || n.status)}</span></small></div>
     <div class="acts">${added ? `<button data-act="undo" data-seqs="${added.seqs.join(",")}">Remove</button>` : ""}</div></div>`;
 }
@@ -165,7 +165,7 @@ async function add(ask) {
 // a follow-up: back to the note's moment and target, a new note that points at the old one
 export function followFrom(id) {
   const n = app.state.notes[id];
-  player.seek("t" in n.time ? n.time.t : n.time.t0);
+  watch(n, "t" in n.time ? n.time.t : n.time.t0);
   followUp(n);
   $("#c-text").focus();
 }
@@ -204,10 +204,16 @@ $("#c-extra").addEventListener("click", (e) => {
   if (b.dataset.crumb) return crumb(b.dataset.crumb);
 });
 
+// to a note's moment, on the shape it's about (both shapes in a round: the switch follows the note)
+export function watch(n, t) {
+  if (n?.cut && setCut(n.cut, t, false)) return; // a note's moment is a still: it lands paused, like any seek
+  player.seek(t);
+}
+
 // your notes, Claude's questions, the scene line: one handler for the three
 async function click(e) {
   const s = e.target.closest(".seek");
-  if (s && !e.target.closest("button")) return player.seek(+s.dataset.t);
+  if (s && !e.target.closest("button")) return watch(app.state.notes[s.closest("[data-id]")?.dataset.id], +s.dataset.t);
   const b = e.target.closest("button");
   if (!b) return;
   if (b.dataset.scene === "done") return post([{ type: "scene.done", segment: b.dataset.seg }]);
@@ -217,7 +223,7 @@ async function click(e) {
   if (act === "undo") return undo(b.dataset.seqs.split(",").map(Number));
   if (act === "watch") {
     const n = app.state.notes[id];
-    return player.seek("t" in n.time ? n.time.t : n.time.t0);
+    return watch(n, "t" in n.time ? n.time.t : n.time.t0);
   }
   if (act === "answer") {
     replying = { id, act };

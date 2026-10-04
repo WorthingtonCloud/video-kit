@@ -62,6 +62,7 @@ html,body{width:${W}px;height:${H}px;overflow:hidden;background:${P.ground}}
 .wall{position:absolute;transform-style:preserve-3d}
 .tile{position:absolute;border-radius:16px;overflow:hidden;border:3px solid ${P.line};opacity:0;box-shadow:0 30px 60px rgba(0,0,0,.6);backface-visibility:hidden}.tile img{width:100%;height:100%;object-fit:cover;display:block}
 .tileicon{position:absolute;left:420px;top:455px;width:240px;height:240px;background:${P.card};border:3px solid ${P.line};border-radius:56px;overflow:hidden}
+.tileicon.is-3d{background:none;border-color:transparent}.mark3d{position:absolute}.mark3d img{position:absolute;inset:0;width:100%;height:100%;visibility:hidden}
 .tileicon .logo{position:absolute;inset:36px}.tileicon .logo img{width:100%;height:100%;object-fit:contain}
 .word{position:absolute;left:0;right:0;top:755px;text-align:center;font-weight:800;font-size:112px;letter-spacing:.01em;opacity:0;clip-path:inset(-20% -5% -8% -5%)}
 .url{position:absolute;left:0;right:0;top:895px;text-align:center;font-weight:500;font-size:40px;color:${P.dim};opacity:0}

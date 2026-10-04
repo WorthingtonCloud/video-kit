@@ -61,12 +61,20 @@
       walk(root);
       return s;
     };
-    // every text node under a node, a space between them (textContent runs neighbors' words together)
+    // every text node under a node, a space between them (textContent runs neighbors' words together). Except letters
+    // split one per element for an animation: a run of single letters in side-by-side elements is one word ("THE LAB"
+    // on the end card read as six words, T H E L A B, so it needed 2 s to read; Oct 4, 2026)
     const allText = (n) => {
       const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT),
-        out = [];
-      for (let t; (t = w.nextNode()); ) out.push(t.textContent);
-      return out.join(" ");
+        one = (t) => t && [...t.textContent].length === 1 && !!t.textContent.trim();
+      let s = "",
+        prev = null;
+      for (let t; (t = w.nextNode()); ) {
+        const glued = one(t) && one(prev) && t.parentElement.previousSibling === prev.parentElement;
+        s += (s && !glued ? " " : "") + t.textContent;
+        prev = t;
+      }
+      return s;
     };
     const slug = (s) =>
       s

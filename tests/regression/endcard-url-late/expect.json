@@ -1,0 +1,22 @@
+{
+ "scar": "reel · Ending · the end card's address timed past the card's end (video-kit-reel v6–v8, Oct 4, 2026)",
+ "make": {
+  "music/take1.mp3": "tone:7"
+ },
+ "expect": [
+  {
+   "check": "never-seen",
+   "element": "s01_late/too-late"
+  }
+ ],
+ "expect_not": [
+  {
+   "check": "never-seen",
+   "element": "s02_end/url"
+  },
+  {
+   "check": "fast-text",
+   "element": "s02_end/url"
+  }
+ ]
+}

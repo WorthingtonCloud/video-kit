@@ -39,6 +39,9 @@ def test_scar(name, tmp_path, font_studio):
     for e in E.get("expect", []):
         assert any(f["check"] == e["check"] and e["element"] in f["elements"] for f in found), \
             f"no {e['check']} on {e['element']}: {[(f['check'], f['elements']) for f in found]}"
+    for e in E.get("expect_not", []):  # this check must not fire on this element (another one may, on purpose)
+        assert not any(f["check"] == e["check"] and e["element"] in f["elements"] for f in found), \
+            f"{e['check']} on {e['element']}: {[(f['check'], f['elements'], f['text']) for f in found]}"
     none = E.get("expect_none", [])
     bad = [f for f in found if none == "all" or f["check"] in none]
     assert not bad, f"false alarms: {[(f['check'], f['elements']) for f in bad]}"

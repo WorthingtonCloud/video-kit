@@ -54,6 +54,13 @@ for (const k of ["font", "mono"]) {
   if (fam) add("required", `${k}: ${fam}`, !!fontCss(fam), fontCss(fam) || "not downloaded", `vs fonts "${fam}"`);
 }
 add("optional", "narrator", !!pr.narrator?.voice, pr.narrator?.voice || "not chosen yet", "vs voices (free previews), then profile.json → narrator.voice");
+// Blender (free): builds the end card's mark in 3D (vs mark3d). Found where vs mark3d looks: BLENDER, the PATH, the app
+const bl = [process.env.BLENDER, "blender", "/Applications/Blender.app/Contents/MacOS/Blender"]
+  .filter(Boolean)
+  .map((c) => [c, sh(c, ["--version"])])
+  .find(([, v]) => v);
+const m3 = b.endcard?.mark3d;
+add("optional", "Blender", !!bl, bl ? `${bl[1].split("\n")[0].trim()}: ${m3 ? "the end card plays your 3D mark" : "vs mark3d builds your mark in 3D"}` : "not installed: the end card draws the flat mark", "free at blender.org (or set BLENDER), then vs mark3d --quick");
 
 // keys: the environment, else the nearest .env in this folder or above, the studio's .env, or ~/.config/video-studio/.env
 const envKey = (k) => !!findKey(k);

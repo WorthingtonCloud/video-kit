@@ -13,10 +13,15 @@
 //     phone-safe      (vertical cuts) a scene's words where a phone hides them for a second or more: the status bar, the
 //                     side crop, the button rail, the caption (Socrates v1, Oct 1, 2026: 30 hits, every scene's kicker)
 //     on-text         two sets of words overlap
+//     dead-tween      an animation whose value isn't a number (an object, NaN): GSAP skips it silently, the thing
+//                     never moves (contextual-ui v1, Oct 2, 2026; 00-core.js checks every tween under inspect)
+//     never-seen      words the build made that never reach the screen: timed past their segment's end (the video-kit
+//                     reel's end card, Oct 4, 2026: its address was due after the card ended, v6–v8; mapchecks.mjs)
 //   warnings (each can be by design: the human confirms or dismisses it in Review Studio):
 //     two-zones       a title is up while the scene shows words of its own: one reading zone at a time (the second
 //                     reel's v1, Sep 2026: "I'd read the top and miss the bottom")
 //     fast-text       words gone before they can be read (js/lib/mapchecks.mjs; thresholds: profile.json → checks)
+//     cut-short       words that arrive mid-scene and leave with the cut before they can be read (mapchecks.mjs)
 //     offscreen-at-rest  something parked partly off the frame for a second or more (mapchecks.mjs)
 //     dead-air        nothing on screen but the backdrop for a stretch (mapchecks.mjs; dead_air_secs)
 //   and the human's standing rules from Review Studio (js/lib/rules.mjs):
@@ -32,7 +37,7 @@ import { pathToFileURL } from "node:url";
 import { launch, step } from "./lib/browser.mjs";
 import { COMP, QA, readTimeline, ELEMENTS, FINDINGS, SOURCES, CONTRACTS } from "./lib/paths.mjs";
 import { readRules, keepClear, lockedScenes } from "./lib/rules.mjs";
-import { fastText, parked, deadAir } from "./lib/mapchecks.mjs";
+import { fastText, parked, deadAir, neverSeen } from "./lib/mapchecks.mjs";
 import { checks } from "./lib/paths.mjs";
 
 const arg = (k, d) => {
@@ -107,6 +112,12 @@ const META = await step("inspect: list the named elements", () => p.evaluate(() 
     return { addr, named: !el.getAttribute("data-el").startsWith("~"), kind, text, stack: window.__names.made(el), up: up(el) };
   });
 }));
+
+// tweens with a value that can't be a number (00-core.js lists them as the composition loads, under inspect): GSAP skips
+// them without a word, so the thing never moves and no picture check can tell
+const BAD = await step("inspect: list the tweens that can't run", () =>
+  p.evaluate(() => (window.__badTweens || []).map((b) => ({ addr: window.__names.addr(b.el), props: b.props, stack: b.stack }))),
+);
 
 const hits = [],
   seenAt = []; // [t, [[element index, x0, y0, x1, y1], …]] per moment
@@ -490,7 +501,7 @@ const HINT = {
   "on-text": "two sets of words overlap: one moves, or waits for the other to leave",
   "two-zones": "a title and the scene's own words at once: the scene goes wordless while a title is up, or the title waits",
 };
-const WARN = new Set(["two-zones", "fast-text", "offscreen-at-rest"]); // can be by design: the human confirms or dismisses
+const WARN = new Set(["two-zones", "fast-text", "cut-short", "offscreen-at-rest"]); // can be by design: the human confirms or dismisses
 const key = (a) => String(a).replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const list = [],
   ids = new Map();
@@ -548,6 +559,14 @@ for (const f of [...fastText({ META, seenAt, STEP, C, END, near: nearCut }), ...
   const box = f.box_n && [f.box_n[0] * W, f.box_n[1] * H, f.box_n[2] * W, f.box_n[3] * H].map(Math.round);
   list.push({ id, severity: "warning", ...f, ...(box ? { box } : {}) });
 }
+// words the build made that never reach the screen (an error; only a whole scrub can say "never")
+if (FROM <= STEP && TO >= END)
+  for (const f of neverSeen({ META, seenAt, TL })) {
+    let id = `f-${f.check}-${key(f.elements[0])}`;
+    ids.set(id, (ids.get(id) || 0) + 1);
+    if (ids.get(id) > 1) id += `-${ids.get(id)}`;
+    list.push({ id, severity: "error", ...f });
+  }
 list.sort((a, b) => a.t0 - b.t0 || a.id.localeCompare(b.id));
 
 // the element map: when each one is on screen, and its box whenever it moves (a box holds until the next one)
@@ -602,6 +621,37 @@ seenAt.forEach(([t, els], k) => {
     } else last.set(i, [k, L[1]]);
   }
 });
+// dead tweens (an error): one finding per element, naming the values and the line of scenes.js that made the tween
+{
+  const by = new Map();
+  for (const b of BAD) {
+    if (!b.addr) continue;
+    const f = by.get(b.addr) || { props: new Set(), stack: b.stack };
+    b.props.forEach((x) => f.props.add(x));
+    by.set(b.addr, f);
+  }
+  for (const [addr, f] of by) {
+    const m = { addr, stack: f.stack },
+      seg = segOf(addr),
+      S = TL.segments.find((x) => x.name === seg),
+      props = [...f.props].join(", ");
+    let id = `f-dead-tween-${key(addr)}`;
+    ids.set(id, (ids.get(id) || 0) + 1);
+    if (ids.get(id) > 1) id += `-${ids.get(id)}`;
+    list.push({
+      id,
+      check: "dead-tween",
+      severity: "error",
+      elements: [addr],
+      text: `an animation of ${props} gets a value that isn't a number, so it never runs${srcOf(m) ? ` (${srcOf(m)})` : ""}`,
+      t0: S ? S.t0 : 0,
+      t1: S ? S.t1 : 0,
+      at: S ? +((S.t0 + S.t1) / 2).toFixed(2) : 0,
+      hint: "an object or NaN where a number goes (exPath returns {x, y}: use .x and .y): log the value where the tween is made",
+    });
+  }
+  list.sort((a, b) => a.t0 - b.t0 || a.id.localeCompare(b.id));
+}
 const range = [Math.max(0, FROM), Math.min(END, TO)].map((v) => +v.toFixed(2));
 fs.writeFileSync(
   ELEMENTS,

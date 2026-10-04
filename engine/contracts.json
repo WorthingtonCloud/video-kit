@@ -104,7 +104,7 @@
   },
   "fast-text": {
    "name": "Words gone before they can be read",
-   "says": "The words leave the screen faster than a person reads them."
+   "says": "The words leave the screen faster than a person reads them, or arrive too close to the end to be read."
   },
   "offscreen-at-rest": {
    "name": "Something parked partly off the screen",
@@ -161,6 +161,18 @@
   "dead-air": {
    "name": "Nothing on screen but the background",
    "says": "For a moment the picture is empty: a scene waiting for its word, or a handoff left bare."
+  },
+  "never-seen": {
+   "name": "Words that never show",
+   "says": "These words are in the video but never reach the screen: they're timed to arrive after their scene has ended."
+  },
+  "cut-short": {
+   "name": "Cut off by the next scene",
+   "says": "These words arrive late in their scene and the cut takes them away before a person can read them."
+  },
+  "dead-tween": {
+   "name": "A move that never happens",
+   "says": "An animation was given something that isn't a number, so it silently does nothing: the thing never moves."
   }
  }
 }

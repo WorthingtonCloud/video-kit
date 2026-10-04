@@ -2,9 +2,9 @@
 // version measured (a claimed fix that measures as nothing is flagged). Looks right, Still wrong (with words), Follow up,
 // or Compare the two versions side by side. Also here: the patterns Claude asks about (Learn), and the verdict on the
 // version, one click (it waits with the rest of your feedback, and Undo takes it back).
-import { app, $, post, undo, fmt, esc, round } from "./core.js";
+import { app, $, post, undo, fmt, esc, round, cuts } from "./core.js";
 import { compare } from "./compare.js";
-import { followFrom } from "./notes.js";
+import { followFrom, watch } from "./notes.js";
 import { player } from "./player.js";
 
 const el = $("#tab-rounds"),
@@ -37,7 +37,7 @@ function answer(n) {
         ? `<textarea rows="2" data-reopen placeholder="What's still wrong?"></textarea><div class="btns"><button data-r="cancel">Cancel</button><button class="primary" data-r="reopen-send">Still wrong ⏎</button></div>`
         : `<div class="btns"><button data-r="watch">Watch it</button>${m ? `<button data-r="compare">${m.sound || (m.moment && (m.audio?.changed_secs || 0) >= 0.1) ? "Hear" : "Compare"} v${m.from} · v${m.to}</button>` : ""}${waiting ? `<button class="primary" data-r="accept">Looks right</button><button data-r="reopen">Still wrong…</button>` : ""}<button data-r="follow">Follow up</button></div>`;
   return `<div class="res ${n.status}${m?.flag ? " flagged" : ""}" data-id="${n.id}" ${waiting && !held ? "data-todo" : ""}>
-    <div class="when"><b>${when(n)}</b>${n.target?.el ? ` · ${esc(short(r.renamed || n.target.el))}` : ""} · ${esc(head)}</div>
+    <div class="when">${cuts() || n.cut === "16x9" ? `<span class="shape">${n.cut === "16x9" ? "wide" : "tall"}</span>` : ""}<b>${when(n)}</b>${n.target?.el ? ` · ${esc(short(r.renamed || n.target.el))}` : ""} · ${esc(head)}</div>
     <q>${esc(n.comment) || "(a mark, no words)"}</q>${said}${meas}${acts}</div>`;
 }
 
@@ -62,14 +62,17 @@ function approval() {
   const R = round(),
     S = app.state;
   if (!R || R.status === "closed") return "";
-  const done = S.approved.find((a) => a.version === R.version && a.cut === R.cut),
-    held = S.steps.find((s) => s.pending && s.kind === "version.approved" && s.version === R.version);
+  // both shapes in a round: each is approved on its own (the one on screen), so one can be done while the other isn't
+  const both = cuts(),
+    nm = both ? `the ${R.cut === "16x9" ? "widescreen" : "vertical"} v${R.version}` : `v${R.version}`,
+    done = S.approved.find((a) => a.version === R.version && a.cut === R.cut),
+    held = S.steps.find((s) => s.pending && s.kind === "version.approved" && s.version === R.version && (!s.cut || s.cut === R.cut));
   if (held)
-    return `<button class="verdict-btn on" data-r="undo" data-seqs="${held.seqs.join(",")}">✓ Approved: v${R.version} is done <span class="held">not sent · undo</span></button>
-      <p class="dhint">It goes to Claude with the rest of your feedback when you send.</p>`;
-  if (done) return `<div class="doneline"><span>✓ v${R.version} approved ${esc(done.at.slice(11, 16))}: Claude makes the finals from it</span></div>`;
-  return `<button class="verdict-btn" data-r="approve">Approve v${R.version}: it's done</button>
-    <p class="dhint">One click. Only when nothing's left to fix: Claude then makes the finals from v${R.version}.</p>`;
+    return `<button class="verdict-btn on" data-r="undo" data-seqs="${held.seqs.join(",")}">✓ Approved: ${nm} is done <span class="held">not sent · undo</span></button>
+      <p class="dhint">It goes to Claude with the rest of your feedback when you send.${both ? " The other shape has its own Approve: switch to it at the top." : ""}</p>`;
+  if (done) return `<div class="doneline"><span>✓ ${nm} approved ${esc(done.at.slice(11, 16))}: Claude makes its final from it</span></div>`;
+  return `<button class="verdict-btn" data-r="approve">Approve ${nm}: it's done</button>
+    <p class="dhint">One click. Only when nothing's left to fix: Claude then makes the final from ${nm}.${both ? " Each shape is approved on its own." : ""}</p>`;
 }
 
 export const rounds = {
@@ -103,7 +106,7 @@ async function act(e) {
   if (lid && ["remember", "video", "ignore"].includes(r)) return post([{ type: "lesson.decided", id: lid, decision: r }]);
   if (r === "approve") return post([{ type: "version.approved", version: R.version, cut: R.cut, video: R.video }]);
   const n = app.state.notes[id];
-  if (r === "watch") return player.seek("t" in n.time ? n.time.t : n.time.t0);
+  if (r === "watch") return watch(n, "t" in n.time ? n.time.t : n.time.t0);
   if (r === "compare") return compare(n);
   if (r === "accept") return post([{ type: "note.accepted", id }]);
   if (r === "follow") return followFrom(id);

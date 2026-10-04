@@ -25,6 +25,11 @@ From two reels (a 58 s lab reel, v1→v22, and a product reel, Sep 27–29, 2026
 - 🔑 **The ending that landed:** the song as-is to the end; the tile, the point (a strong downbeat), the name and the
   address each on a beat (`endcard.word_b` / `url_b`); then fade the last phrase ~1.3 s. A dead stop and an invented
   ring-out both failed. ‹human: the feel (the end card's beats are settings: word_b, url_b)›
+- 🚨 **An end card's beats can run past the card:** `word_b: 2` / `url_b: 4` count beats after the point lands (2 beats
+  in), so they need ~6 beats plus reading time; the video-kit reel's 3.5 s card at 0.63 s beats ended before its address
+  came round, so it never showed through three approved cuts. The end card now pulls both onto earlier beats when the card
+  is short (`endcard.hold`, default 1.2 s for the address), and vs inspect's `never-seen` (error) catches any words that
+  never reach the screen; `fast-text` catches words that arrive too close to the video's end. ‹test: regression/endcard-url-late›
 - ⚠️ Replayed intro bars were heard as a repeat; replay whole bars BEFORE the build so the song keeps one build, one drop. ‹human: the ear›
 
 ## Picture

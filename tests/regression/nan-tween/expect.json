@@ -1,0 +1,22 @@
+{
+ "scar": "explainer · Motion · exPath returns {x, y}: used as a number the tween is NaN and silently never moves (contextual-ui v1)",
+ "make": {
+  "music/take1.mp3": "tone:5"
+ },
+ "expect": [
+  {
+   "check": "dead-tween",
+   "element": "s01_nan/stuck"
+  },
+  {
+   "check": "dead-tween",
+   "element": "s01_nan/dot"
+  }
+ ],
+ "expect_not": [
+  {
+   "check": "dead-tween",
+   "element": "s01_nan/moves"
+  }
+ ]
+}

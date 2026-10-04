@@ -256,6 +256,16 @@ export function prepareMedia() {
     copy(logo, `${COMP}/${media.logo}`);
   } else if (logo && !R.scenes?.endcard?.mark)
     console.log(`  ⚠️  logo "${logo}" not found — end card drawn without it`);
+  // a rendered mark: a folder of see-through frames (f0001.png …), played in place of the drawn mark
+  const m3 = R.scenes?.endcard?.mark3d;
+  if (m3?.frames) {
+    const fr = fs.existsSync(m3.frames) ? fs.readdirSync(m3.frames).filter((f) => /\.(png|webp)$/i.test(f)).sort() : [];
+    if (fr.length) {
+      media.mark3d = fr.map((f) => `assets/mark3d/${f}`);
+      fs.mkdirSync(`${COMP}/assets/mark3d`, { recursive: true });
+      fr.forEach((f) => copy(path.join(m3.frames, f), `${COMP}/assets/mark3d/${f}`));
+    } else console.log(`  ⚠️  mark3d frames "${m3.frames}" not found — end card drawn with the flat mark`);
+  }
 
   const gsapFile = [
     path.join(NODE_MODULES, "gsap/dist/gsap.min.js"),

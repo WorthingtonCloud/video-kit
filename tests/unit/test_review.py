@@ -884,3 +884,47 @@ def test_a_scene_marked_done_and_reopened(proj):
     with pytest.raises(review.Refused, match="isn't marked done"):
         review.append([{"type": "scene.reopened", "segment": "s02"}], H)
     assert vs(proj, "check").returncode == 0
+
+
+# ── both shapes in one round (a reviewer, Oct 4, 2026: "view both … and give feedback on each independently") ──
+def _reel_pair(tmp_path, monkeypatch):
+    """A reel and its widescreen sibling project, both rendered at v1, each with an inspect warning of the same id."""
+    for name, size in (("r", "108x192"), ("r-16x9", "192x108")):
+        d = tmp_path / name
+        (d / "out" / f"{name}-v1.review").mkdir(parents=True)
+        (d / "reel.json").write_text("{}")
+        video(d / f"out/{name}-v1.mp4", size=size)
+        (d / f"out/{name}-v1.timeline.json").write_text(json.dumps({"fingerprint": f"fp-{name}", "end": 2.0}))
+        F = {"fingerprint": f"fp-{name}", "items": [{"id": "f-two-zones-title-t-x", "check": "two-zones", "severity": "warning",
+                                                     "elements": ["title/t_x"], "t0": 0.5, "t1": 1.0, "text": "two zones"}]}
+        (d / f"out/{name}-v1.review/findings.json").write_text(json.dumps(F))
+    monkeypatch.chdir(tmp_path / "r")
+
+
+def test_a_round_opens_on_both_shapes_and_keeps_their_feedback_apart(tmp_path, monkeypatch):
+    import argparse
+    _reel_pair(tmp_path, monkeypatch)
+    assert review.partner("out/r-v1.mp4") == os.path.join("..", "r-16x9", "out", "r-16x9-v1.mp4")
+    review.open_round(argparse.Namespace(video="out/r-v1.mp4", ask=False, stage=None))
+    R = review.current(review.state())
+    assert [c["cut"] for c in R["cuts"]] == ["9x16", "16x9"] and R["cut"] == "9x16"
+    # the same check on both shapes is two findings: the other shape's carries its name
+    ids = sorted(f["id"] for f in review.round_findings())
+    assert ids == ["16x9:f-two-zones-title-t-x", "f-two-zones-title-t-x"]
+    assert review.check_of("16x9:f-two-zones-title-t-x") == "two-zones"
+    # a note is about the shape it was made on; its still comes from that shape's render
+    review.append([note(cut="16x9"), note(t=1.5, cut="9x16")], H)
+    S = review.state()
+    assert [n["cut"] for n in S["notes"].values()] == ["16x9", "9x16"]
+    assert review.cut_video(R, "16x9").endswith("r-16x9-v1.mp4")
+    with pytest.raises(review.Refused):  # a shape the round doesn't have
+        review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "out/r-v2.mp4"}], A)
+        review.append([note(cut="16x9")], H)
+
+
+def test_only_and_a_lone_shape_open_one(tmp_path, monkeypatch):
+    import argparse
+    _reel_pair(tmp_path, monkeypatch)
+    review.open_round(argparse.Namespace(video="out/r-v1.mp4", ask=False, stage=None, only=True))
+    assert "cuts" not in review.current(review.state())
+    assert review.partner("out/none-v3.mp4") is None

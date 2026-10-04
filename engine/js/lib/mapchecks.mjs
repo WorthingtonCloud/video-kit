@@ -2,6 +2,8 @@
 // each has a reason to be by design, so the human confirms or dismisses it in Review Studio.
 //   fast-text          words on screen for less time than it takes to read them: words ÷ reading speed, never under the
 //                      shortest title that read (contracts.json → reading; profile.json → checks tunes both)
+//                      (and words that arrive too close to the video's end to read before it stops)
+//   cut-short          words that arrive mid-scene and leave with the cut before they can be read (a payoff cut short)
 //   offscreen-at-rest  something parked partly off the frame, not moving, for a second or more (Sep 30, 2026: 15 of the
 //                      "twenty people" parked off a vertical frame through v3; an exit sized for a vertical frame stopped
 //                      in plain sight on the wide cut)
@@ -60,7 +62,38 @@ export function fastText({ META, seenAt, STEP, C, END, near }) {
       need = Math.max(title ? C.title_min_secs : 0, n / C.words_per_sec);
     for (const [a, b] of on.get(i) || []) {
       const secs = b - a + STEP;
-      if (b >= END - STEP * 1.5) continue; // on until the end: the video stops, the words don't leave
+      // on until the end: the video stops, the words don't leave. Unless they arrived too late to read before it does
+      // (a looping player cuts them off): the end card's address landing in the last beat of the video
+      if (b >= END - STEP * 1.5) {
+        if (END - a < need && !near(a))
+          out.push({
+            check: "fast-text",
+            elements: [m.addr],
+            text: `${n} word${n > 1 ? "s" : ""} arrive ${(END - a).toFixed(1)}s before the video ends; reading them takes ${need.toFixed(1)}s (“${m.text.slice(0, 40)}”)`,
+            t0: a,
+            t1: b,
+            at: b,
+            ...(boxAt(seenAt, i, b) ? { box_n: boxAt(seenAt, i, b).map((v) => +v.toFixed(4)) } : {}),
+            hint: `bring them in sooner: ${need.toFixed(1)}s before the end (an end card's beats: profile.json → brand.endcard word_b / url_b / hold)`,
+          });
+        continue;
+      }
+      // arriving mid-scene and gone with the cut before it can be read: a payoff cut short (a parody ad, Oct 2,
+      // 2026: punchlines got ~0.3 s before the next scene; the Jev explainer's payoff, 0.8 s). Arriving with a cut is the
+      // transition's edge, not this
+      if (near(b) && !near(a) && secs + STEP < need) {
+        out.push({
+          check: "cut-short",
+          elements: [m.addr],
+          text: `${n} word${n > 1 ? "s" : ""} arrive ${secs.toFixed(1)}s before the cut takes them; reading them takes ${need.toFixed(1)}s (“${m.text.slice(0, 40)}”)`,
+          t0: a,
+          t1: b,
+          at: +((a + b) / 2).toFixed(2),
+          ...(boxAt(seenAt, i, (a + b) / 2) ? { box_n: boxAt(seenAt, i, (a + b) / 2).map((v) => +v.toFixed(4)) } : {}),
+          hint: `bring them in sooner, or hold the scene ${(need - secs).toFixed(1)}s longer before the cut`,
+        });
+        continue;
+      }
       if (near(a) || near(b)) continue; // arriving or leaving with its scene: the transition is the reading time's edge
       const at = +((a + b) / 2).toFixed(2),
         bx = boxAt(seenAt, i, at);
@@ -160,5 +193,32 @@ export function deadAir({ META, seenAt, STEP, C, cuts = [] }) {
     else (finish(), (run = [t, t]));
   }
   finish();
+  return out;
+}
+
+// Never seen: words the build made that never reach the screen at any moment. Oct 4, 2026: the video-kit reel's end card
+// timed its address 4 beats after the point landed, past the end of its 3.5 s card, so the address never showed
+// through v6–v8 and every check passed (a thing that's never on screen can't fight anything). The reviewer caught it by eye.
+// An error: words written into a video and never shown are a timing past the segment's end, or a leftover. Only a whole
+// scrub can say "never" (a --from/--to window can't). Wrapped words whose parent is the reader count as the parent.
+export function neverSeen({ META, seenAt, TL }) {
+  const shown = new Set();
+  for (const [, els] of seenAt) for (const [i] of els) shown.add(i);
+  const out = [];
+  for (const [m, i] of readers(META)) {
+    if (shown.has(i)) continue;
+    const segName = m.addr.startsWith("title/") ? TL.titles?.find((x) => x.el === m.addr)?.segment : m.addr.split("/")[0],
+      S = TL.segments.find((s) => s.name === segName),
+      n = words(m.text);
+    out.push({
+      check: "never-seen",
+      elements: [m.addr],
+      text: `${n} word${n > 1 ? "s" : ""} never on screen (“${m.text.slice(0, 40)}”)${S ? `: ${segName} runs ${S.t0.toFixed(2)}–${S.t1.toFixed(2)}s` : ""}`,
+      t0: S ? S.t0 : 0,
+      t1: S ? S.t1 : 0,
+      at: S ? +Math.max(S.t0, S.t1 - 0.1).toFixed(2) : 0,
+      hint: "timed past its segment's end? Bring it in sooner or lengthen the segment (an end card's word_b / url_b count beats after the point lands: profile.json → brand.endcard), or take it out",
+    });
+  }
   return out;
 }

@@ -103,12 +103,16 @@ function tick(force) {
 v.addEventListener("seeked", () => tick(true));
 v.addEventListener("loadedmetadata", () => tick(true));
 v.addEventListener("timeupdate", () => tick()); // when the tab is hidden, animation frames stop but this still fires
+// the button shows what a click will do, from the video's own state: a new source (the other shape, a new version) stops
+// the video without a pause event, so the button is set on those too
+const face = () => ($("#t-play").textContent = player.playing() ? "❚❚" : "▶");
+["emptied", "loadstart", "ended", "playing"].forEach((ev) => v.addEventListener(ev, face));
 v.addEventListener("play", () => {
-  $("#t-play").textContent = "❚❚";
+  face();
   player.clock?.start(v.currentTime);
 });
 v.addEventListener("pause", () => {
-  $("#t-play").textContent = "▶";
+  face();
   const c = player.clock;
   if (c?.running) {
     const t = c.stop();

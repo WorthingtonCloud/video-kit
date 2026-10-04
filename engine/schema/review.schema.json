@@ -242,6 +242,34 @@
      },
      "read_sends": {
       "type": "integer"
+     },
+     "cuts": {
+      "type": "array",
+      "description": "both shapes in one round: the vertical and the widescreen render of this version (the first is the round's own video); each note says which it's about (its cut)",
+      "items": {
+       "type": "object",
+       "required": [
+        "cut",
+        "video"
+       ],
+       "properties": {
+        "cut": {
+         "enum": [
+          "9x16",
+          "16x9"
+         ]
+        },
+        "video": {
+         "type": "string"
+        },
+        "size": {
+         "type": [
+          "array",
+          "null"
+         ]
+        }
+       }
+      }
      }
     }
    }

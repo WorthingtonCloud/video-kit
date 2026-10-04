@@ -50,6 +50,8 @@ COMMANDS = [
     ("review", "py", "review.py", True, None, "review", "Review Studio: point at the video, say what's wrong; rounds, choices, rules"),
     ("ingest", "py", "ingest.py", True, "openai (own narration)", "studio", "bring your own media"),
     ("learn", "py", "learn.py", True, None, "studio", "after approval: keep what was decided"),
+    ("latest", "py", "latest.py", False, None, "studio", "studio/latest/: the newest version of every video, plain names"),
+    ("mark3d", "py", "mark3d.py", False, None, "studio", "your end card's mark in 3D, if Blender is installed (free)"),
 ]
 ALIASES = {"audit": "inspect"}  # the old name for vs inspect
 SELF_HELP = {  # the steps studio.py runs itself

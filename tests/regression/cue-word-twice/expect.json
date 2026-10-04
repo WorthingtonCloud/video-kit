@@ -1,0 +1,12 @@
+{
+ "scar": "explainer \u00b7 Plan \u00b7 a cue's bare word said twice in its act fires on the first (\"job\" hit \"doing a job\", a parody ad, Oct 2, 2026)",
+ "make": {
+  "voice/bed.wav": "tone:12"
+ },
+ "steps": [
+  {
+   "run": "plan",
+   "warns_with": "said 3 times"
+  }
+ ]
+}

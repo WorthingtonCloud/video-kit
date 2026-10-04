@@ -66,7 +66,10 @@ keeps every version.
    a human once had to give: fix it, don't explain it. Open the first frame, the safe sheet, and the cuts sheet (one
    strip per transition: ghosted titles, empty frames, early lines, flashes of black).
 8. **Review, every cut, in Review Studio.** `vs review open --stage picture` (a round on the newest render; refused
-   while inspect has open errors, or while the human has feedback they haven't sent) and serve it: a
+   while inspect has open errors, or while the human has feedback they haven't sent; with the widescreen cut rendered
+   at the same version in `<slug>-16x9/`, the round shows both: a Vertical | Widescreen switch, and every note,
+   finding and approval belongs to the shape on screen, so `vs review show` labels each note VERTICAL or WIDESCREEN:
+   fix it in that shape's project) and serve it: a
    `.claude/launch.json` entry running `<vs> -p <slug> review --port 4470` opens `/review/`. Tell them what changed in
    one line each, and the spend so far. **The loop, every round:** they give feedback (point at the frame, write, answer
    your fixes, pick, approve the cut); each thing waits in the page with Undo; they review the list, press **Approve &

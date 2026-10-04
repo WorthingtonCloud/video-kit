@@ -7,7 +7,7 @@
 // what sits under each end), Keep clear (drag: "nothing goes here"). A note with no mark is just words at a moment.
 // Everything is stored as fractions of the frame (and of the target's own box), so it fits any size.
 // A time is the playhead, or a range: drag along the ruler, or I and O.
-import { app, $, esc, toast } from "./core.js";
+import { app, $, esc, toast, cuts } from "./core.js";
 import { player } from "./player.js";
 import { element, onAt, boxAt, segmentAt, visibleAt, stackAt, findingsAt } from "./maps.js";
 
@@ -277,7 +277,9 @@ function notice(msg) {
       : comp
         ? ""
         : R.exact?.elements
-          ? `Pointing from v${R.version}'s own element map (its composition isn't here: the build has moved on).`
+          ? R.video?.startsWith("/@") || (cuts() && R.cut !== app.state?.rounds.at(-1)?.cut)
+            ? `Pointing from the ${R.cut === "16x9" ? "widescreen" : "vertical"} v${R.version}'s own element map.`
+            : `Pointing from v${R.version}'s own element map (its composition isn't here: the build has moved on).`
           : `Pointing from the nearest element map: the build has changed since v${R.version}, so outlines may be off.`);
   n.textContent = text;
   n.hidden = !text;
@@ -339,6 +341,7 @@ export const point = {
       seg = segmentAt(draft.range ? draft.range[0] : t);
     return {
       time: draft.range ? { t0: draft.range[0], t1: draft.range[1] } : { t },
+      ...(cuts() ? { cut: app.cut } : {}), // both shapes in this round: the note is about the one on screen
       segment: seg?.name ?? null,
       scene: seg ? seg.scene || seg.kind || null : null,
       target: draft.target,

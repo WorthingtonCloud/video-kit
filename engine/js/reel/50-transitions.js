@@ -49,10 +49,12 @@
       // shapes in the background should be gone before the 'This reel?' text comes on screen", video-kit reel, Oct 2)
       if (!tiles.length) tl.to(prev.el, { opacity: 0, duration: 0.35, ease: "power2.in" }, T - 0.4);
       if (tiles.length)
+        // the collapse lifts only to half, still soft: the card's first line is up over it, and a sharp, bright collage
+        // under "This video?" was words on photos (vs inspect, The Lab reel v23, Oct 4, 2026)
         tl.fromTo(
           pcam,
           { filter: "brightness(0.28) blur(5px)" },
-          { filter: "brightness(0.85) blur(0px)", duration: 0.2, ease: "power1.out", ...IR },
+          { filter: "brightness(0.55) blur(4px)", duration: 0.2, ease: "power1.out", ...IR },
           hit - 0.62,
         );
       if (tiles.length) {
