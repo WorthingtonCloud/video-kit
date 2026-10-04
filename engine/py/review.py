@@ -788,7 +788,7 @@ def _to_studio(S, new):
 
 
 def _to_dogfood(S, new):
-    """'Report a tool problem' from the page: a line in the kit's DOGFOOD.md friction log, never the fix list."""
+    """The page's Problem? button (report a tool problem): a line in the kit's DOGFOOD.md friction log, never the fix list."""
     f = os.environ.get("VIDEO_KIT_DOGFOOD") or os.path.join(vslib.KIT, "DOGFOOD.md")  # tests point it elsewhere
     lines = [e for e in new if e["type"] == "friction.noted"]
     if not lines or not os.path.exists(f):
@@ -797,7 +797,7 @@ def _to_dogfood(S, new):
     R, day = current(S), datetime.now()
     at = f", round {R['n']}, v{R['version']}" if R else ""
     add = "".join(f"- {day:%b} {day.day} · Review Studio ({e.get('where') or 'the page'}{at}, {vslib.project_name()}): "
-                  f"{e['text'].strip()} (from the page's Report a tool problem button)\n" for e in lines)
+                  f"{e['text'].strip()} (from the page's Problem? button)\n" for e in lines)
     i = doc.find("\n## Verdict")  # the friction log is the section before the verdict
     doc = doc.rstrip("\n") + "\n" + add if i < 0 else doc[:i].rstrip("\n") + "\n" + add + doc[i:]
     open(f, "w").write(doc)

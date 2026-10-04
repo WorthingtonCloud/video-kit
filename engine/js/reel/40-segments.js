@@ -263,8 +263,10 @@
       });
     }
     // widescreen: the picture sits centered and slides right only while a title is up on the left (same video, just
-    // wider). Parked on the right with nothing to read beside it, half the frame sat empty (video-kit reel, Oct 2, 2026)
-    if (LAND && R.scene_lib !== "explainer" && ((src.scene && src.scene !== "endcard") || panel)) {
+    // wider). Parked on the right with nothing to read beside it, half the frame sat empty (video-kit reel, Oct 2, 2026).
+    // An explainer's drawn scenes get this from scenes/layout.js; its recorded panels (shots) get it here (the kit's own
+    // explainer parked its Review Studio recording right, Oct 4, 2026)
+    if (LAND && ((R.scene_lib !== "explainer" && src.scene && src.scene !== "endcard") || panel)) {
       const words = seg.titles
           .filter((tt) => ["lower", "stat", undefined].includes(R.titles[tt.id]?.kind))
           .sort((a, b) => a.t0 - b.t0),

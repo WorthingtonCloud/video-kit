@@ -52,6 +52,16 @@
     "$ref": "#/$defs/title"
    }
   },
+  "shots": {
+   "type": "object",
+   "description": "recorded pages and clips a segment shows with {\"shot\": id} (vs plan copies them into reel.json)",
+   "propertyNames": {
+    "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$"
+   },
+   "additionalProperties": {
+    "$ref": "#/$defs/shot"
+   }
+  },
   "never": {
    "type": "array",
    "items": {
@@ -497,6 +507,82 @@
     },
     "register": {
      "type": "string"
+    }
+   }
+  },
+  "shot": {
+   "type": "object",
+   "additionalProperties": false,
+   "description": "a real page: a url record.mjs scrolls, or a \"video\" / \"dir\" of frames you recorded",
+   "properties": {
+    "url": {
+     "type": "string"
+    },
+    "anchor": {
+     "type": "string"
+    },
+    "from": {
+     "type": "number"
+    },
+    "to": {
+     "type": "number"
+    },
+    "frames": {
+     "type": "integer",
+     "minimum": 1
+    },
+    "hide": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "wait": {
+     "type": "number",
+     "minimum": 0
+    },
+    "dir": {
+     "type": "string"
+    },
+    "video": {
+     "type": "string"
+    },
+    "ss": {
+     "type": "number",
+     "minimum": 0
+    },
+    "inset": {
+     "type": "number",
+     "exclusiveMinimum": 0,
+     "maximum": 1
+    },
+    "float": {
+     "type": "object",
+     "additionalProperties": false,
+     "description": "a hero shot's sway: rotationY and rotationX [from, to] in degrees over the segment, and how bright the glare is (1 = the default)",
+     "properties": {
+      "y": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 2,
+       "maxItems": 2
+      },
+      "x": {
+       "type": "array",
+       "items": {
+        "type": "number"
+       },
+       "minItems": 2,
+       "maxItems": 2
+      },
+      "glare": {
+       "type": "number",
+       "exclusiveMinimum": 0,
+       "maximum": 2.5
+      }
+     }
     }
    }
   }

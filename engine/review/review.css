@@ -35,7 +35,7 @@ textarea:focus, input:focus, button:focus-visible { outline: 2px solid var(--sig
 .stages i { font-style: normal; color: #5a5c63; }
 .stages .fold { display: none; color: var(--muted); }
 .where .caret { color: var(--muted); font-size: 11px; flex: none; }
-.loop { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: center; margin: 0; padding: 0; list-style: none; font: 600 12px var(--sans); color: var(--muted); overflow: hidden; }
+.loop { flex: 1 1 0; min-width: 0; display: flex; align-items: center; justify-content: safe center; margin: 0; padding: 0; list-style: none; font: 600 12px var(--sans); color: var(--muted); overflow: hidden; }
 .loop li { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px; flex: none; }
 .loop li + li::before { content: ""; width: 12px; height: 1px; background: var(--rule); margin: 0 6px 0 -9px; }
 .loop .dot { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; flex: none; }
@@ -46,7 +46,7 @@ textarea:focus, input:focus, button:focus-visible { outline: 2px solid var(--sig
 .top-r { flex: none; display: flex; align-items: center; gap: 8px; }
 .quiet { border-color: transparent; color: var(--muted); font-size: 12.5px; }
 .quiet:hover { color: var(--ink); }
-.quiet .short { display: none; }
+
 /* both shapes in one round: a switch; each button counts that shape's notes */
 .shapes { display: flex; border: 1px solid var(--rule); border-radius: 7px; padding: 2px; gap: 2px; }
 .shapes button { border: 0; border-radius: 5px; padding: 4px 10px; font-weight: 600; color: var(--muted); display: flex; align-items: center; gap: 7px; }
@@ -60,10 +60,13 @@ textarea:focus, input:focus, button:focus-visible { outline: 2px solid var(--sig
 .roundbtn b { font: 700 11px var(--mono); background: var(--signal); color: #fff; border-radius: 999px; padding: 2px 7px; }
 .roundbtn b:empty { display: none; }
 .roundbtn[aria-expanded="true"] { background: var(--raised2); }
-@container top (max-width: 1380px) { .loop li:not(.now) .w { display: none; } .loop li { padding: 4px 6px; } }
-@container top (max-width: 1120px) { .stages .st.done, .stages i.d { display: none; } .stages .fold { display: inline; } }
-@container top (max-width: 900px) { .quiet .long { display: none; } .quiet .short { display: inline; } }
-@container top (max-width: 760px) { .loop li:not(.now) { display: none; } }
+/* the bar folds one step at a time while anything in it would overlap or clip (main.js fitTop measures it): 1 the
+   finished stages fold into "…" (history; a click shows them) · 2 the steps keep only the current one's word · 3 only
+   the current step · 4 no steps, no Problem? button. A very narrow window drops the stages too. */
+.top.f1 .stages .st.done, .top.f1 .stages i.d { display: none; } .top.f1 .stages .fold { display: inline; }
+.top.f2 .loop li:not(.now) .w { display: none; } .top.f2 .loop li { padding: 4px 6px; }
+.top.f3 .loop li:not(.now) { display: none; }
+.top.f4 .loop, .top.f4 .quiet { display: none; } .top.f4 { justify-content: space-between; }
 @container top (max-width: 600px) { .loop { display: none; } .quiet { display: none; } .stages { display: none; } .top { justify-content: space-between; } }
 
 /* the log of your steps, under the line */

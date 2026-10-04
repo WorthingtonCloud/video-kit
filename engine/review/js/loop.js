@@ -9,6 +9,9 @@ import { player } from "./player.js";
 // step 4 is the human's only while Claude isn't watching (vs review wait): watching, a send reaches it on its own
 const STEPS_TELL = ["Give feedback", "Review it", "Approve & send", "Tell Claude", "Claude's turn"],
   STEPS_AUTO = ["Give feedback", "Review it", "Approve & send", "Claude picks it up", "Claude's turn"];
+// the top bar has room for one word a step (a reviewer, Oct 4, 2026: "too crowded… maybe one word will do"); the full words
+// stay in each step's tooltip and in the Sent dialog's line
+const SHORT = { "Give feedback": "Feedback", "Review it": "Review", "Approve & send": "Send", "Tell Claude": "Tell", "Claude picks it up": "Received", "Claude's turn": "Claude" };
 // a send Claude already read needed no telling either (the watcher exits once it reads)
 const steps4 = () => {
   const R = round();
@@ -28,7 +31,7 @@ export function step() {
 
 function loopLine() {
   const n = step();
-  $("#loop").innerHTML = steps4().map((w, i) => `<li class="${i + 1 < n ? "past" : i + 1 === n ? "now" : ""}"><span class="dot"></span><span class="w">${esc(w)}</span></li>`).join("");
+  $("#loop").innerHTML = steps4().map((w, i) => `<li class="${i + 1 < n ? "past" : i + 1 === n ? "now" : ""}" title="${i + 1}. ${esc(w)}"><span class="dot"></span><span class="w">${esc(SHORT[w] || w)}</span></li>`).join("");
 }
 
 // the button at the bottom of the round's panel: how much is waiting, and what happens next

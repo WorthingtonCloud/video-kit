@@ -78,7 +78,7 @@ Each step ends with something the human can see or hear, and waits for their cal
 5. **Review, every version, in Review Studio.** `vs review open --stage picture` starts a round on the newest render
    (refused while inspect has open errors, `--ask` puts them to the human; refused while the human has feedback they
    haven't sent). With `out/<name>-16x9-vN…` rendered at the same version, the round shows both shapes: a Vertical |
-   Widescreen switch (S), and every note, finding and approval belongs to the shape on screen (`vs review show` labels
+   Wide switch (S), and every note, finding and approval belongs to the shape on screen (`vs review show` labels
    each note VERTICAL or WIDESCREEN; `--only` opens one shape). Serve it: ONE `.claude/launch.json` entry per video, `<vs> -p <slug> review --port <its own port>`,
    started once at the voice step. **Its address (`http://localhost:<port>/review/`) is the only link the human ever
    gets, every round, every stage:** the open tab follows the project live (the narration, each new version, the Mix

@@ -58,7 +58,7 @@ for i, s in enumerate(P["segments"]):
         scenes.setdefault(sc, {})["cues"] = {k: at(v, acts) for k, v in s["cues"].items()}
     print(f"{s['name']:18s} {t0:7.2f} → {t1:7.2f}  ({t1 - t0:5.2f}s)  {len(s.get('cues', {}))} cues, {len(s.get('titles', []))} titles")
 
-reel = {k: P[k] for k in ("schema_version", "name", "version", "size", "fps", "palette", "font", "mono", "finish", "titles",
+reel = {k: P[k] for k in ("schema_version", "name", "version", "size", "fps", "palette", "font", "mono", "finish", "titles", "shots",
                            "never") if k in P}
 reel["music"] = {"file": P["voice"], "beat": P.get("beat", 0.5), "first_hit": 0, "fade": 0.3}
 # the voice's acts, first word to last: the timeline's voice row (voice/act-N), so a note can point at one

@@ -102,7 +102,7 @@ const SCENARIOS = {
   },
   // the loop, after Claude has read what was sent (vs review show): Claude's turn; then a note starts the next batch
   async read() {
-    await p.waitForFunction(() => /Claude's turn/.test(document.querySelector("#loop li.now")?.textContent || ""));
+    await p.waitForFunction(() => document.querySelector("#loop li.now")?.textContent === "Claude");
     const r = { loop: await text("#loop li.now"), sendp: await text("#sendp") };
     await seek(1.0);
     await p.type("#c-text", "one more thing");
@@ -153,9 +153,14 @@ const SCENARIOS = {
           bs = kids.map((e) => e.getBoundingClientRect()).filter((b) => b.width > 0);
         const over = bs.some((a, i) => bs.some((b, j) => j > i && a.left < b.right - 1 && b.left < a.right - 1));
         const tall = [...top.querySelectorAll("button, li, span")].filter((e) => e.offsetParent && e.getBoundingClientRect().height > 40).map((e) => e.textContent.trim().slice(0, 30));
-        return { h: Math.round(top.getBoundingClientRect().height), over, tall, scroll: document.documentElement.scrollWidth > innerWidth };
+        // a clip inside a box (overflow: hidden) is invisible to the boxes above: the step strip and the stage names
+        const clip = ["#loop", "#crumbs"].some((s) => { const e = document.querySelector(s); return e.offsetParent && e.scrollWidth > e.clientWidth + 1; });
+        const L = document.querySelector("#loop"), now = L.querySelector("li.now"), lb = L.getBoundingClientRect(), nb = now?.getBoundingClientRect();
+        return { h: Math.round(top.getBoundingClientRect().height), over, tall, scroll: document.documentElement.scrollWidth > innerWidth, clip,
+                 now: !!nb && nb.width > 0 && nb.left >= lb.left - 1 && nb.right <= lb.right + 1, fold: [...top.classList].filter((c) => /^f\d$/.test(c)).join(" ") };
       });
     }
+    r.shapes = await p.$$eval("#shapes:not([hidden]) button", (x) => x.map((e) => e.textContent.replace(/\d+$/, "").trim()));
     return r;
   },
   // card 1: a note at a moment, then Send

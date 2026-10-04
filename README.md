@@ -10,10 +10,30 @@ https://github.com/user-attachments/assets/83dad20d-f32f-4455-9f84-5b578088c0dd
 seconds). The agent writes it, voices it, draws every scene in code, checks its own frames, and mixes the sound. You
 watch it in a review page, point at what's wrong, and send. You never open a video editor.
 
-The reel above was made this way. One request, music reused from an earlier reel, every scene drawn in code, and the
+The reel above was made this way: one request, music reused from an earlier reel, every scene drawn in code, and the
 Review Studio filmed live from a real round. Its reviewer gave eight notes over seven rounds, from "the red dot over the
 text makes it hard to read" to "the end card never shows the address." The agent traced each one to the kit and fixed it
 there, so every reel after this one gets the fix too. Nothing in it was paid for.
+
+## How it works
+
+https://github.com/user-attachments/assets/83fe5ddf-b0f1-41be-9d63-7fbf1e3c38a1
+
+<p align="center">
+  2:15, sound on. An explainer the kit made about itself. The review round in the middle is this video's own.
+</p>
+
+Today's AI models can write a motion graphic in code, in minutes. What they can't do is watch it. They build every
+frame without seeing one, so the words land under a chart, a title is gone before anyone can read it, and the logo sits
+under a phone's buttons. You end up describing a picture in words ("at about seventeen seconds, the thing in the upper
+right…"), the agent guesses, and round six looks a lot like round one.
+
+The kit adds the two missing pieces:
+
+- **Eyes, before you see a frame.** The agent names every element on screen and steps through the video moment by
+  moment, catching what a reviewer would otherwise catch by eye. Nothing renders until it's clean.
+- **A pointer, when you do.** The Review Studio is a page where you pause, click the thing, and it knows exactly which
+  thing. A box if you need one, a few words, send. The next version comes back measured.
 
 ## Install it
 
@@ -45,45 +65,71 @@ renderer), GSAP (the animation), puppeteer and its Chrome, and a Python with num
 studio folder (`~/video-studio`). macOS and Linux run it as is; on Windows, use WSL. After a plugin update, run setup
 again: the engine's packages live beside the new version.
 
-**Optional, and free: [Blender](https://www.blender.org).** If it's installed, `vs mark3d` builds your end card's mark
-as a lit 3D tile: it swings in, its lines draw, and the accent point drops onto the beat. Without it, the end card draws
-the flat mark.
+## It checks its own work
 
-**The paid parts, all optional to start:** an [ElevenLabs](https://elevenlabs.io) key for the narrator and any new
-sound effects (library voices need a paid plan over the API). An [OpenAI](https://platform.openai.com) key transcribes
-each take back to catch a changed word, or times your own recording (about a cent). A [kie.ai](https://kie.ai) key makes
-music (12 credits for two takes) and the reel's mood stills; a [Higgsfield](https://higgsfield.ai) key makes the reel's
-video clips. Or bring your own voice, music, footage and pictures. Every paid step prints its cost and waits for a yes,
-and every call is logged. Drawing, rendering, the checks and the mix cost nothing.
+Before you see anything, `vs inspect` maps every element on screen at every moment (1,058 moments in a 2:56 explainer)
+and looks for the notes a reviewer would otherwise have to give: words under a picture, two things to read at once,
+words that go by too fast, anything a phone's status bar, buttons or side crop will cover, a word parked half off the
+frame, dead air, words that never reach the screen, words a cut takes away before they're read, an animation that
+silently never moves. Nothing renders until it finds no errors. After the render, `vs qa` checks the cut itself:
+flashes, blacks that don't match, black holes at the cuts, loudness and peaks, too many sound effects at once.
+
+Every one of those checks started as a note a reviewer once had to give by eye.
 
 ## The Review Studio
 
 Every version opens in a review page on your own machine (`vs review`). Play it, pause anywhere, and click the picture:
 the page names the exact thing under your cursor (that title, that chart, the third row of that table), so "hold this
-a beat longer" lands on the right element at the right frame. Draw an arrow or a keep-clear box when words aren't
-enough.
+a beat longer" lands on the right element at the right frame. Draw a box, an arrow or a keep-clear zone when words
+aren't enough.
 
 - **The agent's checks are there too**, each with its advice in plain words and two buttons: leave it, or fix it.
   Answer once and the answer carries to every later version.
 - **Nothing reaches the agent until you approve and send.** If it's watching (`vs review wait`), it starts on its own.
   There's nothing to type in chat.
-- **The next version comes back measured:** what moved and by how much, and a flag when your note's target didn't
-  change at all.
+- **The next version comes back measured:** what moved and by how much, how long it now stays on screen, and a flag
+  when your note's target didn't change at all.
 - **Choices come as options you play side by side** (two versions of a scene, two music takes), and the Mix panel
   sets the levels by ear.
 - **Both shapes in one round.** When the vertical and widescreen cuts are both rendered, a switch puts either one on
-  screen at the same moment. Each note, check and approval belongs to the shape you're looking at, so each gets its own
-  feedback.
+  screen at the same moment, and each gets its own notes and approval.
 - **When you approve, the page says Done** and hands you the files.
 
-## It checks its own work
+## How you'll work with it
 
-Before you see anything, `vs inspect` maps every element on screen at every moment and looks for the notes a reviewer
-would otherwise have to give: words under a picture, two things to read at once, words that go by too fast, anything
-a phone's status bar, buttons or side crop will cover, a word parked half off the frame, dead air, words that never
-reach the screen, words a cut takes away before they're read, an animation that silently never moves. Nothing renders
-until it finds no errors. After the render, `vs qa` checks the cut itself: flashes, blacks that don't match, black
-holes at the cuts, loudness and peaks, too many sound effects at once.
+One request, then a few stops, and each one waits for you:
+
+1. **The story.** The arc comes first, as acts: one idea per act, its evidence and source, and the picture. It explains
+   the ideas, never the article. You OK it.
+2. **The voice.** Stage directions steer the read. Every take is transcribed back to catch a changed word, and measured
+   for a flat read. You hear it; your ear decides.
+3. **The picture.** The voice keeps the time: every animation and title is pinned to a word, not a second, so a
+   re-recorded line re-times the whole video. Every scene is drawn in code, checked, rendered, and opened in the Review
+   Studio. You point.
+4. **The sound.** Music takes and effects pinned to the same words, mixed without re-rendering the picture. You switch
+   takes and set the levels by ear.
+5. **Done.** Both shapes, vertical and widescreen, from the same plan.
+
+A reel works the same way, with a short grill first (what it's for, where it posts, what a viewer should get) and the
+music's beat grid setting every cut. Anything that costs money prints its price and waits for a yes.
+
+## Plug in what you have
+
+Drawing, rendering, the checks and the mix cost nothing. Everything else is optional:
+
+- **[ElevenLabs](https://elevenlabs.io)**: the narrator, and any new sound effects (library voices need a paid plan
+  over the API).
+- **[kie.ai](https://kie.ai)**: music (12 credits for two takes) and a reel's mood stills.
+- **[Higgsfield](https://higgsfield.ai)**: AI video clips for a reel.
+- **[Blender](https://www.blender.org)** (free): `vs mark3d` builds your end card's mark as a lit 3D tile that swings in
+  while its point drops onto the beat. Without it, the end card draws the flat mark.
+- **[OpenAI](https://platform.openai.com)**: transcribes each take back to catch a changed word, or times your own
+  recording (about a cent).
+
+Or bring your own: screenshots, photos, screen recordings, clips, sound effects, music, your own narration, a logo.
+`vs ingest <files> --as image|clip|sfx|music|voice|logo` keeps the original untouched and normalizes a working copy (a
+screen recording's uneven frame rate is made steady; iPhone photos converted). Your own voice is timed word by word and
+split into the script's acts, and everything after works the same. Every paid call is logged with what it cost.
 
 ## The studio learns
 
@@ -91,50 +137,14 @@ The kit is read-only. Your studio is the folder that grows:
 
 - `profile.json`: what you've settled on. The look (colors, fonts, end card), the narrator, the music style that won,
   the mix levels, the spending caps. Every new video starts from it.
-- `lessons.md`: your notes, turned into rules. Say "the titles go by too fast" once, and every video after gives the words
-  more time without you saying it again. The skills read this file first, every time.
+- `lessons.md`: your notes, turned into rules. Say "the titles go by too fast" once, and every video after gives the
+  words more time without you saying it again. The skills read this file first, every time.
 - `library/`: sounds, music that won, your logo and fonts, pictures and clips you reuse. The kit's 30 sound effects
   start you off.
 - `finals/` and `ledger.csv`: every approved video, and every paid call with what it cost.
 
 When you approve a video, `vs learn` keeps what you decided: the levels you set, the music take that won, the finals.
 Your second video asks fewer questions than your first.
-
-## How an explainer gets made
-
-https://github.com/user-attachments/assets/b84c457f-77d5-42dc-b18d-0e28270cb8e3
-
-A 2:56 explainer made with the kit, for [The Lab](https://lab.worthington.cloud), from one of its notes.
-
-1. **The arc first, as acts:** one idea per act, its evidence and source, and the picture. It explains the ideas, never
-   the article: the narrator never says "the author".
-2. **The narration, then the voice.** Stage directions steer the read. Every take is transcribed back to catch a changed
-   word, and measured for a flat read. Your ear decides.
-3. **The voice keeps the time.** Every word gets a timestamp, and every animation and title is pinned to a word, not a
-   second. Change a line, record only that act again, and the whole video re-times itself.
-4. **Every scene is drawn in code:** literal diagrams of the real thing, one accent color, numbers on screen with their
-   source beside them.
-5. **It checks its own frames before you see them** (see above), then you review it in the Review Studio.
-6. **The sound comes last, without re-rendering.** Music takes, effects pinned to the same words, and a mixer page
-   where you switch takes and set the levels live. Press Save and the final is mixed at your levels.
-7. **The other shape is one flag:** `vs plan --wide`, and the approved sound drops straight on.
-
-## How a reel gets made
-
-https://github.com/user-attachments/assets/124a13f2-d305-40eb-8b2b-6fa91ce82586
-
-A short grill (what the reel is for, where it posts, what a viewer should get), then the story in a few beats. The
-music comes first and its beat grid sets every cut. Scenes are drawn in code, real web pages are recorded scrolling,
-your own footage and screenshots drop in, and a few paid mood shots fill what code can't draw. Titles stay up long
-enough to read. The agent checks its own render, you review it in the Review Studio, and it exports a cover and makes
-the widescreen cut. Above, a 58-second reel the kit made for The Lab.
-
-## Bring your own
-
-Screenshots, photos, screen recordings, clips, sound effects, music, your own narration, a logo:
-`vs ingest <files> --as image|clip|sfx|music|voice|logo`. The original stays untouched; the working copy is
-normalized (a screen recording's uneven frame rate is made steady; iPhone photos converted). Your own voice is timed
-word by word and split into the script's acts, and everything after works the same.
 
 ## What's in the box
 
@@ -156,6 +166,13 @@ come from the words, never typed in. No render until `vs inspect` finds no error
 the voice and never competes. The picture is never re-rendered for sound. In widescreen, anything that leaves a
 vertical frame has to leave the wide one too. The full lists, with the fix for each, are in each skill's
 `references/scars.md`.
+
+## New in 2.1.1
+
+Found while the kit made its own explainer above. An explainer can now show a recorded clip in a floating panel (its
+plan's `shots`), and on the widescreen cut that panel sits centered instead of parked on the right. The Review Studio's
+top line is calmer: one word a button, with the full words on hover, and when the window gets narrow it folds the
+finished stages and the step names away instead of letting them overlap.
 
 ## New in 2.1
 

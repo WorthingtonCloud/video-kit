@@ -16,14 +16,28 @@ def free_port():
 
 @pytest.fixture
 def served(tmp_path):
-    d = tmp_path / "p"
+    yield from _serve(tmp_path)
+
+
+@pytest.fixture
+def served_two(tmp_path):
+    """The same, with both shapes rendered: the round shows the Vertical | Wide switch in the top line."""
+    yield from _serve(tmp_path, wide=True)
+
+
+def _serve(tmp_path, wide=False):
+    # wide: an explainer at its last stage with a long name and both shapes, the top line as full as it gets in use
+    n = "video-kit-explainer" if wide else "p"
+    d = tmp_path / n
     os.makedirs(d / "out")
-    (d / "reel.json").write_text("{}")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=216x384:d=3:r=30", "-c:v", "libx264",
-                    "-pix_fmt", "yuv420p", str(d / "out/p-v1.mp4")], check=True)
+    (d / ("plan.json" if wide else "reel.json")).write_text("{}")
+    for size, name in [("216x384", f"{n}-v1")] + ([("384x216", f"{n}-16x9-v1")] if wide else []):
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s={size}:d=3:r=30", "-c:v", "libx264",
+                        "-pix_fmt", "yuv420p", str(d / f"out/{name}.mp4")], check=True)
     run = lambda *a: subprocess.run([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), *a],
                                     capture_output=True, text=True)
-    assert run("review", "open").returncode == 0
+    r = run("review", "open", *(["--stage", "final"] if wide else []))
+    assert r.returncode == 0, r.stdout + r.stderr
     port = free_port()
     srv = subprocess.Popen([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "review", "--port", str(port)],
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -89,23 +103,35 @@ def test_the_video_gets_the_room_and_the_top_line_never_overlaps(served):
     assert out["fs"][0] and out["fs"][1] >= 790 and out["back"] is False
     assert out["open"] == [False, False, "1"]
     for w, m in out["widths"].items():
-        assert m["h"] <= 52 and not m["over"] and not m["tall"] and not m["scroll"], (w, m)
+        assert m["h"] <= 52 and not m["over"] and not m["tall"] and not m["scroll"] and not m["clip"], (w, m)
+
+
+def test_the_top_line_with_both_shapes_folds_instead_of_clipping(served_two):
+    # A reviewer, Oct 4, 2026: with the shape switch in, the step strip spilled off both its edges and the current step sat
+    # clipped under the stage names ("too crowded and things are overlapping"). Boxes never touched: the clip was inside.
+    d, url, run = served_two
+    out = drive(url, "room")
+    for w, m in out["widths"].items():
+        assert m["h"] <= 52 and not m["over"] and not m["tall"] and not m["scroll"] and not m["clip"], (w, m)
+        assert int(w) <= 600 or "f4" in m["fold"] or m["now"], (w, m)  # the current step shows while the strip does
+    assert out["widths"]["1680"]["fold"] == ""  # a wide window shows everything
+    assert sorted(out["shapes"]) == ["Vertical", "Wide"]  # one word each
 
 
 def test_the_loop_undo_review_send_and_claudes_turn(served):
     d, url, run = served
     out = drive(url, "loop")
-    assert out["toast"] == "Note at 0:00.5: \u201ctoo fast here\u201d · waits for your send" and out["loop"] == "Give feedback"
-    assert out["send"] == "Review & send · 1 thing" and out["reviewLoop"] == "Review it"
+    assert out["toast"] == "Note at 0:00.5: \u201ctoo fast here\u201d · waits for your send" and out["loop"] == "Feedback"
+    assert out["send"] == "Review & send · 1 thing" and out["reviewLoop"] == "Review"
     assert out["list"] == ["Note at 0:00.5: \u201ctoo fast in the first second\u201d"]  # the changed words, on the note's own line
-    assert out["word"] == "sent" and out["turn"] == "Waiting for Claude to read it." and out["after"] == "Tell Claude"
+    assert out["word"] == "sent" and out["turn"] == "Waiting for Claude to read it." and out["after"] == "Tell"
     types = [e["type"] for e in log(d)]
     assert types.count("undo") == 2 and types.count("note.added") == 3 and types.count("round.sent") == 1
     S = json.load(open(d / "review/state.json"))
     assert [n["comment"] for n in S["notes"].values()] == ["too fast in the first second"]  # the undone ones never reach Claude
     assert "too fast in the first second" in run("review", "show").stdout  # and that read tells the page
     out = drive(url, "read")
-    assert out["loop"] == "Claude's turn" and "Claude has it" in out["sendp"] and out["again"] == "Give feedback"
+    assert out["loop"] == "Claude" and "Claude has it" in out["sendp"] and out["again"] == "Feedback"
     assert out["sent"]["list"] == ["Note at 0:01.0: \u201cone more thing\u201d"] and out["sent"]["word"] == "sent again"
     assert json.load(open(d / "review/state.json"))["rounds"][0]["sends"] == 2
 
@@ -202,7 +228,7 @@ def test_findings_in_plain_words_with_claudes_advice(reel):
     assert cards["covered"] == ["Something bright near a phone's edges", True] and cards["spills"] == ["Words run past their card's edge", False]
     warn = [f["id"] for f in F["items"] if f["severity"] == "warning"]
     assert warn and "two-zones" in cards  # vs inspect's warnings show too, without being put to the human
-    assert out["qaRow"] == 3 + len(warn) and out["todo"].endswith("for you")
+    assert out["qaRow"] == 3 + len(warn) and out["todo"].isdigit()
     assert out["toast"].startswith("Something bright near a phone's edges: fix it · waits for your send")
     assert out["comment"]["now"] == "00:18.40" and "claim" in out["comment"]["about"] and "q-covered-right-18.25" in out["comment"]["about"]
     assert out["comment"]["focus"] == "c-text"
@@ -306,7 +332,7 @@ def test_the_review_clock_and_the_tool_problem_button(reel):
     ev = [json.loads(l) for l in open(d / "review/log.jsonl")]
     spent = [e for e in ev if e["type"] == "time.spent"]
     assert len(spent) == 1 and spent[0]["secs"] >= 2 and spent[0]["playing"] >= 2
-    assert "no handle on the range (from the page's Report a tool problem button)" in open(log).read()
+    assert "no handle on the range (from the page's Problem? button)" in open(log).read()
     rep = run("review", "report").stdout
     assert "Tool problems reported                           1" in rep
 

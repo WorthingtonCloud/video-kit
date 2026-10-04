@@ -17,6 +17,35 @@ import { panel } from "./panel.js";
 import { steps } from "./steps.js";
 import "./usage.js";
 
+// ── the top bar folds while anything in it would overlap or clip (review.css .f1–.f4), measured, not set by fixed
+//    widths: fixed widths went stale when the shape switch arrived, and the step strip spilled off both its edges, the
+//    current step clipped under the stage names (a reviewer, Oct 4, 2026: "too crowded and things are overlapping") ──
+{
+  const top = $("#top"),
+    L = $("#loop"),
+    W = $("#crumbs"),
+    F = ["f1", "f2", "f3", "f4"];
+  const over = () => L.scrollWidth > L.clientWidth + 1 || W.scrollWidth > W.clientWidth + 1 || top.scrollWidth > top.clientWidth + 1;
+  const fitTop = () => {
+    top.classList.remove(...F);
+    for (const c of F) {
+      if (!over()) break;
+      top.classList.add(c);
+    }
+  };
+  let tm = 0; // a timer, not requestAnimationFrame: a background tab pauses frames, and the bar should be right on arrival
+  const soon = () => {
+    clearTimeout(tm);
+    tm = setTimeout(fitTop, 30);
+  };
+  // the bar's own size, the sizes of what's in it (a web font arriving widens every word without touching the DOM),
+  // and every change of its words
+  const ro = new ResizeObserver(soon);
+  [top, W, $(".top-r")].forEach((e) => ro.observe(e));
+  new MutationObserver(soon).observe(top, { childList: true, subtree: true, characterData: true });
+  document.fonts?.ready.then(soon);
+}
+
 // ── what stays folded: remembered in this browser (a private window forgets, and that's fine) ──
 const remember = (k, v) => {
   try {
