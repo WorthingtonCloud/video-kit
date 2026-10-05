@@ -161,20 +161,21 @@ def verified(m):
 
 
 def superseded(n, notes):
-    """A later note that follows this one carries the matter on: this one is no longer the one to accept."""
-    return any(x.get("follows") == n["id"] and x["status"] not in ("withdrawn", "draft") for x in notes.values())
+    """A later note that follows this one carries the matter on: this one is no longer the one to accept. So does one the
+    agent linked to it (covered: the person's own words already spoke to it)."""
+    return bool(n.get("covered")) or any(x.get("follows") == n["id"] and x["status"] not in ("withdrawn", "draft") for x in notes.values())
 
 
 def acceptance(n, notes):
-    """The person's call on an answered note: pending (theirs to make), accepted, reopened, superseded, or n/a (not
-    answered yet)."""
+    """The person's call on an answered note: pending (theirs to make), accepted, reopened, superseded, lapsed (shown
+    through a whole round they sent without acting on it), or n/a (not answered yet)."""
     s = n["status"]
     if s == "accepted":
         return "accepted"
     if s == "reopened":
         return "reopened"
     if s in ANSWERED:
-        return "superseded" if superseded(n, notes) else "pending"
+        return "superseded" if superseded(n, notes) else "lapsed" if n.get("lapsed") else "pending"
     return "n/a"
 
 
@@ -191,7 +192,7 @@ def phase(n, notes):
     if s == "question":
         return "intent", "human"
     if s in ANSWERED:
-        if superseded(n, notes):
+        if superseded(n, notes) or n.get("lapsed"):   # lapsed: shown for a whole round, the person moved on with words
             return "closed", None
         if s == "resolved" and not n.get("measured"):
             return "verification", "tooling"
@@ -245,7 +246,7 @@ def _picked_unapplied(S):
 
 def _asks_of_human(S):
     q = [i for i, n in S["notes"].items() if n["status"] == "question"]
-    c = [c["id"] for c in S["choices"].values() if not c.get("picked")]
+    c = [c["id"] for c in S["choices"].values() if not c.get("picked") and not c.get("covered")]  # covered: their note answered it
     lz = [l["id"] for l in S["lessons"].values() if l.get("decision") is None]
     return q, c, lz
 

@@ -48,3 +48,14 @@ def test_both_plugin_manifests_carry_the_same_version():
     m = json.load(open(os.path.join(kit, ".claude-plugin/marketplace.json")))
     versions = {p["version"]} | {e.get("version") for e in m["plugins"] if e.get("name") == p["name"]}
     assert len(versions) == 1, f"plugin.json and marketplace.json disagree: {versions}"
+
+
+def test_help_scenes_lists_the_library_from_its_code():
+    """sessions re-read the scene library's source (20-40 steps) to recall a signature: vs help scenes prints them all."""
+    import subprocess, sys
+    out = subprocess.run([sys.executable, os.path.join(ENGINE, "studio.py"), "help", "scenes"], capture_output=True,
+                         text=True).stdout
+    for sig in ("div(cls, parent", "exPop(el, t", "exPhoto(stage, img, keys", "exIcon(parent, g, size"):
+        assert sig in out, sig
+    assert "icons (exIcon's g): person" in out and "classes (div's cls):" in out
+    assert "Explainer scene library, part 1" not in out  # a file's header is never read as a helper's note

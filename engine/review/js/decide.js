@@ -27,7 +27,7 @@ stage.insertBefore(layer, $("#overlay"));
 const banner = $("#banner");
 
 const choices = () => Object.values(app.state?.choices || {});
-const waiting = () => choices().filter((c) => !c.picked);
+const waiting = () => choices().filter((c) => !c.picked && !c.covered); // covered: your note already answered it
 const optOf = (c, id) => c?.options.find((o) => o.id === id);
 const t0Of = (c) => (c?.time ? ("t" in c.time ? c.time.t : c.time.t0) : null);
 const when = (c) => (!c.time ? "" : "t" in c.time ? fmt(c.time.t) : `${fmt(c.time.t0)} → ${fmt(c.time.t1)}`);
@@ -159,11 +159,14 @@ function card(c) {
   const pick = held
     ? `<div class="doneline"><span>✓ Your pick: ${esc(picked)} <span class="held">not sent</span></span><button data-c="undo" data-seqs="${held.seqs.join(",")}">Undo</button></div>`
     : c.picked
-      ? `<div class="doneline"><span>✓ You picked ${esc(picked)}${c.applied?.pick === c.picked ? " · Claude applied it" : ""}</span></div>`
+      ? `<div class="doneline"><span>✓ You picked ${esc(picked)}${c.via === "note" ? ` <span class="held">in your note</span>` : ""}${c.applied?.pick === c.picked ? " · Claude applied it" : ""}</span></div>`
+      : c.covered
+      ? `<div class="doneline"><span>✓ Your note answered this${c.covered.said ? `: “${esc(c.covered.said)}”` : ""}</span></div>`
       : saying === c.id
         ? `<textarea rows="2" data-say placeholder="Neither: what would work instead?"></textarea><div class="btns"><button data-c="none-cancel">Cancel</button><button class="primary" data-c="none-send">Neither ⏎</button></div>`
         : `<div class="pick"><span class="k">Your pick</span>${c.options.map((o) => `<button data-c="pick" data-o="${esc(o.id)}">${o.paid ? `Pick ${esc(o.id.toUpperCase())} (spends it)` : `Pick ${esc(o.id.toUpperCase())}`}</button>`).join("")}<button data-c="none">Neither…</button></div>`;
-  return `<div class="res choice${c.picked ? " done" : ""}" data-choice="${esc(c.id)}" ${c.picked ? "" : "data-todo"}>
+  const done = c.picked || c.covered;
+  return `<div class="res choice${done ? " done" : ""}" data-choice="${esc(c.id)}" ${done ? "" : "data-todo"}>
     <div class="when">${c.for ? `For your note${(() => { const n = app.state.notes[c.for]; return n ? ` at <b>${fmt("t" in n.time ? n.time.t : n.time.t0)}</b>` : ""; })()}` : "<b>A choice</b>"}${c.time ? ` · ${when(c)}` : ""} · ${esc(c.cost || "")}</div>
     <p class="plain">${esc(c.question)}</p>
     <div class="opts">${[...c.options, { id: "", kind: "render" }].map((o, i) => see(o, o.id ? i + 1 : 0)).join("")}</div>
@@ -172,7 +175,7 @@ function card(c) {
 }
 
 function render() {
-  const C = choices().filter((c) => !c.picked || heldPick(c) || c.round === app.state.rounds.at(-1)?.n); // done ones: this round's only
+  const C = choices().filter((c) => (!c.picked && !c.covered) || heldPick(c) || c.round === app.state.rounds.at(-1)?.n); // done ones: this round's only
   if (cur && !choices().some((c) => c.id === cur)) cur = null;
   const a = document.activeElement,
     typing = a?.dataset?.say != null ? a.value : null;

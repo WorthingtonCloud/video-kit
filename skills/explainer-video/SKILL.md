@@ -57,14 +57,20 @@ command, their own recording, re-recording one act).
 - Produces: `voice/narration-<tag>.mp3` + its word timings → `vs voicebed`.
 
 **3 · PICTURE (v1, voice only).** `plan.json`: segments per act, `cues` (word specs `"word"`, `"word#2"`, `"act:word"`,
-`±secs`), `titles` (`[id, from, to]`) → `vs plan`. Write `scenes.js` (`references/scenes.md`: the helpers, the props,
-the design space, the overlap rules). Name what a note is likely to be about (`div()`'s 5th argument, `exName`).
+`±secs`), `titles` (`[id, from, to]`) → `vs plan`. Write `scenes.js`: `vs help scenes` lists every helper with its
+arguments (read it instead of the library's source); `references/scenes.md` has the design space and the overlap rules. Name what a note is likely to be about (`div()`'s 5th argument, `exName`).
 **The build loop, every time, before the human sees anything:**
-`vs build --no-render` (runs `vs check`) → `vs inspect --shots` (must say **no errors**, phone-safe included; `vs crops
-1,2` to look at hits) → `vs snap <secs> …` and LOOK at every new scene's key moments → bump `"version"` in `plan.json`,
-`vs plan` → `vs build` (~8 min: it draws two frames per frame and blends them, so tilting text doesn't flicker) → `vs qa out/<name>-vN.mp4` (safe zone, blacks, cuts sheet, flash, shimmer: any word in
-the red gets moved; shimmer means a slow tilt is making thin lines flicker, so hold that stretch still).
-- Gate: inspect says no errors, you LOOKED, qa is clean. Produces: `out/<name>-vN.mp4` + its `.review/` archive.
+`vs build --no-render` (runs `vs check`) → **the check, delegated:** send the `video-checker` agent the project, this
+`vs`'s full path, the moments of every new or changed scene, and what each moment should show (words, picture, what
+moves). Pick settled moments: about a second after the cue of the last thing due, not on the cue itself. It runs `vs inspect --shots` and `vs snap`, looks at the contact sheets and returns only the problems; the
+screenshots stay in its conversation, not this one. Fix, send it again, until it says no errors and nothing to fix
+(phone-safe included). If it isn't available, run those steps yourself and LOOK at the sheets (`sheet-N.jpg`). Then
+LOOK once yourself at one sheet of the whole video (`vs snap` with one moment per scene) → bump `"version"` in `plan.json`, `vs plan` → `vs build` **in the background**
+(a few minutes, twice the unblended time: it draws two frames per frame and blends them, so tilting text doesn't
+flicker). It runs `vs qa` on the new cut itself and prints nothing until both are done, so don't check on it: you're
+woken with the QA report (safe zone, blacks, cuts sheet, flash, shimmer: any word in the red gets moved; shimmer means
+a slow tilt is making thin lines flicker, so hold that stretch still).
+- Gate: the checker (or inspect) says no errors, you LOOKED at the whole-video sheet, qa is clean. Produces: `out/<name>-vN.mp4` + its `.review/` archive.
 
 **4 · REVIEW (picture).** Enter REVIEW and follow `vs protocol review` exactly: open the round (`--stage picture`),
 advise the findings, `vs review wait` in the background, read, resolve, measure, repeat.

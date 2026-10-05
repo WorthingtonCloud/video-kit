@@ -4,6 +4,7 @@ the step. Each skill folder has a `vs` launcher that lands here, wherever the ki
 
   vs help                         every step, by what it's for (paid ones say so)
   vs help <step>                  that step's own notes: what it does, its options, its scars
+  vs help scenes                  every helper a scenes.js can call, with its arguments and notes (from the code)
   vs help --md                    the command reference, as Markdown
   vs [-p <slug>] <step> …         run a step in a project (default: the folder you're in)
 """
@@ -101,7 +102,87 @@ def header(name):
     return "\n".join(out)
 
 
+# vs help scenes: every helper a scenes.js can call, read from the code each time (sessions used to re-read the library's
+# source, 20 to 40 steps, to remember a signature). The renderer's own helpers are listed by name; the library's in full.
+RENDERER_HELPERS = {  # the renderer's few shared helpers, each with its note (its source has none worth printing)
+    "js/reel/00-core.js": {
+        "exName": "names an element for vs inspect and the review page (\"tier-label\")",
+        "svg": "an SVG element appended to parent; attrs as an object; the last argument names it",
+        "div": "a div with class cls appended to parent, inner html, inline style; the last argument names it",
+        "clamp": "x held between a and b", "easeOut": "cubic ease-out of x in 0..1", "easeInOut": "ease-in-out of x in 0..1",
+        "mulberry32": "a seeded random number function (never Math.random: every frame must be a pure function of time)",
+        "IR": "{ immediateRender: false }: spread into every tween after the first on the same property",
+        "TP": "{ transformPerspective: 1800 }: spread into a 3D tween"},
+    "js/reel/10-camera.js": {
+        "tw3": "tl.fromTo for a 3D turn (rotationX/Y), also written down so a panel's glare follows its tilt", "punch": "a quick camera push-in at t that settles (a drum hit)"},
+}
+LIBRARY = ["js/scenes/base.js", "js/scenes/props.js", "js/scenes/icons.js"]
+
+
+def scene_api():
+    import re
+    decl = re.compile(r"^(\s{0,2})(?:function\s+(\w+)\s*\((.*)\)\s*\{|const\s+(\w+)\s*=\s*(?:\((.*?)\)\s*=>)?)")
+
+    def entries(path, only=None):
+        lines, out = open(path).read().split("\n"), []
+        for i, ln in enumerate(lines):
+            m = decl.match(ln)
+            if not m or len(m.group(1)) > (2 if only else 0):
+                continue
+            name = m.group(2) or m.group(4)
+            if not name or (only and name not in only) or name.startswith("_"):
+                continue
+            args = m.group(3) if m.group(2) else m.group(5)
+            sig = f"{name}({args})" if args is not None else name
+            notes, j = [], i - 1
+            while j >= 0 and lines[j].strip().startswith("//"):
+                notes.insert(0, lines[j].strip()[2:].strip().strip("─ "))
+                j -= 1
+            if j < 0:  # the block runs up into the file's header: only its last line is about this helper
+                notes = notes[-1:]
+            tail = ln.split("//", 1)[1].strip() if "//" in ln and not notes else ""
+            # no comment: the first line of what it does says enough (exFade → gsap.to(el, { opacity: to …)
+            body = "" if notes or tail else (ln.split("=>", 1)[1].strip() if "=>" in ln else
+                                            (lines[i + 1].strip() if i + 1 < len(lines) else ""))
+            if body in ("", "{"):
+                body = lines[i + 1].strip() if i + 1 < len(lines) else ""
+            note = " ".join(notes) or tail or (f"does: {body[:110]}" if body else "")
+            out.append((sig, note[:240] + ("…" if len(note) > 240 else "")))
+        return out
+
+    print("Scene library: every helper a scenes.js can call (read from the code just now). Positions are in the 1080×1400\n"
+          "design space; t is seconds on the video's clock (a word's cue from R.scenes.<scene>.cues). Also in scope: tl (the\n"
+          "GSAP timeline), ticks (per-frame work), P (the palette), W, H, LAND (true on a widescreen cut), EXIT (×2 on wide).")
+    for f, only in RENDERER_HELPERS.items():
+        print(f"\nrenderer ({f})")
+        for sig, _ in entries(os.path.join(ENGINE, f), only):
+            print(f"  {sig}\n      {only[sig.split('(')[0]]}")
+    for f in LIBRARY:
+        print(f"\nlibrary ({f})")
+        for sig, note in entries(os.path.join(ENGINE, f)):
+            if sig.startswith(("GLX", "KIT_SCENES", "exM", "GREEN")):
+                continue
+            print(f"  {sig}" + (f"\n      {note}" if note else ""))
+    import re as _re
+    icons = _re.findall(r"^\s{2}(\w+):", open(os.path.join(ENGINE, "js/scenes/icons.js")).read(), _re.M)
+    print("\nicons (exIcon's g): " + " ".join(icons))
+    css = sorted(set(_re.findall(r"\.(ex-[\w-]+)", open(os.path.join(ENGINE, "js/scenes/base.js")).read())))
+    print("classes (div's cls): " + " ".join(css))
+    st = vslib.studio_root()
+    lib = os.path.join(st, "library", "scenes") if st else None
+    if lib and os.path.isdir(lib):
+        for f in sorted(x for x in os.listdir(lib) if x.endswith(".js")):
+            e = entries(os.path.join(lib, f))
+            if e:
+                print(f"\nyour studio's library ({os.path.join('library/scenes', f)})")
+                for sig, note in e:
+                    print(f"  {sig}" + (f"\n      {note}" if note else ""))
+    print("\nThe design rules, the overlap rules and widescreen: references/scenes.md. A helper's body: open its file at its name.")
+
+
 def help_cmd(args):
+    if args and args[0] == "scenes":
+        return scene_api()
     if args and args[0] == "--md":
         print("# vs: the command reference\n\nEvery step is `<skill>/vs <step>`; `vs -p <slug> <step>` runs it in a studio "
               "project from anywhere. Paid steps print the cost and stop until you add `--yes`.\n")

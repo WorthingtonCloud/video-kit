@@ -3,7 +3,10 @@
 // Nothing here spends money. Re-run end to end any time; footage and music are only re-cut when their inputs change.
 //
 //   vs build                       prepare, lint, check the safe zone, render out/<name>-v<N>.mp4 + cover + the
-//                                  version's timeline.json, once vs inspect has passed THIS composition (gate.mjs)
+//                                  version's timeline.json, once vs inspect has passed THIS composition (gate.mjs);
+//                                  then vs qa on the new cut. Run it in the background: it prints nothing until it's
+//                                  done, then the QA report and one "✓ vs build finished" line. Don't check on it.
+//   vs build --no-qa               render only
 //   vs build --anyway              render past vs inspect's open errors, and say so
 //   vs build --storyboard          prepare and lint, then snapshot hero frames to build/qa/storyboard/ (no render):
 //                                  LOOK at it before paying the render's time, fix, repeat
@@ -16,7 +19,7 @@
 // Title times use the segment's own unit ("end" = the segment's end).
 // "in" (how this segment arrives):
 //   whip (default, up into a blur) · whipx (sideways) · zoom (dolly through the outgoing card) · dot (collapses into
-//   its accent point, which flies to center and hits) · flash · fade (into footage) · cut
+//   its accent point, which flies to center and hits) · flash · fade (into footage) · dissolve (a slow cross-dissolve, no blur, no move: source.dissolve = secs, 1.4) · cut
 //   rise (a page swings up like a raised phone) · swing (carousel: both pages travel, curving away) · depth (old page
 //   flies past the camera, new one rushes in from far) · flip (turned over like a card) · drop (falls in from above)
 //   over (a card lands ON the previous segment, which dims under the first line and, if it's a grid, collapses into

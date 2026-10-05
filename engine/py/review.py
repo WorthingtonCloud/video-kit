@@ -16,6 +16,11 @@ source file (mix.json is the one exception, as in the mixer: a level set by ear 
   vs review show [<note>] [--json]      the round as the agent reads it: each note's moment, target, mark and words, and
                                         its still, review/frames/<note>.jpg (LOOK at it: it's what the human saw). Reading
                                         what was sent tells the page Claude has it
+  vs review launch                      the review page's server for THIS project, ready for the preview pane: picks
+                                        a free port once (and keeps it), writes the "<project>-review" entry into the
+                                        nearest .claude/launch.json, then says in one line whether the server and the
+                                        watcher are running. vs review open prints the same line. Never hunt for a port
+                                        or check the watcher by hand
   vs review wait [--hours 12]           block until the human sends, then print vs review show. Run it in the background
                                         right after telling them a round is open: the agent is woken by the send, and the
                                         page says "Claude is watching" while it runs (exit 2 = timed out, nothing sent)
@@ -43,6 +48,13 @@ source file (mix.json is the one exception, as in the mixer: a level set by ear 
                                         a choice to pick from (Decide). An option is a variant (its id), a music take, or a
                                         picture/clip/sound; --paid prices one through its step's spend gate (nothing spent
                                         until it's picked). --for answers a note with it (the note waits for the pick)
+  vs review cover <card> --by <note> [--as fix|leave] [--pick <option>] [--why "…"]
+                                        the person's note already speaks to a card still open in the inbox (an answer
+                                        waiting to be accepted, a choice, a finding): the card closes with their words
+                                        and never comes back. A finding takes --as (fix: the note asks for a change;
+                                        leave: it says it's fine); a choice takes --pick when the note named an option
+                                        (then vs review apply), none when it didn't. vs review show lists the open cards
+                                        beside a round's notes: make the link there, or the card comes back next round
   vs review apply <choice>              do what was picked: a variant's sources go back into the project, a take into
                                         mix.json, a paid option's step is printed to run (the pick was the yes)
   vs review finish --final out/<name>-vN-takeK.mp4 [out/<name>-16x9-vN-takeK.mp4]
@@ -70,7 +82,8 @@ in that version's cues (level, sound, moment), and flags an answer that went the
 ask too (the note box's buttons: move it, bigger, smaller, longer, shorter, less busy, remove it) and how far it reaches
 (scope: here, project = everywhere in this video, studio = every video, which makes it a candidate rule).
 
-Every answer is measured when the next version opens, and gets a verdict (feedback.py): changed (the way it was asked),
+Every answer is measured when the next round opens (a new version, or the same picture re-mixed: then the two mixes
+are compared, the round's kept copy being the "before"), and gets a verdict (feedback.py): changed (the way it was asked),
 removed (gone, as the answer said), other (changed, not as asked), contrary (the other way), unchanged, gone (and the
 answer didn't say so), or unmeasured (with why: no map, or the note's measurement can't see what was asked). Implemented
 (the agent says so), verified (the measurement saw it) and accepted (the human says so) are three different things: the
@@ -110,7 +123,8 @@ HELD = {"note.added", "note.edited", "note.withdrawn", "note.answered", "note.ac
         "scene.done", "scene.reopened", "round.nonotes"}
 HUMAN = HELD | {"round.sent", "undo", "friction.noted", "time.spent"}
 AGENT = {"round.opened", "note.question", "note.resolved", "note.measured", "choice.offered", "choice.applied",
-         "lesson.proposed", "finding.advised", "step.logged", "round.read", "finding.carried", "project.finished"}
+         "lesson.proposed", "finding.advised", "step.logged", "round.read", "finding.carried", "project.finished",
+         "card.covered"}
 # the human's ask on a visual note (the note box's buttons: what they want, never how) and on a sound (the timeline's
 # Sound row); how far a note reaches (just here, this whole video = "project", every video = "studio": a candidate rule)
 NOTE_ASKS = {"move", "bigger", "smaller", "longer", "shorter", "simpler", "remove"}
@@ -472,8 +486,14 @@ def apply(S, e):
                 raise Refused(f"a round needs its {k}")
         if R:
             R["status"] = "closed"
+            # only the latest round's cards wait in the inbox (a reviewer, Oct 5, 2026): an answer the person already had in
+            # front of them, through a round they sent without accepting or reopening it, has lapsed. They moved on
+            # with words instead, and it never comes back as a card
+            for n in S["notes"].values():
+                if n["status"] in feedback.ANSWERED and n.get("shown_in") == R["n"]:
+                    n["lapsed"] = R["n"]
         S["rounds"].append({"n": len(S["rounds"]) + 1, "version": e["version"], "cut": e.get("cut"), "video": e["video"],
-                            **({"cuts": e["cuts"]} if e.get("cuts") else {}),
+                            **({"cuts": e["cuts"]} if e.get("cuts") else {}), **({"kept": e["kept"]} if e.get("kept") else {}),
                             "size": e.get("size"), "status": "open", "opened": at, "sent": None, "notes": [],
                             "asked": e.get("asked", []), "stage": e.get("stage"), "sends": 0, "last_sent": None,
                             "read": None, "read_sends": 0})
@@ -527,6 +547,11 @@ def apply(S, e):
             raise Refused(f"round {R['n']} is sent, and nothing new has been added since")
         R.update(status="sent", sent=R["sent"] or at, last_sent=at, sends=R.get("sends", 0) + 1)
         S["_since"] = 0
+        # every answer waiting on the person's call was in front of them for this send (by event order, not the clock):
+        # if the next round opens and it still waits, it lapses
+        for n in S["notes"].values():
+            if n["status"] in feedback.ANSWERED and not n.get("lapsed"):
+                n["shown_in"] = R["n"]
         for i in R["notes"]:
             if S["notes"][i]["status"] == "draft":
                 S["notes"][i]["status"] = "sent"
@@ -553,6 +578,7 @@ def apply(S, e):
         n["status"] = "wontdo" if e.get("outcome") == "wontdo" else "resolved"
         n["resolution"] = {k: e.get(k) for k in ("outcome", "said", "files", "tags", "version", "renamed", "removed", "expect")}
         n["resolution"]["at"] = at
+        n["measured"] = None  # a new answer is measured afresh: an earlier answer's measurement isn't this one's
         thread(n, e["said"], n["status"])
     elif t == "note.measured":
         note_of(S, e)["measured"] = e.get("measured")
@@ -579,6 +605,43 @@ def apply(S, e):
         S["findings"][e["id"]] = {"status": e["status"], "reason": e.get("reason"), "at": at, "round": R and R["n"],
                                   "check": e.get("check") or check_of(e["id"]), "followed": e.get("followed"),
                                   "carried": {"from": e.get("from"), "round": e.get("from_round")}}
+    elif t == "card.covered":
+        # the person's own note already speaks to a card in the inbox (a fix card, a finding, a choice): the card is
+        # closed by those words, says so, and never comes back (a reviewer, Oct 5, 2026: "each round should only contain the
+        # things that need reviewing in that round and haven't been addressed through any means"). The agent makes the
+        # link, since reading what a note is about is judgment; the note's words are the decision
+        by = found(S["notes"], {"id": e.get("note")}, "note")  # the note whose words answer it ("by" is who wrote the event)
+        if by["status"] in ("draft", "withdrawn"):
+            raise Refused(f"{by['id']} is {by['status']}: only a note the person sent can answer a card")
+        words = (by.get("comment") or "").strip() or None
+        cov = {"by": by["id"], "at": at, "said": words, "why": e.get("why")}
+        card = e.get("card") or ""
+        if card in S["notes"]:
+            n = S["notes"][card]
+            if card == by["id"]:
+                raise Refused("a note can't cover itself")
+            need(n, feedback.ANSWERED, "covered by a later note")
+            n["covered"] = cov
+        elif card in S["choices"]:
+            c = S["choices"][card]
+            if c.get("picked"):
+                raise Refused(f"{card} is already picked ({c['picked']})")
+            pick = e.get("pick")
+            if pick is not None and pick != "none" and pick not in [o["id"] for o in c["options"]]:
+                raise Refused(f"{pick!r} isn't one of {card}'s options")
+            c["covered"] = cov
+            if pick is not None:  # the note named an option: it's their pick, in their words, and it gets applied
+                c.update(picked=pick, picked_at=at, said=words, via="note")
+                c.setdefault("picks", []).append({"pick": pick, "said": words, "at": at, "via": by["id"]})
+        elif check_of(card):
+            if e.get("as") not in ("fix", "leave"):
+                raise Refused("a finding covered by a note is fix (the note asks for a change) or leave (it says it's fine)")
+            adv = S["advice"].get(card)
+            S["findings"][card] = {"status": "confirmed" if e["as"] == "fix" else "dismissed", "reason": words, "at": at,
+                                   "round": R and R["n"], "check": check_of(card), "covered": cov,
+                                   "followed": None if not adv else adv["advice"] == e["as"]}
+        else:
+            raise Refused(f"no card {card!r}: a note (n-…), a choice (c-…) or a finding (f-… / q-…)")
     elif t == "round.nonotes":  # the human looked and has nothing to change: a send with no notes still says so
         if not R or R["status"] == "closed":
             raise Refused("no round is open")
@@ -716,9 +779,9 @@ def append(events, by):
             if t == "note.added":  # an id is never reused, an undone note's included
                 e["note"] = {**(e.get("note") or {}), "id": _next_id(None, "n", _ids(old + new, "note.added", "note"))}
             elif t == "choice.offered":
-                e["choice"] = {**(e.get("choice") or {}), "id": _next_id(None, "c", S0["choices"])}
+                e["choice"] = {**(e.get("choice") or {}), "id": _next_id(None, "c", [*S0["choices"], *_ids(new, "choice.offered", "choice")])}
             elif t == "lesson.proposed":
-                e["lesson"] = {**(e.get("lesson") or {}), "id": _next_id(None, "l", S0["lessons"])}
+                e["lesson"] = {**(e.get("lesson") or {}), "id": _next_id(None, "l", [*S0["lessons"], *_ids(new, "lesson.proposed", "lesson")])}
             elif t == "undo":
                 _undoable(old + new, e)
             elif t == "round.opened" and S0["pending"]:
@@ -926,6 +989,32 @@ def partner(video):
 def cut_of(video):
     W, H, _ = probe(video)
     return "16x9" if W > H else "9x16"
+
+
+def keep(video, rnd, cut):
+    """A copy of the render a round shows, so the next round has a "before" even when the file is written over in place
+    (a sound fix re-mixes out/<name>-vN-takeK.mp4 under the same name: on Oct 5, 2026 the render three sound answers
+    were made on was gone by the time they could be measured). A clone where the disk can make one (APFS, Btrfs, XFS)
+    costs no space; elsewhere it's a copy. out/ is the project's renders, never committed. → its path, or None."""
+    dst = f"out/watched/round{rnd}-{cut}.mp4"
+    try:
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        if os.path.exists(dst):
+            os.remove(dst)
+        clone = ["cp", "-c"] if sys.platform == "darwin" else ["cp", "--reflink=auto"]
+        if subprocess.run(clone + [video, dst], capture_output=True).returncode != 0:
+            import shutil
+            shutil.copyfile(video, dst)
+        return dst
+    except OSError as x:
+        print(f"⚠️  couldn't keep a copy of {video} ({x}): a fix answered on it can't be measured if it's written over")
+        return None
+
+
+def watched(R, cut):
+    """What the person actually watched in round R: its kept copy (the file itself may have been written over since)."""
+    k = (R.get("kept") or {}).get(cut)
+    return k if k and os.path.exists(k) else cut_video(R, cut)
 
 
 def cut_video(R, cut):
@@ -1582,7 +1671,10 @@ def show(args):
         if n.get("measured"):
             v = feedback.verdict(n["measured"])
             st = n["measured"].get("strength") or feedback.strength(ask_of(n), (n.get("resolution") or {}).get("expect"), v)
-            print(f"  measured (v{n['measured'].get('from')} → v{n['measured'].get('to')}): {describe_measured(n['measured'])}"
+            mm = n["measured"]
+            span = (f"v{mm.get('from')}, round {mm['from_round']} → {mm['to_round']}" if mm.get("from") == mm.get("to") and mm.get("to_round")
+                    else f"v{mm.get('from')} → v{mm.get('to')}")
+            print(f"  measured ({span}): {describe_measured(mm)}"
                   f"  [{feedback.VERDICT_WORDS.get(v, v)}{', by a stand-in' if st == 'proxy' else ''}]")
         if n["status"] == "accepted" and (n.get("accepted") or {}).get("verdict") not in (None, *feedback.VERIFIED):
             print(f"  accepted over the measurement ({feedback.VERDICT_WORDS[n['accepted']['verdict']]}): the human's eyes decided")
@@ -1639,6 +1731,12 @@ def show(args):
         owed = [i for i, n in S["notes"].items() if n["status"] in WAITING]
         if owed:
             print(f"\nowed an answer: {', '.join(owed)} → vs review resolve <note> --said \"…\" | vs review ask <note> \"…\"")
+        cards = open_cards(S)
+        if cards and any(S["notes"][i]["status"] not in ("draft", "withdrawn") for i in R["notes"]):
+            print("\nstill open in the inbox: if a note this round already speaks to one, close it with that note, or it comes"
+                  " back next round → vs review cover <card> --by <note> [--as fix|leave, a finding] [--pick <option>, a choice]")
+            for i, what in cards:
+                print(f"  {i}: {what}")
         unadvised = [f for f in round_findings() if f["id"] not in S["advice"] and f["id"] not in S["findings"]]
         if unadvised:
             checks = sorted({f["check"] for f in unadvised})
@@ -1646,6 +1744,34 @@ def show(args):
                   "but your recommendation is what makes them easy → vs review advise --check <check> --advice leave|fix --plain \"…\" --why \"…\"")
     if not args.note and (R.get("sends") or 0) > (R.get("read_sends") or 0):
         append([{"type": "round.read", "round": R["n"]}], "agent")  # the page: "Claude has it"
+
+
+def open_cards(S):
+    """The inbox cards still waiting on the person, with what each is about: fix cards (an answer to accept or reopen),
+    choices not picked, findings not decided. → [(id, words)]"""
+    out = []
+    for i, n in S["notes"].items():
+        if n["status"] in feedback.ANSWERED and feedback.acceptance(n, S["notes"]) == "pending" and not n.get("covered"):
+            out.append((i, f"your answer to “{_q((n.get('comment') or '').strip(), 50)}”: {_q((n.get('resolution') or {}).get('said') or '', 70)}"))
+    for c in S["choices"].values():
+        if not c.get("picked") and not c.get("covered"):
+            out.append((c["id"], f"choice: {c['question']} ({' · '.join(o['id'] for o in c['options'])})"))
+    for f in round_findings(S):
+        if f["id"] not in S["findings"]:
+            out.append((f["id"], f"finding: {(S['advice'].get(f['id']) or {}).get('plain') or f.get('text') or f.get('check')}"))
+    return out
+
+
+def cover(args):
+    """The person's note already speaks to a card in the inbox: close the card with it (card.covered)."""
+    e = {"type": "card.covered", "card": args.card, "note": args.by, **({"why": args.why} if args.why else {})}
+    if args.as_:
+        e["as"] = args.as_
+    if args.pick:
+        e["pick"] = args.pick
+    S, _ = append([e], "agent")
+    what = ("their pick: " + args.pick + " → vs review apply " + args.card) if args.pick else (f"as {args.as_}" if args.as_ else "closed")
+    print(f"{args.card} covered by {args.by} ({what}): the page shows it answered by their note, and it doesn't come back")
 
 
 def measure_note(n, old, new, E, size, cues):
@@ -1703,6 +1829,9 @@ def open_round(args):
     elif other and cut_of(other) == cut:
         other = None  # found by its name, but it isn't the other shape after all
     shapes = [(video, base, cut)] + ([(other, version_of(other)[1], cut_of(other))] if other else [])
+    S0 = state()
+    n_new = len(S0["rounds"]) + 1
+    kept = {c: keep(v, n_new, c) for v, _, c in shapes}
     asked, maps = [], {}
     dismissed = state()["findings"]
     for v, b, c in shapes:
@@ -1722,18 +1851,24 @@ def open_round(args):
     # every answer since the last round, measured in this version's element map (of the note's own shape): the human
     # sees the claim and the proof
     cues = vslib.read_json(f"{base}.review/cues.json") or vslib.read_json("build/mix/cues.json")  # vs mix's, for this version
-    S0, measured = state(), []
+    # every answer not measured yet, in any later round: a sound fix re-mixes the same picture version, so "a new
+    # version" was the wrong test (Oct 5, 2026: three sound answers in a row were never measured)
+    measured = []
     for n in S0["notes"].values():
-        if n["status"] in ("resolved", "wontdo") and n["version"] != version and (n.get("measured") or {}).get("to") != version:
+        if n["status"] in ("resolved", "wontdo") and not n.get("measured") and feedback.phase(n, S0["notes"])[0] != "closed":
             nc = n.get("cut") or cut
             if nc not in maps:
                 print(f"⚠️  {n['id']} is about the {'widescreen' if nc == '16x9' else 'vertical'} cut, not in this round: not measured")
                 continue
             nv, E, size = maps[nc]
-            old, new = bare(cut_video(S0["rounds"][n["round"] - 1], nc)), bare(nv)
+            was = S0["rounds"][n["round"] - 1]
+            if n["version"] == version:  # the same picture, re-mixed: the mix is what changed, so compare the mixes
+                old, new = watched(was, nc), nv
+            else:  # a new picture: without the music (a different take would make every moment's sound differ)
+                old, new = bare(cut_video(was, nc)), bare(nv)
             m = measure_note(n, old, new, E, size, cues)
             if m:
-                m.update({"from": n["version"], "to": version})
+                m.update({"from": n["version"], "to": version, "from_round": n["round"], "to_round": n_new})
                 measured.append({"type": "note.measured", "id": n["id"], "measured": {**m, "summary": describe_measured(m)}})
     stage = args.stage or (current(S0) or {}).get("stage") or S0.get("stage")
     kind = "explainer" if os.path.exists("plan.json") else "reel"
@@ -1741,7 +1876,7 @@ def open_round(args):
         raise Refused(f"no stage {args.stage!r} for a {kind}: {', '.join(STAGES[kind])}")
     cuts = [{"cut": c, "video": v, "size": maps[c][2]} for v, _, c in shapes] if other else None
     S, _ = append([{"type": "round.opened", "version": version, "cut": cut, "video": video, "size": [W, H],
-                    "asked": asked, **({"cuts": cuts} if cuts else {}), **({"stage": stage} if stage else {})}] + measured, "agent")
+                    "asked": asked, **({"kept": {c: k for c, k in kept.items() if k}} if any(kept.values()) else {}), **({"cuts": cuts} if cuts else {}), **({"stage": stage} if stage else {})}] + measured, "agent")
     R = current(S)
     print(f"round {R['n']} open on v{version} ({cut}): {video}" + (f" + the {cut_of(other)} cut: {other}" if other else "")
           + (f" · stage: {stage}" if stage else "")
@@ -1759,6 +1894,84 @@ def open_round(args):
         print(f"  {e['id']} {(m['el'] or 'the moment').split('/', 1)[-1]}: {describe_measured(m)}")
     if not maps[cut][1] and any(n["status"] == "resolved" and n.get("target") for n in S0["notes"].values()):
         print(f"⚠️  no element map for v{version} (vs inspect): the answers were measured by their pixels only")
+    print(server_line())
+
+
+# ── the server and the watcher, in one line: sessions used to spend 15-25 steps finding a free port, writing the
+#    preview entry by hand and confirming exactly one watcher ──
+PORTS = range(4470, 4500)
+
+
+def launch_file():
+    """The nearest .claude/launch.json above this project (the preview pane reads the session's own); none: the studio's."""
+    d = os.getcwd()
+    while True:
+        f = os.path.join(d, ".claude", "launch.json")
+        if os.path.exists(f):
+            return f
+        if os.path.dirname(d) == d:
+            break
+        d = os.path.dirname(d)
+    return os.path.join(vslib.studio_root() or os.getcwd(), ".claude", "launch.json")
+
+
+def _listening(port):
+    import socket
+    with socket.socket() as k:
+        k.settimeout(0.3)
+        return k.connect_ex(("127.0.0.1", port)) == 0
+
+
+def launch_entry():
+    """This project's entry in launch.json, made or repaired: (name, port, file, what changed or None)."""
+    f = launch_file()
+    L = vslib.read_json(f) if os.path.exists(f) else {}
+    L.setdefault("version", "0.0.1")
+    confs = L.setdefault("configurations", [])
+    name = f"{vslib.project_name()}-review"
+    skill = "explainer-video" if kind_of() == "explainer" else "sizzle-reel"
+    vs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "skills", skill, "vs")
+    have = next((c for c in confs if c.get("name") == name), None)
+    port = have and have.get("port")
+    if not port:
+        used = {c.get("port") for c in confs}
+        port = next((p for p in PORTS if p not in used and not _listening(p)), None)
+        if port is None:
+            raise Refused(f"no free port in {PORTS.start}-{PORTS.stop - 1}: remove an old *-review entry from {f}")
+    want = {"name": name, "runtimeExecutable": "/bin/sh",
+            "runtimeArgs": ["-c", f"cd {shlex_quote(os.getcwd())} && {shlex_quote(vs)} review --port {port}"], "port": port}
+    if have == want:
+        return name, port, f, None
+    if have:
+        confs[confs.index(have)] = want
+    else:
+        confs.append(want)
+    os.makedirs(os.path.dirname(f), exist_ok=True)
+    with open(f, "w") as o:
+        json.dump(L, o, indent=2)
+        o.write("\n")
+    return name, port, f, "updated" if have else "added"
+
+
+def shlex_quote(x):
+    import shlex
+    return shlex.quote(x)
+
+
+def server_line():
+    """One line: the server (running, or how to start it) and the watcher."""
+    name, port, f, changed = launch_entry()
+    up = _listening(port)
+    w = vslib.read_json(WAITING_FILE) if agent_waiting() else None
+    return (f"server: {'running' if up else 'not running'} · http://localhost:{port}/review/"
+            + ("" if up else f' → start it in the preview pane: preview_start {{name: "{name}"}}')
+            + (f" ({changed} in {f})" if changed else "")
+            + f"\nwatcher: " + (f"running (pid {w['pid']}, since {w.get('since', '?')[11:16]}): it will read the send; don't start another"
+                                if w else "none → run vs review wait in the background once the human has the round"))
+
+
+def launch(args):
+    print(server_line())
 
 
 def advise(args):
@@ -2430,12 +2643,15 @@ def main():
     ap_ = sub.add_parser("apply"); ap_.add_argument("choice")
     sub.add_parser("serve")
     w = sub.add_parser("wait"); w.add_argument("--hours", type=float, default=12); w.add_argument("--replace", action="store_true", help="stop a watcher already running here and take over")
+    sub.add_parser("launch")
     stt = sub.add_parser("status"); stt.add_argument("--json", action="store_true"); stt.add_argument("--ready", action="store_true")
     pr = sub.add_parser("promote"); pr.add_argument("lesson"); pr.add_argument("--heading"); pr.add_argument("--set")
     pr.add_argument("--chat"); pr.add_argument("--as", dest="as_", choices=["remember", "kind"])
     ru = sub.add_parser("rules"); ru.add_argument("--json", action="store_true")
     fg = sub.add_parser("forget"); fg.add_argument("lesson")
     fi = sub.add_parser("finish"); fi.add_argument("--final", nargs="+", required=True)
+    cv = sub.add_parser("cover"); cv.add_argument("card"); cv.add_argument("--by", required=True)
+    cv.add_argument("--as", dest="as_", choices=["fix", "leave"]); cv.add_argument("--pick"); cv.add_argument("--why")
     a = ap.parse_args()
     try:
         if a.cmd in (None, "serve"):
@@ -2444,7 +2660,7 @@ def main():
         {"open": open_round, "show": show, "ask": ask, "resolve": resolve, "offer": offer, "learn": learn,
          "propose": propose, "report": report, "variant": variant, "apply": apply_choice, "advise": advise,
          "step": log_step, "wait": wait, "finish": finish, "status": status, "promote": promote, "rules": rules,
-         "forget": forget}[a.cmd](a)
+         "forget": forget, "launch": launch, "cover": cover}[a.cmd](a)
     except Refused as x:
         sys.exit(f"⛔ {x}")
 

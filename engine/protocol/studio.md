@@ -43,6 +43,7 @@ Taste never goes into the engine. Nothing in a project reaches the studio withou
   vendors auto-recharge: a balance is not a budget.
 - **Nothing publishes without the human's explicit go, per ship.** Review Studio runs on this machine; it is not a
   publication.
-- **Long jobs:** a render takes minutes. Watch it with a monitor that exits on the result or a failure, never on
-  silence.
+- **Long jobs:** a render takes minutes. Run `vs build` in the background and wait to be woken: it exits on the
+  result or a failure (with `vs qa` already run), so there is nothing to check on in between, and silence is not a
+  sign of trouble.
 - **Review is the protocol's:** `vs protocol review`.

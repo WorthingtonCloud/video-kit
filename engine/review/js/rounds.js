@@ -107,7 +107,9 @@ export const rounds = {
   render() {
     const S = app.state;
     if (!S) return;
-    const answered = Object.values(S.notes).filter((n) => ["resolved", "wontdo"].includes(n.status) || heldStep("note.accepted", n.id) || heldStep("note.reopened", n.id));
+    // only the latest round's cards: an answer shown through a round the person sent without acting on has lapsed, and
+    // one their own note already spoke to (covered) is closed by those words
+    const answered = Object.values(S.notes).filter((n) => (["resolved", "wontdo"].includes(n.status) && !n.lapsed && !n.covered) || heldStep("note.accepted", n.id) || heldStep("note.reopened", n.id));
     const a = document.activeElement,
       typing = a?.dataset?.reopen != null ? a.value : null;
     el.innerHTML = answered.map(answer).join("");

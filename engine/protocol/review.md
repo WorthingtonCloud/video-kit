@@ -46,8 +46,9 @@ AGENT WORK         resolve every note, the next version … until the exit crite
 
 ## The loop, every round
 
-1. **Serve it once per video.** One `.claude/launch.json` entry per project: `<vs> -p <slug> review --port <its own
-   port>`, started at the first thing the human reviews (the narration, or the first cut). Its address,
+1. **Serve it once per video.** `vs review launch` makes the project's `.claude/launch.json` entry (its own port, kept
+   from then on) and says in one line whether the server and the watcher are running; start the server in the preview
+   pane by the name it prints, at the first thing the human reviews (the narration, or the first cut). Its address,
    `http://localhost:<port>/review/`, is the only link the human ever gets. Every round and every stage use it: the
    open tab follows the project live. Never a second server, a `#hash` link or a file path.
 2. **Open the round.** `vs review open --stage <stage>` on the newest render. It's refused while `vs inspect` has open
@@ -61,12 +62,17 @@ AGENT WORK         resolve every note, the next version … until the exit crite
    the background** right away. It exits the moment they send and prints what they sent, which wakes you. While it
    runs, the page tells them Claude picks it up, so they never come back to type "sent". (No wait running: the page
    asks them to tell you.) One watcher per project: a second `vs review wait` refuses while one runs (`--replace` stops
-   it and takes over), so a send is never read by a watcher nobody is listening to.
+   it and takes over), so a send is never read by a watcher nobody is listening to. `vs review open` and `vs review
+   launch` end on the server and watcher line: that's the check. Never hunt for ports or processes by hand.
 5. **Read what was sent:** `vs review show` (reading it tells the page you have it). LOOK at every note's still,
    `review/frames/<note>.jpg`: it is what they saw, with the target and the mark drawn on it. Each note carries its
    moment, its target element, its mark, its words, and maybe an **ask** (move it, bigger, smaller, longer, shorter,
    less busy, remove it; for a sound: quieter, louder, a different one, remove it) and a **reach** (`here`;
    `project`, everywhere in this video; `studio`, every video). Unsure what they mean? `vs review ask <note> "…"`. Never guess.
+   **Then match the notes to the inbox.** `vs review show` lists every card still open beside the round's notes (an
+   answer waiting on Looks right, a choice, a finding). A note that speaks to one closes it with their words:
+   `vs review cover <card> --by <note>` (a finding: `--as fix|leave`; a choice: `--pick <option>` when they named one,
+   then `vs review apply`). A round holds only what still needs them; a card their words already answered never comes back.
 6. **Resolve every note.** Fix it in code. An element with a derived `~name` that got a note gets a real name. Run the
    build loop, then answer: `vs review resolve <note> --said "what changed" --files … --tags …` with
    `[--expect <the change it should show>]`, or `--wontdo` with the reason. A target that's gone needs
@@ -91,13 +97,14 @@ A note waits in a phase; one party's move takes it to the next:
 | intent | their words, ask and reach; a question back waits on them | resolve (the agent); won't do skips to acceptance |
 | verification | the agent's answer (said, files, expected change), waiting for the next version | measure (the tooling, `vs review open`) |
 | acceptance | the measurement's verdict, beside the agent's claim | Looks right / Still wrong (back to intent) / Follow up (the human) |
-| closed | accepted, superseded by a follow-up, or withdrawn | — |
+| closed | accepted, superseded by a follow-up or by a note that spoke to it (`vs review cover`), lapsed (shown through a whole round they sent without acting on it), or withdrawn | — |
 
 Resolution is a move, not a phase: nothing waits "in resolution". The agent's `vs review resolve` takes a note from
 intent to verification in one step.
 
-**Measured, never just claimed.** When the next version opens, each answered note's target is measured against the
-version it was written on. The target's box, words, time on screen, keep-clear zones, the arrow's point, how much is
+**Measured, never just claimed.** When the next round opens, each answered note's target is measured against the
+render it was written on: a new version without its mix, or the same picture re-mixed (a sound fix) mix against mix,
+the earlier one from the round's kept copy (`out/watched/`), since a re-mix writes over the take under its own name. The target's box, words, time on screen, keep-clear zones, the arrow's point, how much is
 on screen, its pixels, the sound around it, a sound's level. The measurement gets one verdict:
 
 | verdict | meaning |

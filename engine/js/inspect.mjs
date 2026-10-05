@@ -195,7 +195,8 @@ for (let t = Math.max(0.05, FROM); t < Math.min(END, TO); t += STEP) {
           el,
           r,
           label: label(el),
-          group: el.closest("[data-title]") || el.closest(".ex-chip,.ex-blk,.ex-k,.ex-t,.ex-m") || el,
+          // [data-group]: one paragraph whose phrases arrive one by one (wrapped spans' boxes overlap; a parody explainer, Oct 5, 2026)
+          group: el.closest("[data-title]") || el.closest(".ex-chip,.ex-blk,.ex-k,.ex-t,.ex-m,[data-group]") || el,
         });
       }
       // shapes: svg geometry, and boxes with a visible fill or border, or an image

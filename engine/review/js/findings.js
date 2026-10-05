@@ -33,10 +33,13 @@ function stateOf(f) {
   if (!d) return { open: true };
   const dec = d.status === "confirmed" ? "fix" : "leave";
   if (d.round === R?.n && d.carried && !changing.has(f.check || "other")) return { now: true, dec, carried: d.carried.round };
-  return d.round === R?.n && !d.carried ? { now: true, dec, held } : { earlier: true, dec, round: d.carried?.round || d.round, open: true };
+  if (d.covered && !changing.has(f.check || "other")) return { now: true, dec, note: d.covered.by }; // your note answered it
+  return d.round === R?.n && !d.carried && !d.covered ? { now: true, dec, held } : { earlier: true, dec, round: d.carried?.round || d.round, open: true };
 }
 
 function line(st, many, seqs) {
+  if (st.note) // your own note spoke to it: answered, nothing to click
+    return `<div class="doneline ${st.dec === "fix" ? "no" : ""}"><span>✓ ${cap(say(st.dec, many))} <span class="held">from your note</span></span><button data-f="change">Change</button></div>`;
   if (st.carried) // answered in an earlier round: it stands, nothing to click
     return `<div class="doneline ${st.dec === "fix" ? "no" : ""}"><span>✓ ${cap(say(st.dec, many))} <span class="held">your answer from round ${st.carried}</span></span><button data-f="change">Change</button></div>`;
   return `<div class="doneline ${st.dec === "fix" ? "no" : ""}"><span>✓ ${cap(say(st.dec, many))}${seqs ? ` <span class="held">not sent</span>` : ""}</span>${seqs ? `<button data-f="undo" data-seqs="${seqs.join(",")}">Undo</button>` : ""}</div>`;

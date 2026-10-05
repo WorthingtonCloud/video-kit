@@ -4,7 +4,7 @@ import fs from "node:fs";
 import crypto from "node:crypto";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { ENGINE, NODE_MODULES, recDir } from "../lib/paths.mjs";
+import { ENGINE, NODE_MODULES, recDir, fontCss } from "../lib/paths.mjs";
 import { R, W, H, FPS, LAND, M, COMP, A, die, run, ff, probe, r3, fresh, stamp, mtime, copy } from "./context.mjs";
 import { SEGS, END } from "./timing.mjs";
 
@@ -245,7 +245,13 @@ export function prepareMedia() {
   };
   const SANS = R.font?.family || "system-ui",
     MONO = R.mono?.family || "monospace";
-  const faces = fontFace(R.font) + fontFace(R.mono);
+  const faces = fontFace(R.font) + fontFace(R.mono)
+    + (R.fonts || []).map((fam) => {
+      // a video's own extra families ("fonts": ["Great Vibes"]): a script title, a serif, beside the house two
+      const css = fontCss(fam);
+      if (!css) console.log(`  ⚠️  no font css for "${fam}": run vs fonts "${fam}"`);
+      return fontFace({ css });
+    }).join("");
   if (!faces && R.font?.family)
     console.log(
       `  ⚠️  no font css for "${R.font.family}": run vs fonts "${R.font.family}" (else the render falls back to a system font)`,

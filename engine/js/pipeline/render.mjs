@@ -2,9 +2,10 @@
 // render itself plus the cover still.
 import fs from "node:fs";
 import path from "node:path";
-import { QA, TIMELINE, CONTRACTS } from "../lib/paths.mjs";
+import { spawnSync } from "node:child_process";
+import { QA, TIMELINE, CONTRACTS, ENGINE } from "../lib/paths.mjs";
 import { archive } from "../lib/archive.mjs";
-import { R, W, LAND, FPS, OUT, COMP, ff, hf, r3, mtime } from "./context.mjs";
+import { R, W, LAND, FPS, OUT, COMP, ARGS, ff, hf, r3, mtime } from "./context.mjs";
 import { SEGS, END } from "./timing.mjs";
 
 // frames of this reel for the grid ("@t"): snapshotted from the composition itself, so they match it exactly
@@ -52,6 +53,8 @@ export function storyboard() {
   );
 }
 
+const T0 = Date.now();
+
 export function render() {
   // Two frames drawn per frame shown, each pair averaged: a light motion blur. Small text and thin lines in a slowly
   // turning panel get redrawn a little sharper or softer at each angle, so they flickered on alternate frames (the
@@ -74,4 +77,15 @@ export function render() {
   const a = archive(OUT);
   console.log(`${END.toFixed(2)}s → ${OUT}  (+ cover, + timeline.json for qa.py, + ${a.home}/: ${a.kept.join(", ")})`);
   if (a.skipped.length) console.log(`  ⚠️  ${a.skipped.join(" and ")} weren't made from this composition (rendered --anyway?): not kept`);
+  // vs qa is always the next step, so the render runs it: one background job, one wake-up, nothing to check on in
+  // between (sessions used to peek at a render's progress 10 to 20 times). --no-qa skips it.
+  if (!ARGS.includes("--no-qa")) {
+    console.log(`\nvs qa ${OUT}`);
+    const q = spawnSync(process.platform === "win32" ? "python" : "python3", [path.join(ENGINE, "studio.py"), "qa", OUT], {
+      stdio: "inherit",
+    });
+    if (q.status) console.log(`  ⚠️  vs qa stopped (exit ${q.status}): run it again by hand`);
+  }
+  const mins = (Date.now() - T0) / 60000;
+  console.log(`\n✓ vs build finished: ${OUT} in ${Math.floor(mins)} min ${Math.round((mins % 1) * 60)} s`);
 }

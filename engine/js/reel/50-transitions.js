@@ -31,6 +31,14 @@
       tl.fromTo(cur.el, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: "power1.out", ...IR }, T - 0.1);
       return;
     }
+    if (kind === "dissolve") {
+      // a slow cross-dissolve: the next scene melts in over the last one, no blur, no move; the last one is hidden only
+      // once it's covered (a calm parody of an old TV bit with soft nature stills, Oct 5, 2026)
+      const dd = cur.source.dissolve ?? 1.4;
+      tl.fromTo(cur.el, { opacity: 0 }, { opacity: 1, duration: dd, ease: "sine.inOut", ...IR }, T - dd / 2);
+      tl.to(prev.el, { opacity: 0, duration: 0.01, ...IR }, T + dd / 2);
+      return;
+    }
     if (kind === "over") {
       // this card lands ON the last segment: it dims and keeps moving under the first line, then collapses into the red
       // point on the second line's beat. Only a collage brightens back for its collapse: a scene with words stays dim, or

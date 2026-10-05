@@ -951,3 +951,94 @@ def test_one_watcher_per_project(proj):
         assert first.wait(timeout=10) is not None
     finally:
         first.kill()
+
+
+def test_launch_writes_the_projects_entry_once_and_keeps_its_port(proj, tmp_path):
+    """sessions spent 15-25 steps finding a free port, writing the preview entry by hand and confirming the watcher:
+    vs review launch does it, once, and says where things stand in one line."""
+    lj = tmp_path / ".claude" / "launch.json"
+    lj.parent.mkdir()
+    other = {"name": "site-dev", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 4470}
+    lj.write_text(json.dumps({"version": "0.0.1", "configurations": [other]}, indent=2) + "\n")
+    name, port, f, changed = review.launch_entry()
+    assert (name, f, changed) == ("p-review", str(lj), "added") and port in review.PORTS and port != 4470
+    before = lj.read_text()
+    assert review.launch_entry() == (name, port, f, None) and lj.read_text() == before  # a second call writes nothing
+    confs = json.loads(before)["configurations"]
+    assert confs[0] == other and [c["name"] for c in confs].count("p-review") == 1
+    assert f"review --port {port}" in confs[1]["runtimeArgs"][1] and str(proj) in confs[1]["runtimeArgs"][1]
+    line = review.server_line()
+    assert f"localhost:{port}/review/" in line and "watcher: none" in line
+
+
+def test_an_answer_the_person_sent_a_round_past_lapses_and_leaves_the_inbox(proj):
+    # A reviewer, Oct 5, 2026: "It should only ever include cards from the latest round." An answer shown through a round they
+    # sent with new words instead of Looks right / Still wrong is closed when the next round opens; a newer one stays
+    import feedback
+    opened()
+    review.append([note()], H)
+    review.append([{"type": "round.sent"}], H)
+    review.append([{"type": "note.resolved", "id": "n-0001", "said": "slower", "outcome": "resolved"}], A)
+    review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "out/p-v2.mp4"}], A)
+    review.append([note(0.5)], H)  # round 2: a new note, and no call on n-0001's card
+    review.append([{"type": "round.sent"}], H)
+    S, _ = review.append([{"type": "note.resolved", "id": "n-0002", "said": "louder", "outcome": "resolved"}], A)
+    assert not S["notes"]["n-0001"].get("lapsed")  # still round 2: its card is up
+    S, _ = review.append([{"type": "round.opened", "version": 3, "cut": "9x16", "video": "out/p-v3.mp4"}], A)
+    n1, n2 = S["notes"]["n-0001"], S["notes"]["n-0002"]
+    assert n1["lapsed"] == 2 and feedback.phase(n1, S["notes"]) == ("closed", None) and feedback.acceptance(n1, S["notes"]) == "lapsed"
+    assert not n2.get("lapsed") and feedback.acceptance(n2, S["notes"]) == "pending"  # the latest round's card stays
+
+
+def test_a_sound_fix_on_the_same_picture_is_measured_against_the_mix_it_was_made_on(proj):
+    # Oct 5, 2026: three sound answers were never measured. A sound round re-mixes the same picture version, so the
+    # "new version" test skipped them, and the fix re-wrote the take under the same name, so the "before" was gone
+    av(proj / "out/p-v1.mp4", "white", True)
+    av(proj / "out/p-v1-take1.mp4", "white", True)  # the mix the person heard: a beep at 0.8–1.2 s
+    (proj / "out/p-v1.review").mkdir()
+    r = vs(proj, "review", "open", "--video", "out/p-v1-take1.mp4", "--only")
+    assert r.returncode == 0, r.stderr
+    assert os.path.exists("out/watched/round1-9x16.mp4")  # the round's kept copy
+    review.append([note(1.0, comment="that whoosh"), {"type": "round.sent"}], H)
+    assert vs(proj, "review", "resolve", "n-0001", "--said", "took the breath out", "--expect", "sound").returncode == 0
+    av(proj / "out/p-v1-take1.mp4", "white", False)  # the fix, re-mixed under the same name
+    r = vs(proj, "review", "open", "--video", "out/p-v1-take1.mp4", "--only")
+    assert r.returncode == 0, r.stderr
+    m = review.state()["notes"]["n-0001"]["measured"]
+    assert m and m["audio"]["changed_secs"] >= 0.2 and (m["from_round"], m["to_round"]) == (1, 2), m
+    assert "measured (v1, round 1 → 2)" in vs(proj, "review", "show", "n-0001").stdout
+
+
+def test_a_note_that_speaks_to_an_open_card_closes_it(proj):
+    # A reviewer, Oct 5, 2026: a card in the inbox that their own note already talked about is answered; each round holds only
+    # what still needs them
+    import feedback
+    opened()
+    review.append([note(), {"type": "round.sent"}], H)
+    review.append([{"type": "note.resolved", "id": "n-0001", "said": "slower", "outcome": "resolved"},
+                   {"type": "choice.offered", "choice": {"id": "c-0001", "question": "which theme?",
+                                                          "options": [{"id": "3", "kind": "take", "take": 3}, {"id": "4", "kind": "take", "take": 4}]}},
+                   {"type": "choice.offered", "choice": {"id": "c-0002", "question": "which end card?",
+                                                          "options": [{"id": "a", "kind": "image"}, {"id": "b", "kind": "image"}]}}], A)
+    review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "out/p-v2.mp4"}], A)
+    review.append([note(0.5, comment="still too fast, and go with the warm theme"), note(0.2, comment="neither end card, just the logo"),
+                   {"type": "round.sent"}], H)
+    assert {i for i, _ in review.open_cards(review.state())} >= {"n-0001", "c-0001", "c-0002"}
+    review.append([held(note(0.1))], H)  # not sent yet: not the person's word on anything
+    with pytest.raises(review.Refused, match="no note 'n-0004'|only a note the person sent"):
+        review.append([{"type": "card.covered", "card": "c-0001", "note": "n-0004"}], A)
+    review.append([{"type": "card.covered", "card": "n-0001", "note": "n-0002"},
+                   {"type": "card.covered", "card": "c-0001", "note": "n-0002", "pick": "4"},
+                   {"type": "card.covered", "card": "c-0002", "note": "n-0003"},
+                   {"type": "card.covered", "card": "q-covered-top-2.25", "note": "n-0003", "as": "leave"}], A)
+    S = review.state()
+    n1, c1, c2, f = S["notes"]["n-0001"], S["choices"]["c-0001"], S["choices"]["c-0002"], S["findings"]["q-covered-top-2.25"]
+    assert feedback.phase(n1, S["notes"]) == ("closed", None) and n1["covered"]["by"] == "n-0002"
+    assert c1["picked"] == "4" and c1["via"] == "note" and "warm theme" in c1["said"]  # their pick, in their words: apply it
+    assert not c2["picked"] and c2["covered"]["said"] == "neither end card, just the logo"
+    assert f["status"] == "dismissed" and f["covered"]["by"] == "n-0003"
+    assert not {i for i, _ in review.open_cards(S)} & {"n-0001", "c-0001", "c-0002"}
+    q, c, _ = feedback._asks_of_human(S)
+    assert c == []  # a choice their note answered doesn't wait on them
+    with pytest.raises(review.Refused, match="fix .* or leave"):
+        review.append([{"type": "card.covered", "card": "q-covered-left-2.25", "note": "n-0003"}], A)

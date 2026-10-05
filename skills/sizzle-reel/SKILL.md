@@ -62,17 +62,21 @@ starting style) plus, if the script has paid shots, one 480p draft (~$1.03). The
 
 **4 · BUILD, free first.** Drawn scenes, page recordings (`vs record`), the human's footage and screenshots (`vs
 ingest`), titles, cards, the collage (`vs collage`), push-ins on stills (`references/motion.md`: what `reel.json` can
-say). Project-only scenes go in `scenes.js` (`Object.assign(SCENES, {…})`); name what a note is likely to be about
-(`div()`'s 5th argument, `exName`). **The build loop:** `vs build --no-render` → `vs inspect` (must say **no errors**;
-read the "checked N moments" line) → `vs build --storyboard` → LOOK at every frame of `build/qa/storyboard.jpg`; fix.
+say). Project-only scenes go in `scenes.js` (`Object.assign(SCENES, {…})`; `vs help scenes` lists every helper with its
+arguments, instead of reading the library's source); name what a note is likely to be about
+(`div()`'s 5th argument, `exName`). **The build loop:** `vs build --no-render` → send the `video-checker` agent the project, this
+`vs`'s full path, the settled moments of every new or changed segment (a beat or so after the last thing lands) and what each should
+show; it runs `vs inspect` and `vs
+snap`, looks at the sheets and returns only the problems (must come back with **no errors**). Fix, send it again.
+Then `vs build --storyboard` → LOOK at every frame of `build/qa/storyboard.jpg` yourself; fix.
 - Gate: no errors, and you LOOKED.
 
 **5 · PAID SHOTS** (only textless mood moments nothing on the laptop can make; their yes, per batch). `vs gen still|clip
 …` prints the cost and stops → draft at 480p → `vs qa <clip> --clip` → LOOK → 720p only for the approved draft → QA
 again. Every generation gets a ledger row, kept or rejected, with why.
 
-**6 · CUT.** Bump `version` in `reel.json`, `vs build` (~a minute for 58 s), then `vs qa out/<name>-vN.mp4`. Every ⚠️
-either prints is a note a human once had to give: fix it, don't explain it. Open the first frame, the safe sheet and
+**6 · CUT.** Bump `version` in `reel.json`, `vs build` in the background (~a minute for 58 s; it runs `vs qa` on the
+cut itself and prints nothing until both are done, so don't check on it). Every ⚠️ either prints is a note a human once had to give: fix it, don't explain it. Open the first frame, the safe sheet and
 the cuts sheet (ghosted titles, empty frames, early lines, flashes of black).
 - Gate: inspect and qa clean. Produces: `out/<name>-vN.mp4` + its `.review/` archive.
 

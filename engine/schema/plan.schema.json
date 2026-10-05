@@ -46,6 +46,13 @@
   "mono": {
    "$ref": "#/$defs/font"
   },
+  "fonts": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "more font families a video's scenes use, beyond font and mono (each fetched once with vs fonts)"
+  },
   "finish": {
    "$ref": "#/$defs/finish"
   },
@@ -151,6 +158,7 @@
        "dot",
        "flash",
        "fade",
+       "dissolve",
        "cut",
        "rise",
        "swing",
