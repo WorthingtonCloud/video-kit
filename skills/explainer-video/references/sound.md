@@ -55,8 +55,8 @@ at -55 and -49 dBFS: layer the quiet one over a thud rather than normalizing noi
 
 `vs mix --video out/<name>-vN.mp4 --tag vN` writes every take mixed (`out/<name>-vN-take<N>.mp4`), an effects-only cut,
 the stems, and the Mix panel's data: the music un-ducked with its ducking envelope, and every effect once, alone.
-`vs mixer` opens Review Studio on its **Mix** panel (`/review/#mix`; a `.claude/launch.json` entry that runs it opens it
-in the preview pane). The human plays the picture with every stem in sync (the picture follows the sound), switches
+The **Mix** panel opens itself on the video's one review address when `vs mix` makes it (`vs mixer` serves the same
+page when no review server runs; never hand the human a second link). The human plays the picture with every stem in sync (the picture follows the sound), switches
 takes live (keys 0–9), sets the music level, the **ducking** (how far the music dips while the voice speaks: it plays
 live as the slider moves; every number moves while it plays, and "Music right now" shows the level at the playhead),
 and the effects level, and presses **Save**. In a round, the save waits with the rest of their feedback (Undo takes it

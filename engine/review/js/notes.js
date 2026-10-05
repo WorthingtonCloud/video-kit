@@ -13,6 +13,13 @@ const when = (n) => ("t" in n.time ? fmt(n.time.t) : `${fmt(n.time.t0)} → ${fm
 const short = (id) => id.slice(id.indexOf("/") + 1);
 const draftTime = () => (draft.range ? { t0: draft.range[0], t1: draft.range[1] } : { t: player.t() });
 const ASKS = { quieter: "Quieter", louder: "Louder", different: "A different sound", remove: "Remove it" };
+// what the human wants done to the thing they pointed at, in their terms (the agent decides how): one click, optional.
+// The next version is measured for exactly that (bigger = its box grew, longer = it stays on screen longer…)
+const VASKS = { move: "Move it", bigger: "Bigger", smaller: "Smaller", longer: "Longer", shorter: "Shorter", simpler: "Less busy", remove: "Remove it" };
+const MOMENT_ASKS = ["longer", "shorter", "simpler"]; // a range or a moment, no one thing pointed at
+// how far the note reaches: just this spot, everywhere it applies in this video, or every video (Claude then asks
+// whether to make it a rule; nothing is kept without that answer)
+const REACH = { here: "Just here", project: "All through this video", studio: "In every video" }; // the protocol's here · project · studio
 
 // the scene at the playhead, and whether the human called it done (vs inspect then holds its frames to this version)
 function sceneLine() {
@@ -43,7 +50,9 @@ function compose() {
     : draft.sound
       ? `About this sound (${fmt(draft.sound.t)}): what should change? Or answer it with a button above.`
       : draft.target
-        ? `What about ${shortName(draft.target.el)}? (${when})`
+        ? draft.ask
+          ? `${VASKS[draft.ask]}: anything to add about ${shortName(draft.target.el)}? (Enter adds it)`
+          : `What about ${shortName(draft.target.el)}? (${when})`
         : draft.range
           ? `About ${fmt(draft.range[0])} → ${fmt(draft.range[1])}: what's wrong?`
           : `Leave a note at ${when}${R?.status === "sent" ? " (it goes straight to Claude: the round is sent)" : ""} · click the picture to point at something`;
@@ -76,7 +85,18 @@ function pointing() {
   if (draft.findings.length) out.push(`<div class="markline">about: <b>${draft.findings.map(esc).join(", ")}</b></div>`);
   if (out.length && findingsAt(draft.range ? draft.range[0] : player.t()).length) out.push(`<div class="onscreen">${onscreen()}</div>`);
   if (draft.follows) out.push(`<div class="markline">follows: <b>${esc(draft.follows)}</b></div>`);
+  if (draft.target || draft.range || draft.mark.type !== "none") out.push(intent());
   return out.join("");
+}
+
+// the ask and the reach: what they want and how far it goes, each one click (and one more to take it back)
+function intent() {
+  const keys = draft.target ? Object.keys(VASKS) : MOMENT_ASKS;
+  return `<div class="intent"><div class="asks vis" role="group" aria-label="What should change (optional)">${keys
+    .map((k) => `<button data-vask="${k}" class="${draft.ask === k ? "on" : ""}" aria-pressed="${draft.ask === k}">${VASKS[k]}</button>`)
+    .join("")}</div><div class="reach" role="group" aria-label="How far it reaches">${Object.entries(REACH)
+    .map(([k, w]) => `<button data-reach="${k}" class="${(draft.scope || "here") === k ? "on" : ""}" aria-pressed="${(draft.scope || "here") === k}">${w}</button>`)
+    .join("")}</div></div>`;
 }
 
 // what's on screen at this moment: how much, whether a title is up, and any finding live here
@@ -98,7 +118,7 @@ function item(n) {
     tgt = n.target?.el ? ` · ${esc(short(n.target.el))}` : "";
   return `<div class="item ${n.status}" data-id="${n.id}">
     <span class="ico">${n.sound ? "♪" : "t" in n.time ? "●" : "▬"}</span>
-    <div>${cuts() ? `<span class="shape" title="About the ${shapeName(n.cut)} cut">${n.cut === "16x9" ? "wide" : "tall"}</span>` : ""}<span class="seek" data-t="${"t" in n.time ? n.time.t : n.time.t0}">${n.sound?.ask ? `${esc(ASKS[n.sound.ask])}: ${esc(n.sound.sound)}${n.comment ? " · " : ""}` : ""}${esc(n.comment) || (n.sound?.ask ? "" : "<i>(a mark, no words)</i>")}</span>
+    <div>${cuts() ? `<span class="shape" title="About the ${shapeName(n.cut)} cut">${n.cut === "16x9" ? "wide" : "tall"}</span>` : ""}<span class="seek" data-t="${"t" in n.time ? n.time.t : n.time.t0}">${n.sound?.ask ? `${esc(ASKS[n.sound.ask])}: ${esc(n.sound.sound)}${n.comment ? " · " : ""}` : ""}${n.ask ? `${esc(VASKS[n.ask])}${n.comment ? " · " : ""}` : ""}${esc(n.comment) || (n.sound?.ask || n.ask ? "" : "<i>(a mark, no words)</i>")}</span>${n.scope && n.scope !== "here" ? ` <span class="reachtag">${esc(REACH[n.scope])}</span>` : ""}
       <small>${when(n)}${n.segment ? " · " + esc(n.segment) : ""}${tgt}${n.follows ? " · follows " + esc(n.follows) : ""}${n.step ? " · about a step" : ""} <span class="status ${n.status}">${esc(STATUS[n.status] || n.status)}</span></small></div>
     <div class="acts">${added ? `<button data-act="undo" data-seqs="${added.seqs.join(",")}">Remove</button>` : ""}</div></div>`;
 }
@@ -147,7 +167,7 @@ export const notes = {
 async function add(ask) {
   const t = $("#c-text"),
     text = t.value.trim();
-  if (!text && !draft.target && draft.mark.type === "none" && !draft.also.length) return t.focus();
+  if (!text && !draft.target && draft.mark.type === "none" && !draft.also.length && !(draft.range && draft.ask)) return t.focus();
   const note = { ...point.note(), comment: text };
   if (ask && note.sound) note.sound = { ...note.sound, ask };
   t.value = ""; // cleared first: the panel redraws as soon as the note lands
@@ -193,6 +213,16 @@ $("#c-extra").addEventListener("click", (e) => {
   const b = e.target.closest("button");
   if (!b) return;
   if (b.dataset.ask) return add(b.dataset.ask);
+  if (b.dataset.vask) {
+    draft.ask = draft.ask === b.dataset.vask ? null : b.dataset.vask;
+    compose();
+    return box.focus();
+  }
+  if (b.dataset.reach) {
+    draft.scope = b.dataset.reach;
+    compose();
+    return box.focus();
+  }
   if (b.dataset.snd === "alone") return solo(cue(draft.sound.el)).catch((x) => toast(`Can't play it alone: ${x.message}`, true));
   if (b.dataset.snd === "context") {
     const t = draft.sound.t;

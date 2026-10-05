@@ -394,13 +394,96 @@
       "type": [
        "object",
        "null"
-      ]
+      ],
+      "description": "the agent's answer (vs review resolve)",
+      "properties": {
+       "outcome": {
+        "enum": [
+         "resolved",
+         "wontdo",
+         null
+        ]
+       },
+       "said": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "expect": {
+        "enum": [
+         "place",
+         "size",
+         "time",
+         "words",
+         "presence",
+         "busy",
+         "pixels",
+         "level",
+         "content",
+         "sound",
+         "color",
+         "elsewhere",
+         null
+        ]
+       }
+      }
      },
      "measured": {
       "type": [
        "object",
        "null"
-      ]
+      ],
+      "description": "the next version's measurement of this note's target (vs review open): what changed, and the protocol's verdict",
+      "properties": {
+       "verdict": {
+        "enum": [
+         "changed",
+         "removed",
+         "other",
+         "contrary",
+         "unchanged",
+         "gone",
+         "unmeasured"
+        ]
+       },
+       "flag": {
+        "type": [
+         "string",
+         "null"
+        ]
+       },
+       "expected_met": {
+        "type": [
+         "boolean",
+         "null"
+        ]
+       },
+       "changes": {
+        "type": "object"
+       },
+       "why": {
+        "type": "string"
+       },
+       "from": {
+        "type": "integer"
+       },
+       "to": {
+        "type": "integer"
+       },
+       "summary": {
+        "type": "string"
+       },
+       "strength": {
+        "enum": [
+         "direct",
+         "proxy",
+         "any",
+         null
+        ],
+        "description": "how strong the verdict's evidence is (feedback.STRENGTH): measured in what was asked, through a stand-in for it, or any change (nothing in particular asked)"
+       }
+      }
      },
      "sound": {
       "type": "object",
@@ -431,6 +514,47 @@
          "louder",
          "different",
          "remove"
+        ]
+       }
+      }
+     },
+     "ask": {
+      "enum": [
+       "move",
+       "bigger",
+       "smaller",
+       "longer",
+       "shorter",
+       "simpler",
+       "remove"
+      ],
+      "description": "the human's ask, from the note box's buttons: what they want, never how (feedback.ASKS: the dimension the next version is measured in, and which way)"
+     },
+     "scope": {
+      "enum": [
+       "here",
+       "project",
+       "studio"
+      ],
+      "description": "how far the note reaches (feedback.SCOPES): here (this revision), project (everywhere in this video: a rule for this video once accepted), studio (every video: a candidate rule, still put to the human before it's kept)"
+     },
+     "accepted": {
+      "type": "object",
+      "description": "when the human accepted it, and the measurement's verdict in front of them then (accepted over the measurement when it wasn't a verification)",
+      "properties": {
+       "at": {
+        "type": "string"
+       },
+       "verdict": {
+        "enum": [
+         "changed",
+         "removed",
+         "other",
+         "contrary",
+         "unchanged",
+         "gone",
+         "unmeasured",
+         null
         ]
        }
       }
@@ -645,10 +769,27 @@
      "decision": {
       "enum": [
        "remember",
-       "video",
+       "kind",
+       "project",
        "ignore",
        null
       ]
+     },
+     "via": {
+      "enum": [
+       "chat"
+      ],
+      "description": "decided in chat, not with the page's buttons: the agent recorded the human's own words (said); it never makes the decision"
+     },
+     "said": {
+      "type": "string",
+      "description": "the human's own words, when they decided in chat"
+     },
+     "recorded_by": {
+      "enum": [
+       "agent"
+      ],
+      "description": "who wrote a chat decision down (the human decided it)"
      }
     }
    }
@@ -800,7 +941,7 @@
     "string",
     "null"
    ],
-   "description": "where the video is (contracts.json \u2192 stages): the latest stage a round or a logged step named"
+   "description": "where the video is (contracts.json → stages): the latest stage a round or a logged step named"
   },
   "pending": {
    "type": "array",

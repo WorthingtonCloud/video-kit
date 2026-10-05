@@ -27,8 +27,11 @@ export function boxAt(e, t) {
   return (b || e?.boxes?.[0])?.slice(1) || null;
 }
 export const segmentAt = (t) => (M().timeline?.segments || []).find((s) => t >= s.t0 && t < s.t1) || M().timeline?.segments?.at(-1);
-// every element on screen at a moment (what a note carries as "visible")
-export const visibleAt = (t) => (M().elements?.items || []).filter((e) => !e.id.startsWith("frame/") && onAt(e, t));
+// every element on screen at a moment (what a note carries as "visible"), minus the backdrop: the frame, its light and
+// its dust are on every frame, so a note on empty ground listed "~ex-spot, ~ex-mote, ~ex-mote#2 …" (an explainer, Oct 4,
+// 2026), and a click on empty ground could land on a speck. The same set as review.py's BACKDROP and mapchecks' AMBIENT.
+export const BACKDROP = /^frame\/|\/~ex-(spot|mote|glow|dust)(#\d+)?$/;
+export const visibleAt = (t) => (M().elements?.items || []).filter((e) => !BACKDROP.test(e.id) && onAt(e, t));
 const inside = (b, [x, y]) => b && x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3];
 // the map's own answer to "what's under this point": every element on screen whose box holds it, smallest first
 export function stackAt(pt, t) {

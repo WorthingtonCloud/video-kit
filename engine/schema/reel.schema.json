@@ -31,6 +31,12 @@
    "minimum": 1,
    "maximum": 120
   },
+  "blend": {
+   "type": "integer",
+   "minimum": 1,
+   "maximum": 4,
+   "description": "frames drawn per frame shown, averaged (default contracts.json → render.blend, 2); 1 turns the blend off"
+  },
   "palette": {
    "$ref": "#/$defs/palette"
   },

@@ -50,6 +50,13 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
   stamp gets a punch, not a ring. ‹test: regression/line-through-ring›
 - 🚨 **GSAP `svgOrigin` + x/y + a scale change on an SVG `<g>` drifts** (`smoothOrigin`): 15 of "twenty people" never
   landed, off a vertical frame, so nobody noticed for three versions. `smoothOrigin: false`. ‹partly: regression/offscreen-parked · human: whether it's parked there by design›
+- 🚨 **Small text and thin lines in a slowly turning panel flickered** (sharp, soft, sharp, soft on alternate frames):
+  the browser redraws them a little differently at each angle. Four approved videos carried it; a reviewer saw it ("the icons flicker"). Drawing at twice the size made it worse. `vs build` now draws two frames per frame and
+  averages them (`render.blend`, ~2× the render time), and `vs qa` warns `shimmer`. Keep the tilt. ‹test: unit/test_qa_findings.py›
+- ⚠️ **A chat turn scrolled up out of its window read as "parked off the frame"** (24 warnings, none real): what a
+  clipping box hides doesn't count; a frame-sized box isn't a window. ‹test: regression/clipped-not-parked, regression/offscreen-parked›
+- ⚠️ **Frame one was solid black** (entrances timed `seg.t0 - 0.35` clamp to 0): the feed's preview. `vs inspect` warns
+  `blank-start`. ‹test: unit/deadair.test.mjs›
 - ⚠️ **HyperFrames' lint refuses tweening `left`/`top`**: move a wrapper's `x`. ‹guard: vs build (HyperFrames' lint)›
 - ⚠️ **Widescreen:** a scene pinned right leaves half the frame empty in an explainer (titles are sparse) → the
   centered-until-a-title glide. A photo's box shows its sides on a wide frame → fades. An exit sized for vertical stops
@@ -75,6 +82,11 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
   edges and up to ~13 on a transition. `vs compare` reports it; treat max ≤ 2 as noise, and look at anything larger. ‹human: reading vs compare's numbers›
 - ⚠️ **zsh aborts a chain on an unmatched glob** (`ls a*.mp3 && next` never runs `next`), and **doesn't split
   `$VAR` into words**: call `vs` by its full path every time. ‹human: a shell habit›
+
+- ⚠️ **A send nobody heard:** a leftover `vs review wait` read the human's send and exited into a log nobody watched,
+  while the agent sat on a second one. A second watcher now refuses (`--replace` takes over). ‹test: unit/test_review.py›
+- ⚠️ **Re-filing finals (a re-render) rewrote the music bed's first win and added a second history line** (spend counted
+  twice), three times by hand before the fix. ‹test: unit/test_learn_refile.py›
 
 ## Sound
 

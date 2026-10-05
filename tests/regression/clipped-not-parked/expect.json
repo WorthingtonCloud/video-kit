@@ -1,0 +1,9 @@
+{
+ "scar": "explainer \u00b7 Picture \u00b7 chat turns scrolled up out of a clipping window read as parked off the frame (an explainer, Oct 4, 2026: 24 warnings, none real)",
+ "make": {
+  "music/take1.mp3": "tone:6"
+ },
+ "expect_none": [
+  "offscreen-at-rest"
+ ]
+}

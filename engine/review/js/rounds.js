@@ -13,6 +13,23 @@ const el = $("#tab-rounds"),
 let reopening = null; // the answer whose "still wrong" box is open
 
 const when = (n) => ("t" in n.time ? fmt(n.time.t) : `${fmt(n.time.t0)} → ${fmt(n.time.t1)}`);
+// three facts kept apart (vs review, feedback.py): Claude says it fixed it · the next version measured the change · you
+// say it's right. The verdict is the measurement's, never Claude's word.
+const VERDICT = {
+  changed: "✓ Measured: it changed",
+  removed: "✓ Measured: it's removed",
+  other: "⚠ Measured: it changed, but not the way you asked",
+  contrary: "⚠ Measured: it went the other way",
+  unchanged: "⚠ Measured: no change",
+  gone: "⚠ Measured: it's gone",
+  unmeasured: "Not measured",
+};
+const ASKED = { move: "Move it", bigger: "Bigger", smaller: "Smaller", longer: "Longer", shorter: "Shorter", simpler: "Less busy", remove: "Remove it" };
+const VERIFIED = ["changed", "removed"];
+const OVER = { other: "it changed, not the way you asked", contrary: "it went the other way", unchanged: "no change measured", gone: "it's gone", unmeasured: "not measured" };
+// older measurements carry only a flag: read the verdict from it, as vs review does
+const verdictOf = (m) =>
+  m.verdict || (m.gone ? (m.flag ? "gone" : "removed") : /^nothing measurable/.test(m.flag || "") ? "unchanged" : /^asked/.test(m.flag || "") ? (/louder|quieter/.test(m.flag) ? "contrary" : "other") : "changed");
 const short = (id) => id.slice(id.indexOf("/") + 1).replace(/^~(ex-)?(k:)?/, "");
 const heldStep = (kind, note) => app.state.steps.find((s) => s.pending && s.kind === kind && s.note === note);
 
@@ -21,27 +38,38 @@ function answer(n) {
     m = n.measured,
     R = round();
   const waiting = n.status === "resolved" || n.status === "wontdo";
-  const head = n.status === "wontdo" ? "Claude won't change it" : m ? `Claude fixed it in v${m.to}` : R && R.version !== n.version ? `Claude fixed it in v${R.version}` : "Claude fixed it: in the next version";
+  const head = n.status === "wontdo" ? "Claude won't change it" : m ? `Claude says it's fixed in v${m.to}` : R && R.version !== n.version ? `Claude says it's fixed in v${R.version}` : "Claude says it's fixed: in the next version";
   const said = r.said ? `<p class="claude"><b>Claude:</b> ${esc(r.said)}</p>` : "";
+  const v = m && verdictOf(m),
+    detail = m ? (m.summary || "").replace(/ · ⚠ .*$/, "") : "";
+  // a stand-in (less busy = fewer things on screen) hints at what was asked; it doesn't prove it
+  const proxy = m?.strength === "proxy" && v === "changed";
   const meas = m
-    ? `<p class="meas${m.flag ? " flag" : ""}">${m.flag && /nothing measurable/.test(m.flag) && !m.pixels && !m.audio ? "The page can't measure this kind of change (a timing elsewhere, a thing it can't see), so this one is your eyes." : `Measured: ${esc(m.summary || "")}`}</p>`
-    : n.target
+    ? v === "unmeasured"
+      ? `<p class="meas flag">Not measured (${esc(m.why || "nothing to compare")}): this one is your eyes.${detail && !detail.startsWith("not measured") ? `<br>What it did see: ${esc(detail)}` : ""}</p>`
+      : `<p class="meas${!VERIFIED.includes(v) || proxy ? " flag" : ""}"><b>${proxy ? "≈ Measured by a stand-in" : VERDICT[v]}</b>${detail ? ` · ${esc(detail)}` : ""}${proxy ? "<br>Fewer things on screen isn't always less busy: your eyes decide." : ""}${
+          v === "unchanged" && n.status === "resolved" ? "<br>Claude says it changed; the next version shows nothing measurable. Check it with your eyes." : ["other", "contrary", "gone"].includes(v) && m.flag ? `<br>${esc(m.flag)}` : ""
+        }</p>`
+    : n.status === "resolved"
       ? `<p class="meas">Measured when the next version opens.</p>`
-      : `<p class="meas">Nothing to measure: the note didn't point at one thing. Watch it.</p>`;
+      : "";
   const held = heldStep("note.accepted", n.id) || heldStep("note.reopened", n.id);
+  // your eyes outrank the measurement: accepting a fix it couldn't confirm is allowed, and said beside it
+  const over = (vv) => (OVER[vv] ? ` (over the measurement: ${OVER[vv]})` : "");
   const acts = held
-    ? `<div class="doneline ${held.kind === "note.reopened" ? "no" : ""}"><span>${held.kind === "note.accepted" ? "✓ You said: looks right" : "You said: still wrong"} <span class="held">not sent</span></span><button data-r="undo" data-seqs="${held.seqs.join(",")}">Undo</button></div>`
+    ? `<div class="doneline ${held.kind === "note.reopened" ? "no" : ""}"><span>${held.kind === "note.accepted" ? `✓ You said: looks right${over(v)}` : "You said: still wrong"} <span class="held">not sent</span></span><button data-r="undo" data-seqs="${held.seqs.join(",")}">Undo</button></div>`
     : n.status === "accepted"
-      ? `<div class="doneline"><span>✓ You said it looks right</span></div>`
+      ? `<div class="doneline"><span>✓ You said it looks right${over(n.accepted?.verdict)}</span></div>`
       : reopening === n.id
         ? `<textarea rows="2" data-reopen placeholder="What's still wrong?"></textarea><div class="btns"><button data-r="cancel">Cancel</button><button class="primary" data-r="reopen-send">Still wrong ⏎</button></div>`
         : `<div class="btns"><button data-r="watch">Watch it</button>${m ? `<button data-r="compare">${m.sound || (m.moment && (m.audio?.changed_secs || 0) >= 0.1) ? "Hear" : "Compare"} v${m.from} · v${m.to}</button>` : ""}${waiting ? `<button class="primary" data-r="accept">Looks right</button><button data-r="reopen">Still wrong…</button>` : ""}<button data-r="follow">Follow up</button></div>`;
   return `<div class="res ${n.status}${m?.flag ? " flagged" : ""}" data-id="${n.id}" ${waiting && !held ? "data-todo" : ""}>
     <div class="when">${cuts() || n.cut === "16x9" ? `<span class="shape">${n.cut === "16x9" ? "wide" : "tall"}</span>` : ""}<b>${when(n)}</b>${n.target?.el ? ` · ${esc(short(r.renamed || n.target.el))}` : ""} · ${esc(head)}</div>
-    <q>${esc(n.comment) || "(a mark, no words)"}</q>${said}${meas}${acts}</div>`;
+    <q>${n.ask ? `${esc(ASKED[n.ask])}${n.comment ? ": " : ""}` : ""}${esc(n.comment) || (n.ask ? "" : "(a mark, no words)")}</q>${said}${meas}${acts}</div>`;
 }
 
-// the learning prompt: a pattern Claude spotted (by counting) and worded; the human decides what it becomes
+// the learning prompt: a pattern Claude spotted (by counting) and worded; the human decides how far it reaches
+const kindName = () => (app.ctx?.kind === "reel" ? "reel" : "explainer");
 const DEST = { profile: "your profile (a value)", lessons: "your lessons (a rule)", check: "a check (your threshold)", kit: "the kit (a bug anyone would hit)", video: "this video only" };
 function lessons() {
   const heldOf = (l) => app.state.steps.find((s) => s.pending && s.kind === "lesson.decided" && s.lesson === l.id);
@@ -53,7 +81,7 @@ function lessons() {
     <p class="plain">${esc(l.text)}</p>
     ${l.evidence?.length ? `<p class="dhint">from ${esc(l.evidence.slice(0, 6).join(", "))}${l.evidence.length > 6 ? " …" : ""}</p>` : ""}
     ${held ? `<div class="doneline"><span>${esc(held.text.split(": ").pop())} <span class="held">not sent</span></span><button data-r="undo" data-seqs="${held.seqs.join(",")}">Undo</button></div>`
-      : `<div class="btns"><button class="primary" data-r="remember">Remember</button><button data-r="video">This video only</button><button data-r="ignore">Ignore</button></div>`}</div>`;
+      : `<div class="btns"><button class="primary" data-r="remember" title="A rule for every video you make">Every video</button><button data-r="kind" title="A rule for every ${esc(kindName())} you make">Every ${esc(kindName())}</button><button data-r="project" title="A rule for this video, nowhere else">This video only</button><button data-r="ignore" title="Not a rule: never asked again">Ignore</button></div>`}</div>`;
   }).join("");
 }
 
@@ -103,7 +131,7 @@ async function act(e) {
     R = round();
   const lid = b.closest(".lesson")?.dataset.lesson;
   if (r === "undo") return undo(b.dataset.seqs.split(",").map(Number));
-  if (lid && ["remember", "video", "ignore"].includes(r)) return post([{ type: "lesson.decided", id: lid, decision: r }]);
+  if (lid && ["remember", "kind", "project", "ignore"].includes(r)) return post([{ type: "lesson.decided", id: lid, decision: r }]);
   if (r === "approve") return post([{ type: "version.approved", version: R.version, cut: R.cut, video: R.video }]);
   const n = app.state.notes[id];
   if (r === "watch") return watch(n, "t" in n.time ? n.time.t : n.time.t0);

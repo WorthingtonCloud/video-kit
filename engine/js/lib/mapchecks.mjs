@@ -133,11 +133,14 @@ export function parked({ META, seenAt, STEP, C, near }) {
       });
     }
   };
-  seenAt.forEach(([t, els]) => {
+  seenAt.forEach(([t, els, clips = {}]) => {
     const now = new Set();
-    for (const [i, ...b] of els) {
+    for (const [i, ...raw] of els) {
       const m = META[i];
-      if (m.addr.startsWith("frame/") || holders.has(m.addr) || area(b) > 0.35) continue;
+      // what shows: a chat turn scrolled up out of its window is cut by the window, not parked off the frame (an explainer,
+      // Oct 4, 2026: 24 such warnings, none real). Clipped away entirely, it isn't on screen at all.
+      const b = i in clips ? clips[i] : raw;
+      if (!b || m.addr.startsWith("frame/") || holders.has(m.addr) || area(b) > 0.35) continue;
       const inside = area([Math.max(0, b[0]), Math.max(0, b[1]), Math.min(1, b[2]), Math.min(1, b[3])]) / (area(b) || 1);
       const off = b[0] < -0.005 || b[1] < -0.005 || b[2] > 1.005 || b[3] > 1.005;
       if (!off || inside < 0.05 || inside > 0.95 || near(t)) continue;
@@ -161,14 +164,15 @@ export function parked({ META, seenAt, STEP, C, near }) {
 // word, a handoff left empty. Oct 1, 2026: three ~1 s stretches in the Jev explainer survived 45 stills and four inspect
 // passes; this scan of the map found all three. A blink at a cut is the transition, not dead air: a stretch must last
 // C.dead_air_secs, and one that never leaves a cut's window is skipped.
-const AMBIENT = /(^frame\/)|\/~ex-(spot|mote|dust)(#\d+)?$/;
+const AMBIENT = /(^frame\/)|\/~ex-(spot|mote|glow|dust)(#\d+)?$/; // = review.py BACKDROP, maps.js BACKDROP
+const hasContent = (META, els) =>
+  els.some(([i, ...b]) => {
+    const m = META[i];
+    if (AMBIENT.test(m.addr)) return false;
+    return !!m.text || !(["group", "box"].includes(m.kind) && area(b) >= 0.6); // an empty full-frame box is a backdrop
+  });
 export function deadAir({ META, seenAt, STEP, C, cuts = [] }) {
-  const content = (els) =>
-    els.some(([i, ...b]) => {
-      const m = META[i];
-      if (AMBIENT.test(m.addr)) return false;
-      return !!m.text || !(["group", "box"].includes(m.kind) && area(b) >= 0.6); // an empty full-frame box is a backdrop
-    });
+  const content = (els) => hasContent(META, els);
   const out = [],
     inCut = (t) => cuts.some((c) => t > c - 0.5 && t < c + 0.6);
   let run = null;
@@ -194,6 +198,25 @@ export function deadAir({ META, seenAt, STEP, C, cuts = [] }) {
   }
   finish();
   return out;
+}
+
+// Blank start: the video's first frame shows nothing but the backdrop (or nothing at all). It's the frame a feed and a
+// chat app show before anyone presses play. an explainer (Oct 4, 2026): the first scene's entrances were timed
+// seg.t0 - 0.35, which clamps to 0, so frame one was solid black; dead air skips a blink at a cut, so nothing said so.
+export function blankStart({ META, seenAt }) {
+  const first = seenAt[0];
+  if (!first || hasContent(META, first[1])) return [];
+  return [
+    {
+      check: "blank-start",
+      elements: [],
+      text: `the first frame shows nothing but the backdrop (${first[0].toFixed(2)}s)`,
+      t0: 0,
+      t1: first[0],
+      at: first[0],
+      hint: "a feed shows the first frame before anyone presses play: have the opening already on screen at 0 (an entrance timed before 0 starts at 0, finished)",
+    },
+  ];
 }
 
 // Never seen: words the build made that never reach the screen at any moment. Oct 4, 2026: the video-kit reel's end card

@@ -175,10 +175,13 @@ function meter() {
 player.on(() => open && meter());
 // the levels as the page holds them, and as last saved (your held save, or mix.json)
 const levels = () => ({ take: S.take, music_db: (CFG?.music_db ?? -16) + S.mus, duck_db: DUCK ? S.duck : CFG?.duck_db ?? 6, sfx_db: (CFG?.sfx_db ?? 0) + S.fx, fx_on: S.fxOn });
-const saved = () => app.state?.mix || app.ctx?.mixer?.saved || null;
+// nothing saved yet reads as null: the server hands an empty {} when there's no mix.json, and an empty object must not
+// count as "the defaults are saved" (a reviewer's first pick then never lit Save, Oct 4, 2026)
+const filled = (v) => (v && Object.keys(v).length ? v : null);
+const saved = () => filled(app.state?.mix) || filled(app.ctx?.mixer?.saved);
 function savedLevels() {
   const v = saved() || {};
-  return { take: v.take ?? S.take, music_db: v.music_db ?? CFG?.music_db ?? -16, duck_db: DUCK ? v.duck_db ?? CFG?.duck_db ?? 6 : CFG?.duck_db ?? 6, sfx_db: v.sfx_db ?? CFG?.sfx_db ?? 0, fx_on: v.fx_on ?? true };
+  return { take: v.take ?? CFG?.takes[0]?.n ?? 0, music_db: v.music_db ?? CFG?.music_db ?? -16, duck_db: DUCK ? v.duck_db ?? CFG?.duck_db ?? 6 : CFG?.duck_db ?? 6, sfx_db: v.sfx_db ?? CFG?.sfx_db ?? 0, fx_on: v.fx_on ?? true };
 }
 
 // the music under the voice while it speaks: what vs mix measured, moved by the level and by any change in ducking

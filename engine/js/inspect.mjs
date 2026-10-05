@@ -24,6 +24,7 @@
 //     cut-short       words that arrive mid-scene and leave with the cut before they can be read (mapchecks.mjs)
 //     offscreen-at-rest  something parked partly off the frame for a second or more (mapchecks.mjs)
 //     dead-air        nothing on screen but the backdrop for a stretch (mapchecks.mjs; dead_air_secs)
+//     blank-start     the first frame shows nothing but the backdrop: the feed's preview (mapchecks.mjs)
 //   and the human's standing rules from Review Studio (js/lib/rules.mjs):
 //     keep-clear      something entered a zone a note asked to keep clear (in that note's scene, on its cut)
 //     done-changed    a scene the human marked done no longer matches the version it was approved in (its frames, or
@@ -37,7 +38,7 @@ import { pathToFileURL } from "node:url";
 import { launch, step } from "./lib/browser.mjs";
 import { COMP, QA, readTimeline, ELEMENTS, FINDINGS, SOURCES, CONTRACTS } from "./lib/paths.mjs";
 import { readRules, keepClear, lockedScenes } from "./lib/rules.mjs";
-import { fastText, parked, deadAir, neverSeen } from "./lib/mapchecks.mjs";
+import { fastText, parked, deadAir, blankStart, neverSeen } from "./lib/mapchecks.mjs";
 import { checks } from "./lib/paths.mjs";
 
 const arg = (k, d) => {
@@ -120,7 +121,7 @@ const BAD = await step("inspect: list the tweens that can't run", () =>
 );
 
 const hits = [],
-  seenAt = []; // [t, [[element index, x0, y0, x1, y1], …]] per moment
+  seenAt = []; // [t, [[element index, x0, y0, x1, y1], …], {element index: the part a clipping box lets show}] per moment
 let checked = 0;
 const nearCut = (t) => cuts.some((c) => t > c - 0.5 && t < c + 0.6),
   C = checks(); // the tunable thresholds (contracts.json, profile.json → checks)
@@ -459,21 +460,34 @@ for (let t = Math.max(0.05, FROM); t < Math.min(END, TO); t += STEP) {
         op.set(e, v);
         return v;
       };
-      const out = [];
+      const out = [],
+        clips = {}; // i → the part of its box a clipping ancestor (overflow hidden) lets show, where that's less
       window.__inspectEls.forEach((el, i) => {
         if (eff(el) < 0.02) return;
         const r = el.getBoundingClientRect();
         if (r.width * r.height < 4 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) return;
         out.push([i, q(r.left / W), q(r.top / H), q(r.right / W), q(r.bottom / H)]);
+        let [l, tp, rt, bt] = [r.left, r.top, r.right, r.bottom];
+        for (let e = el.parentElement; e && e !== document.body; e = e.parentElement) {
+          const cs = getComputedStyle(e);
+          if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+          const c = e.getBoundingClientRect();
+          // a box the size of the frame (the stage, the root) clips at the frame's own edges: that's the frame, which
+          // the check measures against, not a window inside it
+          if (c.left <= 0.5 && c.top <= 0.5 && c.right >= W - 0.5 && c.bottom >= H - 0.5) continue;
+          [l, tp, rt, bt] = [Math.max(l, c.left), Math.max(tp, c.top), Math.min(rt, c.right), Math.min(bt, c.bottom)];
+        }
+        if (l > r.left || tp > r.top || rt < r.right || bt < r.bottom)
+          clips[i] = rt > l && bt > tp ? [q(l / W), q(tp / H), q(rt / W), q(bt / H)] : null;
       });
-      return out;
+      return [out, clips];
     },
     t,
     W,
     H,
     near,
   ));
-  seenAt.push([+t.toFixed(2), els]);
+  seenAt.push([+t.toFixed(2), els[0], els[1]]);
   if (Math.round(t / STEP) % 200 === 0) console.log(`  … ${t.toFixed(1)}s`);
 }
 
@@ -559,6 +573,9 @@ for (const f of [...fastText({ META, seenAt, STEP, C, END, near: nearCut }), ...
   const box = f.box_n && [f.box_n[0] * W, f.box_n[1] * H, f.box_n[2] * W, f.box_n[3] * H].map(Math.round);
   list.push({ id, severity: "warning", ...f, ...(box ? { box } : {}) });
 }
+// the first frame, empty (a warning; only a scrub from the start can say)
+if (FROM <= STEP)
+  for (const f of blankStart({ META, seenAt })) list.push({ id: "f-blank-start", severity: "warning", ...f });
 // words the build made that never reach the screen (an error; only a whole scrub can say "never")
 if (FROM <= STEP && TO >= END)
   for (const f of neverSeen({ META, seenAt, TL })) {

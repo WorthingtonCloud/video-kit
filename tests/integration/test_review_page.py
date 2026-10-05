@@ -39,8 +39,9 @@ def _serve(tmp_path, wide=False):
     r = run("review", "open", *(["--stage", "final"] if wide else []))
     assert r.returncode == 0, r.stdout + r.stderr
     port = free_port()
+    log = open(d / "server.log", "w")  # a file, not a pipe: a pipe nobody reads fills up and stalls the server mid-test
     srv = subprocess.Popen([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "review", "--port", str(port)],
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                           stdout=log, stderr=subprocess.STDOUT, text=True)
     for _ in range(50):
         with socket.socket() as s:
             if not s.connect_ex(("127.0.0.1", port)):
@@ -49,6 +50,7 @@ def _serve(tmp_path, wide=False):
     yield d, f"http://localhost:{port}/review/", run
     srv.terminate()
     srv.wait()
+    log.close()
 
 
 @pytest.fixture
@@ -72,8 +74,9 @@ def reel(tmp_path, font_studio):
     shutil.copy(d / "build/timeline.json", d / "out/beat-reel-v1.timeline.json")
     assert run("review", "open").returncode == 0
     port = free_port()
+    log = open(d / "server.log", "w")  # a file, not a pipe: a pipe nobody reads fills up and stalls the server mid-test
     srv = subprocess.Popen([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "review", "--port", str(port)],
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                           stdout=log, stderr=subprocess.STDOUT, text=True)
     for _ in range(50):
         with socket.socket() as s:
             if not s.connect_ex(("127.0.0.1", port)):
@@ -82,6 +85,7 @@ def reel(tmp_path, font_studio):
     yield d, f"http://localhost:{port}/review/", run
     srv.terminate()
     srv.wait()
+    log.close()
 
 
 def drive(url, scenario):
@@ -191,6 +195,28 @@ def test_pointing_asks_the_composition_and_the_note_carries_it(reel):
     assert "s03_hub › ring-layer-1-label" in show and "arrow (" in show and "keep-clear" in show
 
 
+def test_the_human_says_what_and_how_far_never_how(reel):
+    """The page captures intent, not implementation: an ask and a reach, each one click, carried in the note; a rule's
+    reach is the human's pick, never automatic."""
+    d, url, run = reel
+    assert run("review", "propose", "type.size", "Labels at least 34 px").returncode == 0
+    out = drive(url, "intent")
+    assert out["asks"] == ["Move it", "Bigger", "Smaller", "Longer", "Shorter", "Less busy", "Remove it"]
+    assert out["reach"] == ["Just here", "All through this video", "In every video"]
+    assert out["on"] == ["Bigger", "All through this video"] and out["hint"].startswith("Bigger: anything to add")
+    item = " ".join(out["item"].split())
+    assert item.startswith("● Bigger · hard to read All through this video") and out["cleared"]
+    assert out["rangeAsks"] == ["Longer", "Shorter", "Less busy"]  # nothing pointed at: only what a moment can have
+    assert out["ruleButtons"] == ["Every video", "Every reel", "This video only", "Ignore"]
+    n1, n2 = [e["note"] for e in log(d) if e["type"] == "note.added"]
+    assert (n1["ask"], n1["scope"], n1["target"]["el"]) == ("bigger", "project", "s03_hub/ring-layer-1-label")
+    assert n2["ask"] == "shorter" and "scope" not in n2 and n2["time"] == {"t0": 9.6, "t1": 11.0}
+    S = json.load(open(d / "review/state.json"))
+    assert S["lessons"]["l-0001"]["decision"] == "kind"
+    show = run("review", "show").stdout
+    assert "ask: bigger · everywhere in this video" in show and "ask: shorter" in show
+
+
 def test_an_older_build_points_from_the_map_and_says_so(reel):
     d, url, run = reel
     f = d / "out/beat-reel-v1.timeline.json"
@@ -287,7 +313,7 @@ def test_rounds_measure_compare_looks_right_still_wrong_approve(reel):
     out = drive(url, "rounds")
     # v2 is v1's own bytes: the box didn't move and its pixels didn't change (n-0001), and the stretch's picture and sound
     # are the same (n-0002, a range with no target): both claimed fixes are flagged
-    assert out["cards"] == [["n-0001", "Claude fixed it in v2", True], ["n-0002", "Claude fixed it in v2", True]]
+    assert out["cards"] == [["n-0001", "Claude says it's fixed in v2", True], ["n-0002", "Claude says it's fixed in v2", True]]
     assert out["compare"] == ["/out/beat-reel-v1.mp4", "/out/beat-reel-v2.mp4"] and out["outlines"] == 2
     assert out["follow"] is None  # looks right: nothing left to follow up from here
     assert "Approved: v2 is done" in out["approve"] and "v2 approved" in out["approved"]  # one click, then sent
@@ -328,7 +354,7 @@ def test_the_review_clock_and_the_tool_problem_button(reel):
     log = os.environ["VIDEO_KIT_DOGFOOD"]
     open(log, "w").write("## Friction log\n\n## Verdict\n")
     out = drive(url, "usage")
-    assert "tool's test log" in out["toast"]
+    assert "tool's problem log" in out["toast"]
     ev = [json.loads(l) for l in open(d / "review/log.jsonl")]
     spent = [e for e in ev if e["type"] == "time.spent"]
     assert len(spent) == 1 and spent[0]["secs"] >= 2 and spent[0]["playing"] >= 2
@@ -390,8 +416,9 @@ def explainer(tmp_path, font_studio):
     assert run("mix", "--video", "out/t-v1.mp4", "--tag", "v1").returncode == 0
     assert run("review", "open", "--video", "out/t-v1-take1.mp4").returncode == 0
     port = free_port()
+    log = open(d / "server.log", "w")  # a file, not a pipe: a pipe nobody reads fills up and stalls the server mid-test
     srv = subprocess.Popen([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "review", "--port", str(port)],
-                           stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                           stdout=log, stderr=subprocess.STDOUT, text=True)
     for _ in range(50):
         with socket.socket() as s:
             if not s.connect_ex(("127.0.0.1", port)):
@@ -400,6 +427,7 @@ def explainer(tmp_path, font_studio):
     yield d, f"http://localhost:{port}/review/", run
     srv.terminate()
     srv.wait()
+    log.close()
 
 
 def test_ducking_plays_live_and_the_slider_moves_it(explainer):
@@ -410,6 +438,18 @@ def test_ducking_plays_live_and_the_slider_moves_it(explainer):
     assert out["deeper"]["duck_gain"] == pytest.approx(10 ** (-12 / 20), abs=0.01)  # moved while it played
     assert "(it dips 12 dB while the voice speaks)" in out["summary2"] and out["label"] == "12 dB" and "dB under" in out["meter"]
     assert json.load(open(d / "mix.json"))["duck_db"] == 12  # sent: vs mix --final bakes it
+
+
+def test_a_first_mix_can_be_saved_at_the_levels_it_starts_with(explainer):
+    """No mix.json yet: Save is open (the take on screen and the starting levels are a choice too), and once saved it
+    closes until something changes."""
+    d, url, run = explainer
+    assert not (d / "mix.json").exists()
+    out = drive(url, "firstsave")
+    assert out["disabled"] is False, f"Save was gray with nothing saved: {out}"
+    assert out["after"] is True
+    saved = json.load(open(d / "mix.json"))
+    assert saved["take"] == 1 and saved["duck_db"] == 6
 
 
 def test_one_sound_is_heard_alone_and_answered_with_a_note(explainer):

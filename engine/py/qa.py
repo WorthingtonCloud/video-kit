@@ -280,6 +280,37 @@ for i, d in jumps:
 if ys and not jumps:
     print(f"  flash   none: no frame-to-frame brightness jump of {CK['flash_jump']} or more")
 
+# Shimmer: thin lines, icons and small text flickering on alternate frames while they stand still (a slow 3D camera
+# turn does it). A still, the sheet and the flash check all miss it; viewers don't (Oct 4, 2026: "the icons flicker").
+# Every frame at full size: about a quarter of the video's length to scan. How it's counted: shimmer.py.
+try:
+    import numpy as np
+except ImportError:
+    np = None
+    print("  ⚠️  shimmer scan skipped: it needs numpy (on a Mac, run qa.py with /usr/bin/python3)")
+if np is not None:
+    import shimmer
+    secs = [s for s in shimmer.scan(src, W, H, fps, np) if s[1] >= CK["shimmer_patches"]]
+    runs = []
+    for t, n, bx in secs:  # seconds in a row (a one-second gap allowed) are one run: its worst count, the union of its boxes
+        if runs and t - runs[-1][1] <= 2:
+            r = runs[-1]
+            r[1], r[2] = t, max(r[2], n)
+            r[3] = (min(r[3][0], bx[0]), min(r[3][1], bx[1]), max(r[3][2], bx[2]), max(r[3][3], bx[3]))
+        else:
+            runs.append([t, t, n, bx])
+    for a, b, n, bx in runs:
+        who = names_at((a + b + 1) / 2, bx)
+        print(f"  ⚠️  shimmer  {a:.0f}–{b + 1:.0f}s: {n} small patches flicker every other frame while standing still"
+              + (f" ({', '.join(who)})" if who else ""))
+        finding("shimmer", a, b + 1, f"{n} small patches (8×8 px) flicker on alternate frames while standing still", who,
+                box=bx, key=f"{a:.0f}",
+                hint="thin lines, icons or small text snapping against the pixel grid, usually under a slow 3D camera turn: "
+                     "hold that stretch still or move it by sliding, not tilting "
+                     f"(threshold {CK['shimmer_patches']} patches in a second: profile.json → checks.shimmer_patches)")
+    if not runs:
+        print(f"  shimmer none: never {CK['shimmer_patches']} or more flickering patches in a second")
+
 # The final mix: integrated loudness and true peak, against what the kit masters to (a phone plays it as it is)
 r = subprocess.run(["ffmpeg", "-hide_banner", "-i", src, "-vn", "-af", "ebur128=peak=true", "-f", "null", "-"],
                    capture_output=True, text=True)

@@ -46,7 +46,7 @@ box.addEventListener("click", async (e) => {
   await fetch("api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ events: [{ type: "friction.noted", text, where }] }) });
   t.value = "";
   box.hidden = true;
-  toast("Reported to the tool's test log. Thanks: that's what it's for.");
+  toast("Reported to the tool's problem log. Thanks: that's what it's for.");
 });
 box.addEventListener("keydown", (e) => {
   if (e.key === "Escape") box.hidden = true;

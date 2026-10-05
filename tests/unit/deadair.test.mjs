@@ -35,3 +35,11 @@ test("a blink shorter than dead_air_secs, or one inside a cut's window, isn't", 
   assert.equal(deadAir({ META, seenAt: map([2.85, 3.45]), STEP, C, cuts: [3.0] }).length, 0); // the transition
   assert.equal(deadAir({ META, seenAt: map([2.1, 3.0]), STEP, C: { dead_air_secs: 2 }, cuts: [0] }).length, 0); // profile.json → checks
 });
+
+test("a first frame with nothing but the backdrop is a blank start; one with the opening on it is not", async () => {
+  const { blankStart } = await import("../../engine/js/lib/mapchecks.mjs");
+  const blank = blankStart({ META, seenAt: map([0, 1.0]) });
+  assert.equal(blank.length, 1);
+  assert.equal(blank[0].check, "blank-start");
+  assert.equal(blankStart({ META, seenAt: map([2.1, 3.0]) }).length, 0);
+});

@@ -48,6 +48,7 @@ COMMANDS = [
     ("mix", "py", "mix.py", True, None, "sound", "voice + music + effects onto the picture"),
     ("mixer", "py", "serve.py", True, None, "sound", "Review Studio's Mix panel: take, levels, ducking, Save"),
     ("review", "py", "review.py", True, None, "review", "Review Studio: point at the video, say what's wrong; rounds, choices, rules"),
+    ("protocol", "self", None, False, None, "review", "the rules every skill shares: review (default) or studio (where things live)"),
     ("ingest", "py", "ingest.py", True, "openai (own narration)", "studio", "bring your own media"),
     ("learn", "py", "learn.py", True, None, "studio", "after approval: keep what was decided"),
     ("latest", "py", "latest.py", False, None, "studio", "studio/latest/: the newest version of every video, plain names"),
@@ -64,9 +65,14 @@ SELF_HELP = {  # the steps studio.py runs itself
     "where": ("vs where\n"
               "  The kit, the studio, this project, and what the profile has settled (brand, narrator, mix, videos)."),
     "spent": "vs spent [--all]\n  What this video (or every video) has cost, per vendor, from the studio's ledger.csv.",
-    "test": ("vs test [--fast] [pytest or node --test arguments…]\n"
+    "protocol": ("vs protocol [review | studio]\n"
+                 "  The rules every skill follows, printed from engine/protocol/: review = how a version is handed to the human\n"
+                 "  and their intent taken back (the loop, the lifecycle, the exit criteria, learning, finishing); studio = where\n"
+                 "  every piece of information lives (engine, studio, project) and the gates every step shares."),
+    "test": ("vs test [--fast] [a test file or folder…] [pytest or node --test arguments…]\n"
              "  The kit's own tests (tests/): unit, contract (the same cases in Python and JavaScript), regression and\n"
-             "  integration (fixtures built and inspected in a browser; --fast skips those). Nothing paid can run:\n"
+             "  integration (fixtures built and inspected in a browser; --fast skips those). Name a file or folder (a\n"
+             "  .py, a .test.mjs, file.py::test) and only that runs; otherwise everything does. Nothing paid can run:\n"
              "  VIDEO_KIT_NO_SPEND is set. Python's tests need pytest; the first run installs it into the engine's Python."),
 }
 GROUPS = ["setup", "checks", "voice", "picture", "sound", "review", "studio"]
@@ -226,6 +232,16 @@ def spent(args):
     print(f"({vslib.ledger_path()})" if rows else "nothing logged")
 
 
+def protocol(args):
+    """Print one of the shared protocols (engine/protocol/<topic>.md)."""
+    topic = (args[0] if args else "review").removesuffix(".md")
+    path = os.path.join(ENGINE, "protocol", f"{topic}.md")
+    if not os.path.exists(path):
+        have = sorted(f[:-3] for f in os.listdir(os.path.join(ENGINE, "protocol")) if f.endswith(".md"))
+        sys.exit(f"⛔ no protocol {topic!r}: {', '.join(have)}")
+    print(open(path).read())
+
+
 def run_tests(args):
     """Node's built-in runner for the .test.mjs files, pytest for the Python ones; both with nothing paid allowed."""
     import glob
@@ -236,9 +252,15 @@ def run_tests(args):
     if subprocess.run([py, "-c", "import pytest"], capture_output=True).returncode:
         print("installing pytest into the engine's Python (for the kit's own tests only)")
         subprocess.run([py, "-m", "pip", "install", "-q", "pytest"], check=True)
-    mjs = sorted(glob.glob(os.path.join(tests, "**", "*.test.mjs"), recursive=True))
+    # a file or folder named: run just that (it used to be added to the whole suite, so one file ran everything)
+    picked = [a for a in args if not a.startswith("-") and os.path.exists(a.split("::")[0])]
+    named_js = [a for a in picked if a.endswith(".mjs")]
+    args = [a for a in args if a not in named_js]
+    mjs = named_js if picked else sorted(glob.glob(os.path.join(tests, "**", "*.test.mjs"), recursive=True))
     js = subprocess.run(["node", "--test", "--test-reporter=dot", *mjs], env=env).returncode if mjs else 0
-    pyt = subprocess.run([py, "-m", "pytest", "-q", "-p", "no:cacheprovider", tests, *(["-m", "not slow"] if fast else []), *args], env=env).returncode
+    run_py = not picked or len(named_js) < len(picked)
+    pyt = subprocess.run([py, "-m", "pytest", "-q", "-p", "no:cacheprovider", *([] if picked else [tests]),
+                          *(["-m", "not slow"] if fast else []), *args], env=env).returncode if run_py else 0
     print("✓ all passed" if not (js or pyt) else f"⛔ failed: {'JavaScript ' if js else ''}{'Python' if pyt else ''}")
     sys.exit(js or pyt)
 
@@ -253,6 +275,7 @@ def main():
     if cmd == "new": return new(rest)
     if cmd == "where": return where()
     if cmd == "test": return run_tests(rest)
+    if cmd == "protocol": return protocol(rest)
     if cmd not in CMD: sys.exit(f"⛔ unknown step {a[0]!r}{near(a[0])}: vs help lists them")
     d = project_dir(proj)
     if not d and cmd not in ANYWHERE: sys.exit("⛔ not in a project folder: cd into one, or vs -p <slug> " + cmd)

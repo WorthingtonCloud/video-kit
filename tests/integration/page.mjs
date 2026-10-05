@@ -249,6 +249,43 @@ const SCENARIOS = {
     r.sent = await sendAll();
     return r;
   },
+  // the protocol's intent: point, then say what you want (an ask) and how far it reaches, each one click; a range offers
+  // only the asks a moment can have; a rule's reach is the human's pick (every video, every reel, this one, ignore)
+  async intent() {
+    await p.waitForFunction(() => document.querySelectorAll("#tl-rows .row").length > 5);
+    await seek(13.0);
+    await p.waitForFunction(() => !document.querySelector("#comp") || !!document.querySelector("#comp").contentWindow.__names, { timeout: 15000 });
+    const r = {};
+    const [x, y] = await spot("s03_hub/ring-layer-1-label");
+    await p.mouse.click(x, y);
+    await p.waitForSelector("#c-extra .intent");
+    r.asks = await p.$$eval("#c-extra .intent .asks button", (b) => b.map((e) => e.textContent));
+    r.reach = await p.$$eval("#c-extra .intent .reach button", (b) => b.map((e) => e.textContent));
+    await p.click('#c-extra [data-vask="bigger"]');
+    await p.click('#c-extra [data-reach="project"]');
+    r.on = await p.$$eval("#c-extra .intent button.on", (b) => b.map((e) => e.textContent));
+    r.hint = await p.$eval("#c-text", (e) => e.placeholder);
+    await p.type("#c-text", "hard to read");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => document.querySelectorAll("#tab-notes .item[data-id]").length === 1);
+    r.item = await text("#tab-notes .item[data-id]");
+    r.cleared = await p.$eval("#c-extra", (e) => e.hidden);
+    await seek(9.6);
+    await p.keyboard.press("i");
+    await seek(11.0);
+    await p.keyboard.press("o");
+    await p.waitForSelector("#c-extra .intent");
+    r.rangeAsks = await p.$$eval("#c-extra .intent .asks button", (b) => b.map((e) => e.textContent));
+    await p.click('#c-extra [data-vask="shorter"]');
+    await p.click("#c-add");
+    await p.waitForFunction(() => document.querySelectorAll("#tab-notes .item[data-id]").length === 2);
+    await p.waitForFunction(() => !!document.querySelector("#asks-l .res.lesson"));
+    r.ruleButtons = await p.$$eval("#asks-l .res.lesson button", (b) => b.map((e) => e.textContent));
+    await p.click('#asks-l .res.lesson button[data-r="kind"]');
+    await p.waitForFunction(() => !!document.querySelector("#asks-l .doneline"));
+    r.sent = await sendAll();
+    return r;
+  },
   // card 4 (RS3): findings in plain words, a card per check, Claude's advice taken in one click, one by one, a note on one
   async findings() {
     await p.waitForFunction(() => document.querySelectorAll("#asks-f .finding").length > 0);
@@ -426,6 +463,20 @@ const SCENARIOS = {
     r.meter = await text("#m-now");
     await p.click("#m-save");
     await p.waitForFunction(() => /not sent/.test(document.querySelector("#m-saved").textContent));
+    r.sent = await sendAll();
+    return r;
+  },
+  // a first mix (Oct 4, 2026: a reviewer picked a take and couldn't save: with no mix.json the page read "nothing
+  // saved" as "the defaults are saved", and counted the take on screen as the saved one, so Save stayed gray)
+  async firstsave() {
+    await p.goto(url + "#mix", { waitUntil: "networkidle0" });
+    await p.reload({ waitUntil: "networkidle0" });
+    await p.waitForFunction(() => /Your mix/i.test(document.querySelector("#tab-mix").textContent), { timeout: 20000 });
+    const r = { disabled: await p.$eval("#m-save", (b) => b.disabled), summary: await text("#tab-mix .summary") };
+    if (r.disabled) return r;
+    await p.click("#m-save");
+    await p.waitForFunction(() => /not sent/.test(document.querySelector("#m-saved").textContent));
+    r.after = await p.$eval("#m-save", (b) => b.disabled);
     r.sent = await sendAll();
     return r;
   },

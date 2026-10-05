@@ -18,6 +18,10 @@
    30
   ]
  },
+ "render": {
+  "_about": "How vs build renders. blend: frames drawn per frame shown, averaged (a light motion blur that stops small text and thin lines in a turning panel from flickering on alternate frames; about blend× the render time). reel.json \"blend\": 1 turns it off for one video.",
+  "blend": 2
+ },
  "phone_safe": {
   "_about": "A vertical video in a phone's full-screen player (LinkedIn measured, Sep 2026), as fractions of the frame: the status bar covers the top, the caption and scrubber the bottom, each side is cropped, and the button rail covers the right edge between rail.y and the caption.",
   "status_bar": 0.1,
@@ -34,7 +38,7 @@
   "words_per_sec": 3
  },
  "checks": {
-  "_about": "The thresholds of the checks a reviewer can tune (profile.json → checks overrides any of them). Reading time uses reading above. vs inspect: two_zones_words (a scene showing at least this many words while a title is up is a second reading zone; one or two words are a picture's labels), offscreen_rest_secs (an element parked partly off the frame this long), dead_air_secs (nothing but the backdrop on screen this long). qa.py: cues_per_10s (sound effects in any ten seconds; the busiest approved explainer peaks at 13), loudness_lufs ± loudness_tolerance and true_peak_dbtp (the final mix), flash_jump (the whole frame's mean brightness, 0–255, changing this much from one frame to the next).",
+  "_about": "The thresholds of the checks a reviewer can tune (profile.json → checks overrides any of them). Reading time uses reading above. vs inspect: two_zones_words (a scene showing at least this many words while a title is up is a second reading zone; one or two words are a picture's labels), offscreen_rest_secs (an element parked partly off the frame this long), dead_air_secs (nothing but the backdrop on screen this long). qa.py: cues_per_10s (sound effects in any ten seconds; the busiest approved explainer peaks at 13), loudness_lufs ± loudness_tolerance and true_peak_dbtp (the final mix), flash_jump (the whole frame's mean brightness, 0–255, changing this much from one frame to the next), shimmer_patches (8×8-pixel patches of a full-size frame that flicker out and back on alternate frames, three times or more within one second, while standing still: this many in one second is shimmer; a tilting explainer measured 17–39, the same video without the tilt at most 15).",
   "offscreen_rest_secs": 1.0,
   "cues_per_10s": 14,
   "loudness_lufs": -16,
@@ -42,7 +46,8 @@
   "true_peak_dbtp": -1.0,
   "flash_jump": 80,
   "two_zones_words": 3,
-  "dead_air_secs": 0.6
+  "dead_air_secs": 0.6,
+  "shimmer_patches": 20
  },
  "stages": {
   "_about": "A video's stages in order, for Review Studio's top line (where you are in the whole process). vs review open --stage names a round's; vs review step --stage marks one reached outside a round.",
@@ -146,6 +151,10 @@
    "name": "The whole frame flashes",
    "says": "The picture jumps sharply brighter or darker in a single frame."
   },
+  "shimmer": {
+   "name": "Thin lines flicker",
+   "says": "Thin lines, icons or small text flicker from frame to frame while they should be still."
+  },
   "loudness": {
    "name": "The mix is too loud or too quiet",
    "says": "The overall level is off from what platforms expect."
@@ -161,6 +170,10 @@
   "dead-air": {
    "name": "Nothing on screen but the background",
    "says": "For a moment the picture is empty: a scene waiting for its word, or a handoff left bare."
+  },
+  "blank-start": {
+   "name": "The first frame is empty",
+   "says": "The video opens on an empty frame, and that's the picture a feed shows before anyone presses play."
   },
   "never-seen": {
    "name": "Words that never show",

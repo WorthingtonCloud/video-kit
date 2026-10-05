@@ -52,3 +52,35 @@ def test_the_final_mix_flash_and_sound_density_checks(tmp_path):
     os.replace(d / "out/q-v1-mixed.mp4", d / "out/q-v1.mp4")
     vs(d, "qa", "out/q-v1.mp4")
     assert "loudness" not in {f["check"] for f in json.load(open(d / "out/q-v1.review/qa.json"))["items"]}
+
+
+def test_shimmer_is_flicker_in_place_not_motion(tmp_path):
+    """Oct 4, 2026 (an explainer, "the icons flicker"): thin lines that jump two pixels and back on
+    alternate frames are shimmer; lines sliding across the frame change every pixel too, but they're motion. Only the
+    flicker becomes a warning, boxed where it is."""
+    import numpy as np
+    d = tmp_path / "p"
+    os.makedirs(d / "out")
+    (d / "reel.json").write_text("{}")
+    W, H = 216, 384
+    enc = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "gray", "-s", f"{W}x{H}", "-r", "30",
+                            "-i", "-", "-f", "lavfi", "-i", "sine=frequency=220:duration=2", "-c:v", "libx264", "-qp", "0",
+                            "-pix_fmt", "yuv444p", "-shortest", str(d / "out/s-v1.mp4")], stdin=subprocess.PIPE)
+    for k in range(60):
+        f = np.full((H, W), 16, np.uint8)
+        for x in range(8, W - 8, 10):  # top: lines flickering two pixels out and back
+            f[40:140, x + 2 * (k % 2):x + 2 * (k % 2) + 2] = 230
+        for x in range(0, W, 70):  # bottom: lines sliding right, nine pixels a frame
+            x = (x + 9 * k) % W
+            f[240:340, x:x + 2] = 230
+        enc.stdin.write(f.tobytes())
+    enc.stdin.close()
+    assert enc.wait() == 0
+    json.dump({"fingerprint": "fp", "segments": [{"name": "s01", "t0": 0, "t1": 2, "kind": "scene"}]},
+              open(d / "out/s-v1.timeline.json", "w"))
+    r = vs(d, "qa", "out/s-v1.mp4")
+    assert r.returncode == 0, r.stderr
+    sh = [f for f in json.load(open(d / "out/s-v1.review/qa.json"))["items"] if f["check"] == "shimmer"]
+    assert len(sh) == 1 and sh[0]["severity"] == "warning" and sh[0]["t0"] == 0, sh
+    x0, y0, x1, y1 = sh[0]["box_n"]
+    assert y0 >= 0.1 and y1 <= 0.38, sh[0]["box_n"]  # the flickering band (40–140 of 384), not the sliding one

@@ -484,3 +484,15 @@ figcaption { font: 500 12px var(--mono); color: var(--muted); }
 .fn-files a:hover { border-color: var(--muted); }
 .fn-files small { color: var(--muted); font-family: var(--mono); }
 .fn-parts { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+
+/* the note box's intent row: what should change (optional) and how far it reaches. Toggles, not settings. The box stays
+   clear of the round's panel (its Send button) when that's open */
+.cx { right: auto; max-width: min(680px, calc(100% - 28px)); }
+.cx .intent { display: flex; flex-direction: column; gap: 6px; }
+.cx .intent .asks, .cx .intent .reach { display: flex; flex-wrap: wrap; gap: 6px; }
+.cx .intent button { font-size: 12px; padding: 4px 9px; }
+.cx .intent button:hover { border-color: var(--signal); }
+.cx .intent button.on { background: var(--signal-soft); border-color: var(--signal); color: var(--ink); }
+.cx .intent .reach button { font-size: 11px; padding: 3px 8px; color: var(--muted); }
+.cx .intent .reach button.on { color: var(--ink); }
+.reachtag { font: 500 10.5px var(--mono); color: var(--amber); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; margin-left: 4px; }

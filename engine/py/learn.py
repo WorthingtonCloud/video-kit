@@ -12,8 +12,11 @@
   brand       a first video seeds the profile's brand (palette, fonts, finish, end card); after that, a video that broke
               from the house look is reported, never written over: the human decides whether the house look changes
   history     one line per video: what was made, what won, what it cost
-What a script can't judge is the agent's job, and this prints the reminder: turn this video's notes into rules in
-lessons.md, and move any scene helper that would serve another video into library/scenes/."""
+  rules       never from the notes themselves: a note becomes a rule only when the human said how far it reaches
+              (Review Studio's lesson cards, vs protocol review → Learning). This lists the lessons they decided that
+              aren't written down yet, for vs review promote; nothing else goes into lessons.md
+What a script can't judge is the agent's job, and this prints the reminder: promote those lessons, and move any scene
+helper that would serve another video into library/scenes/."""
 import argparse, json, os, re, shutil, sys
 from datetime import date
 import vslib
@@ -59,9 +62,20 @@ if take and os.path.exists(f"music/take{take}.mp3"):
         os.makedirs(lib, exist_ok=True)
         if not t.get("from"): shutil.copy2(f"music/take{take}.mp3", os.path.join(lib, name + ".mp3"))
         idx = vslib.read_json(os.path.join(lib, "index.json"), {"items": {}})
-        idx.setdefault("items", {})[t.get("from", name).split("/")[-1].replace(".mp3", "")] = {
-            "kind": "music", "file": (t.get("from") or name + ".mp3").split("/")[-1], "label": label, "style": style, "won": proj,
-            "id": t.get("id"), "secs": t.get("secs"), "date": date.today().isoformat()}
+        key = t.get("from", name).split("/")[-1].replace(".mp3", "")
+        prev = idx.setdefault("items", {}).get(key) or {}
+        entry = {"kind": "music", "file": (t.get("from") or name + ".mp3").split("/")[-1], "label": label, "style": style, "won": proj,
+                 "id": t.get("id"), "secs": t.get("secs"), "date": date.today().isoformat()}
+        # a bed another video won first keeps its first win; this video joins also_won. Re-filing a video's finals
+        # keeps its date (an explainer, Oct 4, 2026: three times the bed's "won" moved to the latest video, date reset)
+        if prev.get("won"):
+            entry.update(won=prev["won"], date=prev.get("date", entry["date"]))
+            also = list(prev.get("also_won", []))
+            if prev["won"] != proj and not any(x.split(" (")[0] == proj for x in also):
+                also.append(f"{proj} ({date.today().isoformat()})")
+            if also:
+                entry["also_won"] = also
+        idx["items"][key] = entry
         json.dump(idx, open(os.path.join(lib, "index.json"), "w"), indent=1)
     said.append(f"music: take {take} ({label}) won → library/music")
     if style:
@@ -93,12 +107,33 @@ for r in vslib.rows(project=proj):
     v = r.get("vendor") or "?"
     spend[v] = round(spend.get(v, 0) + float(r.get("credits") or 0), 2) if r.get("credits") else spend.get(v, 0)
     if r.get("usd"): spend[v + " $"] = round(spend.get(v + " $", 0) + float(r["usd"]), 3)
-prof.setdefault("history", []).append({"project": proj, "date": date.today().isoformat(), "finals": [os.path.basename(f) for f in a.final],
-                                        "music_take": take, "mix": {k: mix.get(k) for k in ("music_db", "sfx_db")} if mix else None, "spend": spend})
+line = {"project": proj, "date": date.today().isoformat(), "finals": [os.path.basename(f) for f in a.final],
+        "music_take": take, "mix": {k: mix.get(k) for k in ("music_db", "sfx_db")} if mix else None, "spend": spend}
+# one line per video: re-filing its finals (a re-render) replaces its line, keeping the first date and the finals it
+# replaced, so its spend is never counted twice (an explainer, Oct 4, 2026)
+hist = prof.setdefault("history", [])
+old = next((h for h in hist if h.get("project") == proj), None)
+if old:
+    line["first_date"] = old.get("first_date", old.get("date"))
+    line["replaced_finals"] = old.get("replaced_finals", []) + old.get("finals", [])
+    hist[hist.index(old)] = line
+else:
+    hist.append(line)
 if not a.dry:
     json.dump(prof, open(P_PATH, "w"), indent=1)
 print("\n".join(f"  {x}" for x in said) or "  nothing new to keep")
 print(f"{'(dry run) ' if a.dry else ''}profile: {P_PATH}")
 helpers = sorted(set(re.findall(r"^(?:function|const)\s+(ex[A-Z]\w*)", open("scenes.js").read(), re.M))) if os.path.exists("scenes.js") else []
-print("Now the agent's part: add this video's notes to lessons.md as rules (one line each, dated, with why)"
+# the rules: only the lessons the human decided (Every video / Every <kind>) and that aren't written down yet
+decided = []
+if os.path.exists("review/log.jsonl"):
+    import review
+    written = {r["mark"] for r in review.promoted()}
+    decided = [l for l in review.state()["lessons"].values() if l.get("decision") in ("remember", "kind")
+               and f"{proj}/{l['id']}" not in written]
+for l in decided:
+    print(f"  decided, not written yet: {l['id']} “{l.get('text')}” → vs review promote {l['id']}")
+print("Now the agent's part: "
+      + ("promote the lessons above (nothing else goes into lessons.md without the human's say)" if decided
+         else "no lesson waits to be written (a note becomes a rule only through vs review propose and the human's answer)")
       + (f"; and move any of these helpers another video could use into library/scenes/: {', '.join(helpers)}" if helpers else "") + ".")

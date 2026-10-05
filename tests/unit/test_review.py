@@ -178,7 +178,7 @@ def test_what_a_note_must_carry_and_when_it_can_change(proj):
         review.append([{"type": "note.added", "note": {"time": {"t0": 3, "t1": 2}, "comment": "x"}}], H)
     with pytest.raises(review.Refused, match="isn't one of"):
         review.append([note(mark={"type": "circle"})], H)
-    with pytest.raises(review.Refused, match="words, a target or a mark"):
+    with pytest.raises(review.Refused, match="words, a target, a mark or an ask"):
         review.append([{"type": "note.added", "note": {"time": {"t": 1}, "comment": "  "}}], H)
     review.append([note()], H)
     with pytest.raises(review.Refused, match="is draft: it can't be accepted"):
@@ -525,7 +525,9 @@ def test_a_target_gone_without_a_word_is_flagged_and_a_rename_is_followed():
     assert "--renamed or --removed" in review.measure(answered(), E, [100, 100])["flag"]
     assert review.measure(answered(resolution={"outcome": "resolved", "said": "x", "removed": True}), E, [100, 100])["flag"] is None
     m = review.measure(answered(resolution={"outcome": "resolved", "said": "renamed", "renamed": "s01/new-label"}), E, [100, 100])
-    assert m["el"] == "s01/new-label" and m["flag"] is None  # a rename is an answer, even with nothing else changed
+    # the rename is followed, but a rename alone is not a change: the renamed target is measured like any other (it used
+    # to count as an answer by itself, so a fix that only renamed passed as verified)
+    assert m["el"] == "s01/new-label" and m["verdict"] == "unchanged" and m["flag"].startswith("nothing measurable")
 
 
 def test_opening_the_next_round_measures_every_answer(proj):
@@ -661,7 +663,7 @@ def test_this_video_only_is_asked_again_elsewhere(proj, studio):
     for t in (1.0, 1.1, 1.2):
         accept_tagged(["color.meaning"], t)
     assert vs(proj, "review", "propose", "color.meaning", "red means the placebo").returncode == 0
-    review.append([{"type": "lesson.decided", "id": "l-0001", "decision": "video"}], H)
+    review.append([{"type": "lesson.decided", "id": "l-0001", "decision": "project"}], H)
     assert review.candidates() == [] and [c["tag"] for c in review.candidates(project="another-video")] == ["color.meaning"]
 
 
@@ -928,3 +930,24 @@ def test_only_and_a_lone_shape_open_one(tmp_path, monkeypatch):
     review.open_round(argparse.Namespace(video="out/r-v1.mp4", ask=False, stage=None, only=True))
     assert "cuts" not in review.current(review.state())
     assert review.partner("out/none-v3.mp4") is None
+
+
+def test_one_watcher_per_project(proj):
+    """an explainer (Oct 4, 2026): a leftover vs review wait read the human's send and exited into a log nobody
+    watched, while the agent sat on a second one. A second watcher refuses; --replace stops the first and takes over."""
+    opened()
+    first = subprocess.Popen([sys.executable, os.path.join(ENGINE, "studio.py"), "review", "wait"], cwd=proj,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    try:
+        for _ in range(100):
+            if review.agent_waiting():
+                break
+            import time; time.sleep(0.1)
+        assert review.agent_waiting()
+        r = cmd("wait", "--hours", "0.0003")
+        assert r.returncode == 3 and "already watching" in r.stderr, r.stderr
+        r = cmd("wait", "--replace", "--hours", "0.0003")
+        assert "replaced the watcher" in r.stdout and r.returncode == 2, (r.stdout, r.stderr)
+        assert first.wait(timeout=10) is not None
+    finally:
+        first.kill()

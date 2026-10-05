@@ -29,3 +29,12 @@ def test_an_unchanged_frame_is_still_unchanged(tmp_path):
     px = review.measure_pixels(a, b, 0.5)
     assert not review._moved(px)
     assert review._describe_pixels(px) == "its pixels didn't change"
+
+
+def test_a_note_on_the_last_frame_can_be_measured(tmp_path):
+    """A note at the end card's last frame (corporate-job, Oct 2; an explainer, Oct 4, 2026: 2:40.00 of a 160 s video)
+    read "couldn't be measured: no frame at 159.99s". The moment clamps to the last frame instead."""
+    a, b = _clip(tmp_path / "a.mp4", True), _clip(tmp_path / "b.mp4", False)
+    for t in (0.99, 1.0):
+        px = review.measure_pixels(a, b, t)
+        assert px["faint"] > 0.2, (t, px)

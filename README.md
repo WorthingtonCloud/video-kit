@@ -72,7 +72,7 @@ and looks for the notes a reviewer would otherwise have to give: words under a p
 words that go by too fast, anything a phone's status bar, buttons or side crop will cover, a word parked half off the
 frame, dead air, words that never reach the screen, words a cut takes away before they're read, an animation that
 silently never moves. Nothing renders until it finds no errors. After the render, `vs qa` checks the cut itself:
-flashes, blacks that don't match, black holes at the cuts, loudness and peaks, too many sound effects at once.
+flashes, thin lines that flicker while standing still, blacks that don't match, black holes at the cuts, loudness and peaks, too many sound effects at once.
 
 Every one of those checks started as a note a reviewer once had to give by eye.
 
@@ -87,13 +87,46 @@ aren't enough.
   Answer once and the answer carries to every later version.
 - **Nothing reaches the agent until you approve and send.** If it's watching (`vs review wait`), it starts on its own.
   There's nothing to type in chat.
-- **The next version comes back measured:** what moved and by how much, how long it now stays on screen, and a flag
-  when your note's target didn't change at all.
+- **Say what you want, not how.** After you point, one click says it: move it, bigger, smaller, longer, shorter,
+  less busy, remove it. Another says how far it reaches: just here, all through this video, or every video.
+- **The next version comes back measured:** what moved and by how much, how long it now stays on screen, and a plain
+  verdict on your note's target: it changed, it changed but not the way you asked, it went the other way, or nothing
+  changed at all. The agent's "fixed" and the measurement sit side by side; you decide.
 - **Choices come as options you play side by side** (two versions of a scene, two music takes), and the Mix panel
   sets the levels by ear.
 - **Both shapes in one round.** When the vertical and widescreen cuts are both rendered, a switch puts either one on
   screen at the same moment, and each gets its own notes and approval.
 - **When you approve, the page says Done** and hands you the files.
+
+### Why a review page, not a chat
+
+Conversation runs the workflow. A page appears only when pointing says it better than words: which frame, which
+element, which of two options. You give judgment there; the agent does the work. The page hands your intent back as
+structured notes, the tooling measures whether the agent's change actually landed, and you accept it or reopen it.
+The page never becomes an editor: no timeline to drag, no keyframes, no settings the agent could work out itself.
+
+```
+  You, in conversation ── "make an explainer about X"
+        │
+        ▼
+  Agent work ─────────── writes, voices, draws, inspects, renders v3
+        │  vs review open: the version, plus the map of what's on screen and when
+        ▼
+  Review Studio ──────── you point at the frame, ask for "bigger" or "longer", pick an option, approve
+        │  Approve & send: structured notes (moment · element · mark · ask · reach)
+        ▼
+  Agent resolution ───── changes the code, renders v4
+        │  vs review open measures every answer in v4
+        ▼
+  Verdict ────────────── changed · not as asked · the other way · no change
+        │
+        ▼
+  You accept, or reopen ── and a note you keep giving becomes a rule only if you say so
+```
+
+Both skills follow one review protocol in the engine (`vs protocol review`), so a fix to the loop reaches every kind
+of video at once. `vs review status` always answers the same two questions: whose move it is, and whether the review
+can end.
 
 ## How you'll work with it
 
@@ -137,8 +170,11 @@ The kit is read-only. Your studio is the folder that grows:
 
 - `profile.json`: what you've settled on. The look (colors, fonts, end card), the narrator, the music style that won,
   the mix levels, the spending caps. Every new video starts from it.
-- `lessons.md`: your notes, turned into rules. Say "the titles go by too fast" once, and every video after gives the
-  words more time without you saying it again. The skills read this file first, every time.
+- `lessons.md`: your rules. Every note starts as a one-off. When the same kind of note comes back (or you mark one
+  "every video"), the agent words it as a rule and asks how far it should reach: every video, every explainer or
+  reel, this video only, or not at all. Only then is it written here, marked with where it came from.
+  `vs review rules` lists what was learned; `vs review forget` takes one back out. The skills read this file first,
+  every time.
 - `library/`: sounds, music that won, your logo and fonts, pictures and clips you reuse. The kit's 30 sound effects
   start you off.
 - `finals/` and `ledger.csv`: every approved video, and every paid call with what it cost.
@@ -152,7 +188,7 @@ Your second video asks fewer questions than your first.
 |---|---|
 | `skills/explainer-video/` | The explainer method: the steps, the gates, the costs, and every mistake that cost a round of notes |
 | `skills/sizzle-reel/` | The reel method, the motion vocabulary, and its own list of mistakes |
-| `engine/` | One engine under both: `studio.py` (the `vs` command), the build, the scene library, the checks, the Review Studio |
+| `engine/` | One engine under both: `studio.py` (the `vs` command), the build, the scene library, the checks, the Review Studio, and `protocol/` (the review loop and where everything lives, shared by both skills) |
 | `library/sfx/` | 30 sound effects with a measured index (where each starts and peaks, a starting level) |
 | `templates/` | A new studio, a new explainer, a new reel |
 | `examples/meeting-explainer/` | A finished explainer's arc, narration, plan, ten scenes and 95 sound cues, to read |
@@ -166,6 +202,18 @@ come from the words, never typed in. No render until `vs inspect` finds no error
 the voice and never competes. The picture is never re-rendered for sound. In widescreen, anything that leaves a
 vertical frame has to leave the wide one too. The full lists, with the fix for each, are in each skill's
 `references/scars.md`.
+
+## New in 2.2
+
+Text and thin lines no longer flicker while a scene slowly turns: `vs build` draws two frames for every frame it keeps
+and blends them, which takes about twice as long to render (`"blend": 1` in a video's plan turns it off). `vs qa` measures
+that flicker (`shimmer`), so it can't come back unnoticed. The review loop is now one written protocol both skills follow
+(`vs protocol review`): every answer to a note is measured in the next version and gets a verdict, and a lesson reaches
+`lessons.md` only after you decide how far it reaches. Smaller fixes: a first mix can be saved at the levels it starts
+with; a note on a video's last frame can be measured; `vs inspect` warns when the first frame is empty (it's the preview a
+feed shows) and no longer flags things a window has scrolled out of sight; background specks never count as what's on
+screen; a second `vs review wait` refuses instead of quietly reading your send; and filing finals again after a
+re-render keeps one history line per video.
 
 ## New in 2.1.1
 

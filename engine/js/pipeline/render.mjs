@@ -2,7 +2,7 @@
 // render itself plus the cover still.
 import fs from "node:fs";
 import path from "node:path";
-import { QA, TIMELINE } from "../lib/paths.mjs";
+import { QA, TIMELINE, CONTRACTS } from "../lib/paths.mjs";
 import { archive } from "../lib/archive.mjs";
 import { R, W, LAND, FPS, OUT, COMP, ff, hf, r3, mtime } from "./context.mjs";
 import { SEGS, END } from "./timing.mjs";
@@ -53,7 +53,19 @@ export function storyboard() {
 }
 
 export function render() {
-  hf(["render", "-o", path.resolve(OUT), "--fps", String(FPS), "--video-frame-format", "png", "--quiet"]);
+  // Two frames drawn per frame shown, each pair averaged: a light motion blur. Small text and thin lines in a slowly
+  // turning panel get redrawn a little sharper or softer at each angle, so they flickered on alternate frames (the
+  // shimmer qa.py measures: Socrates 95-98 s went from 111-162 flickering patches a second to 18, the text as sharp).
+  // Costs about twice the render time. reel.json "blend": 1 turns it off for one video.
+  const blend = R.blend ?? CONTRACTS.render.blend;
+  if (blend > 1) {
+    const raw = path.resolve(OUT.replace(".mp4", ".frames.mp4"));
+    hf(["render", "-o", raw, "--fps", String(FPS * blend), "--video-frame-format", "png", "--quiet"]);
+    ff("-i", raw, "-vf", `tmix=frames=${blend}:weights=${Array(blend).fill(1).join(" ")},framestep=${blend}`, "-r", String(FPS),
+       "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", "-color_range", "tv", "-colorspace", "bt709",
+       "-color_primaries", "bt709", "-color_trc", "bt709", "-c:a", "copy", "-movflags", "+faststart", path.resolve(OUT));
+    fs.rmSync(raw, { force: true });
+  } else hf(["render", "-o", path.resolve(OUT), "--fps", String(FPS), "--video-frame-format", "png", "--quiet"]);
   // the cover: a still for the platform's thumbnail upload (LinkedIn lets you pick one; most chat apps don't)
   ff("-ss", String(R.cover?.at ?? 2.0), "-i", OUT, "-frames:v", "1", "-q:v", "2", OUT.replace(".mp4", "-cover.jpg"));
   // the version keeps its own copy of the timing it was rendered with (qa.py reads it; the build's copy moves on)

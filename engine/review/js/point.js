@@ -16,7 +16,9 @@ const listeners = new Set();
 let comp = null, // { win, doc, tl, names, elOf: Map(addr → el), W, H, t }
   tool = "point";
 // what the human is pointing at, before it becomes a note
-export const draft = (app.draft = { range: null, inAt: null, target: null, crumbs: [], mark: { type: "none" }, also: [], findings: [], follows: null, frame: null, sound: null });
+// ask + scope: what the human wants done to it (bigger, longer, remove…) and how far that reaches (just here, this whole
+// video, every video), both optional: intent in one click, never a setting the agent would have to obey literally
+export const draft = (app.draft = { range: null, inAt: null, target: null, crumbs: [], mark: { type: "none" }, also: [], findings: [], follows: null, frame: null, sound: null, ask: null, scope: "here" });
 
 // ── the composition, hidden ──
 function loadComp(url, size) {
@@ -160,7 +162,7 @@ export function followUp(n) {
 }
 // a note about one sound effect (the timeline's Sound row): the cue is the target, at its own moment
 export function soundOf(cue) {
-  Object.assign(draft, { crumbs: [], mark: { type: "none" }, also: [], findings: [], follows: null, range: null, inAt: null });
+  Object.assign(draft, { crumbs: [], mark: { type: "none" }, also: [], findings: [], follows: null, range: null, inAt: null, ask: null, scope: "here" });
   draft.target = { el: cue.el };
   draft.sound = { el: cue.el, t: cue.t, sound: cue.sound, db: cue.db };
   pin();
@@ -192,7 +194,7 @@ function finish(a, b) {
   changed();
 }
 export function clear(all = true) {
-  Object.assign(draft, { target: null, crumbs: [], mark: { type: "none" }, also: [], findings: [], follows: null, frame: null, sound: null }, all ? { range: null, inAt: null } : {});
+  Object.assign(draft, { target: null, crumbs: [], mark: { type: "none" }, also: [], findings: [], follows: null, frame: null, sound: null, ask: null, scope: "here" }, all ? { range: null, inAt: null } : {});
   changed();
 }
 export function setTool(k) {
@@ -353,6 +355,8 @@ export const point = {
       findings: [...new Set([...draft.findings, ...findingsAt(draft.range ? draft.range[0] : t, draft.target?.el).map((f) => f.id)])],
       ...(draft.follows ? { follows: draft.follows } : {}),
       ...(draft.sound ? { sound: draft.sound } : {}),
+      ...(draft.ask && !draft.sound ? { ask: draft.ask } : {}),
+      ...(draft.scope && draft.scope !== "here" ? { scope: draft.scope } : {}),
     };
   },
   describe() {

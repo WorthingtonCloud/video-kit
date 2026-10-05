@@ -25,10 +25,16 @@ source file (mix.json is the one exception, as in the mixer: a level set by ear 
   vs review step "<what the human did>" [--stage <stage>] [--when 2026-10-01T20:20]
                                         a step the human took outside the page (an OK in chat): the page's log of steps
                                         shows it. --stage alone marks where the video got to
+  vs review status [--json | --ready]   whose move it is (agent / returned / human / done) and whether the review may
+                                        end: every shape approved, everything sent read, nothing held unsent, every
+                                        note answered, no question or choice waiting. --ready exits 1 until it may
   vs review ask <note> "…"              a question back; the note waits for the answer
   vs review resolve <note> --said "…" [--wontdo] [--files scenes.js …] [--tags pacing.reveal …]
-                                        [--renamed <new name> | --removed]
-                                        what changed (or why not); a target that's gone needs --renamed or --removed
+                                        [--renamed <new name> | --removed] [--expect place|size|time|words|color|…|elsewhere]
+                                        what changed (or why not); a target that's gone needs --renamed or --removed.
+                                        --expect: the change it should show (the human's ask, if they gave one, is
+                                        measured whatever this says; elsewhere = the fix was to something else, so the
+                                        whole moment is measured)
   vs review variant <id> ["what it is"] [--replace] [--anyway]
                                         keep what's built now (inspected, no open errors) as build/variants/<id>/: an
                                         option the human plays live in Decide, with the sources that made it
@@ -46,7 +52,12 @@ source file (mix.json is the one exception, as in the mixer: a level set by ear 
                                         lessons, time reviewing, cost (--md: the table for DOGFOOD.md)
   vs review learn                       patterns in the studio's accepted notes: a tag in 2 projects, or 3 times in one
   vs review propose <tag> "<the rule>" [--to profile|lessons|check|kit|video]
-                                        put one to the human: Remember, This video only, or Ignore (remembered too)
+                                        put one to the human: Every video, Every <kind>, This video only, or Ignore
+  vs review promote <lesson> [--heading "Picture"] [--set mix.music_db=-18] [--chat "<their words>" --as remember|kind]
+                                        write a rule the human decided into the studio (lessons.md, marked; a value into
+                                        profile.json). Refused until they decided it; this-video-only stays in the project
+  vs review rules [--json]              every rule promoted through review, where it lives, where it came from
+  vs review forget <lesson>             take a promoted rule back out (and a profile value it set, if unchanged since)
 
 The loop, every round: the human gives feedback (notes, answers to Claude's questions and fixes, finding decisions,
 picks, a saved mix, approving the video); each waits in the page, held, with Undo, until they review the list and press
@@ -55,7 +66,16 @@ was sent; the page sees the held ones too. A note added after a send waits for i
 
 A note can be about one sound effect (a click on the timeline's Sound row; it plays alone): its "sound" says which cue
 and the human's ask (quieter, louder, a different sound, remove it). The fix goes in cues.py; the next round measures it
-in that version's cues (level, sound, moment), and flags an answer that went the other way.
+in that version's cues (level, sound, moment), and flags an answer that went the other way. A visual note can carry an
+ask too (the note box's buttons: move it, bigger, smaller, longer, shorter, less busy, remove it) and how far it reaches
+(scope: here, project = everywhere in this video, studio = every video, which makes it a candidate rule).
+
+Every answer is measured when the next version opens, and gets a verdict (feedback.py): changed (the way it was asked),
+removed (gone, as the answer said), other (changed, not as asked), contrary (the other way), unchanged, gone (and the
+answer didn't say so), or unmeasured (with why: no map, or the note's measurement can't see what was asked). Implemented
+(the agent says so), verified (the measurement saw it) and accepted (the human says so) are three different things: the
+page and vs review show say which, and the human may accept over the measurement (it's recorded). A rename alone is not
+a change.
 
 Standing rules vs inspect enforces: every keep-clear zone in a sent note (nothing but what it was drawn over may enter
 it, in that note's scene, on its cut), and every scene the human marked done (its frames and length are held to the
@@ -65,7 +85,8 @@ Tags (resolve --tags): pacing.reveal pacing.hold pacing.cut · layout.safe-zone 
   layout.keep-clear layout.balance · type.size type.contrast · copy.wording copy.fast-text · motion.style ·
   color.meaning · audio.music-level audio.sfx-level audio.sfx-choice · story.order · kit.bug · qa.miss (a real
   problem the checks should have caught: the report counts the accepted ones)
-Accepted notes and the human's decisions go to the studio's feedback.jsonl; taste never goes to the public kit.
+Accepted notes, the human's decisions and the rules promoted from them go to the studio's feedback.jsonl; taste never
+goes to the public kit. The protocol these commands follow, for any skill: vs protocol review.
 
 review/
   log.jsonl    every event, one per line, appended and never edited. The page and the agent both write it, through here,
@@ -78,6 +99,7 @@ import argparse, fcntl, glob, json, os, re, subprocess, sys
 from datetime import datetime, timezone
 
 import vslib
+import feedback  # the protocol, with nothing about video in it: phases, asks, verdicts, the hand-off, learning
 
 REVIEW = "review"
 LOG, STATE, FRAMES, LOCK = (f"{REVIEW}/log.jsonl", f"{REVIEW}/state.json", f"{REVIEW}/frames", f"{REVIEW}/.lock")
@@ -89,6 +111,10 @@ HELD = {"note.added", "note.edited", "note.withdrawn", "note.answered", "note.ac
 HUMAN = HELD | {"round.sent", "undo", "friction.noted", "time.spent"}
 AGENT = {"round.opened", "note.question", "note.resolved", "note.measured", "choice.offered", "choice.applied",
          "lesson.proposed", "finding.advised", "step.logged", "round.read", "finding.carried", "project.finished"}
+# the human's ask on a visual note (the note box's buttons: what they want, never how) and on a sound (the timeline's
+# Sound row); how far a note reaches (just here, this whole video = "project", every video = "studio": a candidate rule)
+NOTE_ASKS = {"move", "bigger", "smaller", "longer", "shorter", "simpler", "remove"}
+NOTE_SCOPES = {"here", "project", "studio"}
 MIX_KEYS = {"take", "music_db", "duck_db", "sfx_db", "fx_on", "summary", "saved"}  # what mix.json keeps
 STAGES = {k: v for k, v in vslib.CONTRACTS["stages"].items() if not k.startswith("_")}
 PLAIN = {k: v for k, v in vslib.CONTRACTS["plain"].items() if not k.startswith("_")}
@@ -101,7 +127,13 @@ def check_of(fid):
     return max((c for c in PLAIN if body == c or body.startswith(c + "-")), key=len, default=None)
 MARKS = {"none", "click", "box", "arrow", "keep-clear"}
 # a note's life: draft (in an open round) → sent → question ⇄ (answered: sent) → resolved | wontdo → accepted | reopened
-WAITING = {"sent", "reopened"}  # the agent owes these an answer before the next round opens
+# (feedback.phase names the same life in the protocol's words: observation → intent → verification → acceptance)
+WAITING = feedback.WAITING  # the agent owes these an answer before the next round opens
+
+
+def ask_of(n):
+    """The human's ask on a note: its own, or the one they gave a sound (a sound's ask lives on its cue address)."""
+    return n.get("ask") or (n.get("sound") or {}).get("ask")
 
 
 # The short list an answer is tagged from (vs review resolve --tags), and where a pattern of each would go once the
@@ -214,8 +246,22 @@ def wait(args):
     The signal is positive: a send in the log that the agent hasn't read (sends > read_sends), checked every 2 s, so a
     send that landed before the wait started counts at once. The agent runs this in the background and is woken when it
     exits; the page shows "Claude is watching" while it runs. Exit 0 = sent, 2 = timed out (nothing was sent)."""
-    import atexit, time
+    import atexit, signal, time
     os.makedirs(REVIEW, exist_ok=True)
+    # one watcher per project: a second one never hears the send the first one reads (an explainer, Oct 4, 2026: a
+    # leftover watcher read the human's send and exited into a log nobody watched; the agent sat on the other one)
+    if agent_waiting():
+        old = vslib.read_json(WAITING_FILE)
+        if not args.replace:
+            print(f"⛔ another vs review wait is already watching this project (pid {old['pid']}, since {old.get('since')}): "
+                  "it will read the send. Watch that one, or take over with vs review wait --replace", file=sys.stderr)
+            sys.exit(3)
+        os.kill(int(old["pid"]), signal.SIGTERM)
+        for _ in range(50):
+            if not agent_waiting():
+                break
+            time.sleep(0.1)
+        print(f"replaced the watcher that was running (pid {old['pid']})", flush=True)
     json.dump({"pid": os.getpid(), "since": datetime.now().isoformat(timespec="seconds")}, open(WAITING_FILE, "w"))
     atexit.register(lambda: os.path.exists(WAITING_FILE) and vslib.read_json(WAITING_FILE).get("pid") == os.getpid()
                     and os.remove(WAITING_FILE))
@@ -266,6 +312,8 @@ def _step(S, e, seq, pending):
         n = S["notes"][e["note"]["id"]]
         tm = n["time"].get("t", n["time"].get("t0"))
         words = f"“{_q(n['comment'])}”" if (n.get("comment") or "").strip() else "a mark, no words"
+        if n.get("ask"):
+            words = feedback.ASK_WORDS[n["ask"]] + (f", {words}" if (n.get("comment") or "").strip() else "")
         head = None
         if n.get("step"):
             head = f"About \u201c{_q(n['step'].get('text'), 48)}\u201d"
@@ -336,7 +384,8 @@ def _step(S, e, seq, pending):
         x = {"version": e.get("version"), "cut": e.get("cut")}
     elif t == "lesson.decided":
         lz = S["lessons"][e["id"]]
-        text = f"Lesson “{_q(lz.get('text'), 48)}”: " + {"remember": "remember it", "video": "this video only", "ignore": "ignore it"}[e["decision"]]
+        text = f"Lesson “{_q(lz.get('text'), 48)}”: " + {"remember": "every video", "kind": "every video like this", "project": "this video only",
+                                                          "ignore": "ignore it"}[e["decision"]] + (f" (in chat: “{_q(e.get('said'), 40)}”)" if e.get("via") == "chat" else "")
         x = {"lesson": lz["id"]}
     elif t == "scene.done":
         text, x = f"Scene {e.get('segment')} is done", {"segment": e.get("segment")}
@@ -444,10 +493,14 @@ def apply(S, e):
         m = n.get("mark") or {"type": "none"}
         if m.get("type") not in MARKS:
             raise Refused(f"mark {m.get('type')!r} isn't one of: {', '.join(sorted(MARKS))}")
-        if not (n.get("comment") or "").strip() and not n.get("target") and m["type"] == "none":
-            raise Refused("a note needs words, a target or a mark")
+        if not (n.get("comment") or "").strip() and not n.get("target") and m["type"] == "none" and not n.get("ask"):
+            raise Refused("a note needs words, a target, a mark or an ask")
         if n.get("cut") and R.get("cuts") and n["cut"] not in [c["cut"] for c in R["cuts"]]:
             raise Refused(f"round {R['n']} has no {n['cut']} cut")
+        if n.get("ask") is not None and n["ask"] not in NOTE_ASKS:
+            raise Refused(f"ask {n['ask']!r} isn't one of: {', '.join(sorted(NOTE_ASKS))}")
+        if n.get("scope") is not None and n["scope"] not in NOTE_SCOPES:
+            raise Refused(f"scope {n['scope']!r} isn't one of: {', '.join(sorted(NOTE_SCOPES))}")
         # added after Send: held, it waits for its own send; from an older page, it went straight to the agent
         late = R["status"] == "sent"
         n.update({"round": R["n"], "version": R["version"], "cut": n.get("cut") or R["cut"], "mark": m,
@@ -458,7 +511,9 @@ def apply(S, e):
     elif t == "note.edited":
         n = note_of(S, e)
         need(n, {"draft"}, "edited")
-        for k in ("comment", "mark", "also", "target", "time", "visible", "findings", "segment", "scene", "crumbs"):
+        if e.get("ask") is not None and e["ask"] not in NOTE_ASKS or e.get("scope") is not None and e["scope"] not in NOTE_SCOPES:
+            raise Refused("an ask or a scope that isn't on the list")
+        for k in ("comment", "mark", "also", "target", "time", "visible", "findings", "segment", "scene", "crumbs", "ask", "scope"):
             if k in e:
                 n[k] = e[k]
     elif t == "note.withdrawn":
@@ -493,8 +548,10 @@ def apply(S, e):
         need(n, WAITING | {"question"}, "resolved")
         if not (e.get("said") or "").strip():
             raise Refused("say what changed, or why not (--said)")
+        if e.get("expect") is not None and e["expect"] not in feedback.EXPECT:
+            raise Refused(f"expect {e['expect']!r} isn't one of: {', '.join(sorted(feedback.EXPECT))}")
         n["status"] = "wontdo" if e.get("outcome") == "wontdo" else "resolved"
-        n["resolution"] = {k: e.get(k) for k in ("outcome", "said", "files", "tags", "version", "renamed", "removed")}
+        n["resolution"] = {k: e.get(k) for k in ("outcome", "said", "files", "tags", "version", "renamed", "removed", "expect")}
         n["resolution"]["at"] = at
         thread(n, e["said"], n["status"])
     elif t == "note.measured":
@@ -503,6 +560,7 @@ def apply(S, e):
         n = note_of(S, e)
         need(n, {"resolved", "wontdo"}, "accepted")
         n["status"] = "accepted"
+        n["accepted"] = {"at": at, "verdict": feedback.verdict(n.get("measured"))}  # what the measurement said when they did
     elif t == "note.reopened":
         n = note_of(S, e)
         need(n, {"resolved", "wontdo"}, "reopened")
@@ -590,9 +648,12 @@ def apply(S, e):
         S["lessons"][lz["id"]] = lz
     elif t == "lesson.decided":
         lz = found(S["lessons"], e, "lesson")
-        if e.get("decision") not in ("remember", "video", "ignore"):
-            raise Refused("decide remember, video or ignore")
-        lz.update(decision=e["decision"], decided=at)
+        if e.get("decision") not in feedback.DECISION_SCOPE:
+            raise Refused("decide remember (every video), kind (every video of this kind), video (this one only) or ignore")
+        if e.get("via") == "chat" and not (e.get("said") or "").strip():
+            raise Refused("a decision made in chat keeps the human's own words (said): the agent records it, never makes it")
+        lz.update(decision=e["decision"], decided=at, **({"via": e["via"], "said": e["said"].strip(), "recorded_by": e.get("recorded_by") or "agent"}
+                                                         if e.get("via") else {}))
     elif t == "friction.noted":
         if not (e.get("text") or "").strip():
             raise Refused("say what's in the way")
@@ -755,40 +816,58 @@ def _forget_stills(evs, new):
                     os.remove(f)
 
 
-# ── what the studio remembers across projects: accepted notes (tagged) and the human's decisions on lessons ──
+# ── what the studio remembers across projects: accepted notes (tagged), the human's decisions on lessons, the rules
+#    promoted from them (and taken back), and the page's tool-problem reports. Project state stays in review/; this file
+#    is the studio's, so a pattern can be counted across videos. ──
 def feedback_path():
     s = vslib.studio_root()
     return os.path.join(s, "feedback.jsonl") if s else None
 
 
-def feedback():
+def studio_feedback():
     f = feedback_path()
     return [json.loads(l) for l in open(f) if l.strip()] if f and os.path.exists(f) else []
 
 
-def _to_studio(S, new):
-    """An accepted note and a decided lesson go to the studio's feedback.jsonl (no studio: nothing to remember into)."""
+def kind_of():
+    """What kind of video this project is (a lesson can reach every video of one kind)."""
+    return "explainer" if os.path.exists("plan.json") else "reel"
+
+
+def _studio_write(lines):
     f = feedback_path()
-    if not f:
+    if not f or not lines:
         return
+    with open(f, "a") as fh:
+        for l in lines:
+            fh.write(json.dumps(l) + "\n")
+
+
+def _to_studio(S, new):
+    """An accepted note, a decided lesson and a tool problem go to the studio's feedback.jsonl (no studio: nothing to
+    remember into)."""
     lines = []
     for e in new:
         if e["type"] == "note.accepted":
             n = S["notes"][e["id"]]
-            lines.append({"kind": "note", "project": vslib.project_name(), "note": n["id"], "tags": (n.get("resolution") or {}).get("tags") or [],
-                          "comment": n.get("comment"), "said": (n.get("resolution") or {}).get("said"), "version": n["version"], "at": e["at"]})
+            lines.append({"kind": "note", "project": vslib.project_name(), "of_kind": kind_of(), "note": n["id"],
+                          "tags": (n.get("resolution") or {}).get("tags") or [], "comment": n.get("comment"),
+                          "said": (n.get("resolution") or {}).get("said"), "version": n["version"], "at": e["at"],
+                          **({"ask": ask_of(n)} if ask_of(n) else {}), **({"scope": n["scope"]} if n.get("scope") else {}),
+                          **({"verdict": n["accepted"]["verdict"]} if (n.get("accepted") or {}).get("verdict") else {})})
         elif e["type"] == "lesson.decided":
             lz = S["lessons"][e["id"]]
-            lines.append({"kind": "lesson", "project": vslib.project_name(), "lesson": lz["id"], "tag": lz.get("tag"),
-                          "text": lz.get("text"), "dest": lz.get("dest"), "decision": lz["decision"], "at": e["at"]})
-    if lines:
-        with open(f, "a") as fh:
-            for l in lines:
-                fh.write(json.dumps(l) + "\n")
+            lines.append({"kind": "lesson", "project": vslib.project_name(), "of_kind": kind_of(), "lesson": lz["id"], "tag": lz.get("tag"),
+                          "text": lz.get("text"), "dest": lz.get("dest"), "decision": lz["decision"], "at": e["at"],
+                          "via": lz.get("via") or "page", **({"said": lz["said"], "recorded_by": lz.get("recorded_by")} if lz.get("via") == "chat" else {})})
+        elif e["type"] == "friction.noted":
+            lines.append({"kind": "friction", "project": vslib.project_name(), "text": e.get("text"), "where": e.get("where"), "at": e["at"]})
+    _studio_write(lines)
 
 
 def _to_dogfood(S, new):
-    """The page's Problem? button (report a tool problem): a line in the kit's DOGFOOD.md friction log, never the fix list."""
+    """The page's Problem? button (report a tool problem): a line in the kit's DOGFOOD.md friction log when the kit has
+    one (a development checkout; the published kit doesn't), never the fix list. The studio keeps every report anyway."""
     f = os.environ.get("VIDEO_KIT_DOGFOOD") or os.path.join(vslib.KIT, "DOGFOOD.md")  # tests point it elsewhere
     lines = [e for e in new if e["type"] == "friction.noted"]
     if not lines or not os.path.exists(f):
@@ -804,29 +883,10 @@ def _to_dogfood(S, new):
 
 
 def candidates(project=None):
-    """Patterns worth asking about: a tag on accepted notes in 2 projects, or 3 times in one. Plain counting: the agent
-    only words the question. A tag the human ignored is never asked again; one they remembered is already a rule; one
-    kept for a single video isn't asked again in that video; one already proposed here waits for its answer."""
+    """Patterns worth asking about (feedback.patterns: plain counting; the agent only words the question)."""
     project = project or vslib.project_name()
-    fb, seen = feedback(), set()
-    by = {}
-    for l in fb:
-        if l["kind"] == "note" and (l["project"], l["note"]) not in seen:
-            seen.add((l["project"], l["note"]))
-            for t in l["tags"]:
-                by.setdefault(t, []).append(l)
-    done = {l["tag"] for l in fb if l["kind"] == "lesson" and l["decision"] in ("ignore", "remember")}
-    done |= {l["tag"] for l in fb if l["kind"] == "lesson" and l["decision"] == "video" and l["project"] == project}
-    pending = {lz.get("tag") for lz in state()["lessons"].values() if lz["decision"] is None} if os.path.exists(STATE) else set()
-    out = []
-    for t, ls in by.items():
-        per = {}
-        for l in ls:
-            per[l["project"]] = per.get(l["project"], 0) + 1
-        if t not in done and t not in pending and (len(per) >= 2 or max(per.values()) >= 3):
-            out.append({"tag": t, "count": len(ls), "projects": per, "notes": [f"{l['project']}/{l['note']}" for l in ls],
-                        "comments": [l["comment"] for l in ls if l.get("comment")][:4]})
-    return sorted(out, key=lambda c: -c["count"])
+    pending = {lz.get("tag") for lz in state()["lessons"].values() if lz["decision"] is None} if os.path.exists(LOG) else set()
+    return feedback.patterns(studio_feedback(), project, kind_of(), pending)
 
 
 # ── versions: a render is out/<name>[-16x9]-vN.mp4; its mixes add -takeK / -sfx / -mixed ──
@@ -939,11 +999,51 @@ def _overlaps(a, b):
     return a[0] < b[2] and a[2] > b[0] and a[1] < b[3] and a[3] > b[1]
 
 
+def _area(b):
+    return max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+
+
+BACKDROP = re.compile(r"^frame/|/~ex-(spot|mote|glow|dust)(#\d+)?$")  # the ground every frame stands on, never "busy" (= maps.js)
+
+
+def visible_at(E, t):
+    """What the element map says is on screen at a moment (as the page counts it for a note's "visible"), minus the
+    backdrop."""
+    h = E.get("step", 0.15) / 2 + 1e-3
+    return {x["id"] for x in E["items"] if not BACKDROP.search(x["id"]) and any(a - h <= t <= b + h for a, b in x.get("on") or [])}
+
+
+def _busy(n, E, t):
+    """How many more (or fewer) things are on screen at the note's moment than when the human wrote it."""
+    if not E or n.get("visible") is None:
+        return None
+    old = {v for v in n["visible"] if not BACKDROP.search(v)}
+    return len(visible_at(E, t)) - len(old)
+
+
+def _judge(m, n, can):
+    """The protocol's verdict on a measurement (feedback.judge), written into it with the flag it implies."""
+    res = n.get("resolution") or {}
+    m["verdict"], m["expected_met"], m["flag"] = feedback.judge(
+        m.get("changes"), ask=ask_of(n), expect=res.get("expect"), outcome=res.get("outcome") or "resolved",
+        removed=bool(res.get("removed")), can=can)
+    m["strength"] = feedback.strength(ask_of(n), res.get("expect"), m["verdict"])
+    if m["verdict"] == "unmeasured":  # what was asked is out of this measurement's sight: say which, beside what it saw
+        m["why"] = m["flag"].removeprefix("not measured: ")
+    else:
+        m.pop("why", None)
+    return m
+
+
+ELEMENT_DIMS = ("place", "size", "time", "words", "presence", "busy", "pixels")
+
+
 def measure(n, E, size):
     """What the new version did to a note's target, from vs inspect's map: where its box went at the note's moment (in
     pixels of the new frame), whether its words or its time on screen changed, whether it left the keep-clear zones the
-    human drew, and how far it now is from where the human's arrow pointed. flag = something the agent has to answer:
-    a claimed fix that measures as no change at all, or a target that's gone without --renamed or --removed."""
+    human drew, how far it now is from where the human's arrow pointed, and how much is on screen around it. Each real
+    change becomes a dimension in m["changes"]; feedback.judge turns them into the verdict (changed, other, contrary,
+    unchanged, gone). A rename alone is not a change: the renamed target is measured like any other."""
     tgt, res = n.get("target") or {}, n.get("resolution") or {}
     name = res.get("renamed") or tgt.get("el")
     if not name or not tgt.get("box"):
@@ -951,12 +1051,11 @@ def measure(n, E, size):
     t = n["time"].get("t", n["time"].get("t0"))
     W, H = size
     e = next((x for x in E["items"] if x["id"] == name), None)
-    m = {"el": name, "t": t, "flag": None}
+    m = {"el": name, "t": t, "flag": None, "changes": {}}
     if not e or not e["on"]:
         m["gone"] = True
-        if not res.get("removed"):
-            m["flag"] = "the target is gone, but the answer didn't say --renamed or --removed"
-        return m
+        m["changes"]["presence"] = -1
+        return _judge(m, n, ELEMENT_DIMS)
     h = E.get("step", 0.15) / 2 + 1e-3
     span = next(([a, b] for a, b in e["on"] if a - h <= t <= b + h), None)
     if not span:  # not on screen at the note's moment any more: report where it is in time
@@ -967,51 +1066,72 @@ def measure(n, E, size):
     (ox, oy), (nx, ny) = c(ob), c(nb)
     m.update(old_box=ob, new_box=nb, dx=round((nx - ox) * W), dy=round((ny - oy) * H),
              dw=round(((nb[2] - nb[0]) - (ob[2] - ob[0])) * W), dh=round(((nb[3] - nb[1]) - (ob[3] - ob[1])) * H))
+    ch = m["changes"]
     if tgt.get("text") is not None and tgt["text"] != e["text"]:
         m["text"] = {"old": tgt["text"], "new": e["text"]}
+        ch["words"] = True
     if tgt.get("on") and span and [round(v, 2) for v in tgt["on"]] != [round(v, 2) for v in span]:
         m["span"] = {"old": tgt["on"], "new": span}
+        d = (span[1] - span[0]) - (tgt["on"][1] - tgt["on"][0])
+        ch["time"] = d if abs(d) >= 0.05 else True  # longer or shorter on screen, or the same length moved
+    if m.get("off_at_t"):
+        ch["time"] = ch.get("time") or True
     zones = [z["box"] for z in n.get("also") or [] if z.get("type") == "keep-clear"]
     if zones:
         m["keep_clear"] = [{"before": _overlaps(ob, z), "after": _overlaps(nb, z)} for z in zones]
     mk = n.get("mark") or {}
+    moved = max(abs(m["dx"]), abs(m["dy"])) >= 2
     if mk.get("type") == "arrow":
         d = lambda x, y: round(((x - mk["to"][0]) ** 2 * W * W + (y - mk["to"][1]) ** 2 * H * H) ** 0.5)
         m["arrow"] = {"before": d(ox, oy), "after": d(nx, ny)}
-    moved = max(abs(m["dx"]), abs(m["dy"]), abs(m["dw"]), abs(m["dh"])) >= 2
-    if res.get("outcome") == "resolved" and not (moved or "text" in m or "span" in m or m.get("off_at_t") or res.get("renamed")):
-        m["flag"] = "nothing measurable changed (its place, size, words and time on screen are the same): if the fix was a color, a sound or a timing elsewhere, say so"
+        if moved:  # toward where the arrow pointed, or away from it
+            ch["place"] = 1 if m["arrow"]["after"] < m["arrow"]["before"] else -1
+    elif moved:
+        ch["place"] = 1
+    if max(abs(m["dw"]), abs(m["dh"])) >= 2:
+        ratio = _area(nb) / (_area(ob) or 1e-9)
+        ch["size"] = (ratio - 1) if abs(ratio - 1) >= 0.02 else True
+    busy = _busy(n, E, t)
+    if busy:
+        m["busy"] = busy
+        ch["busy"] = busy
+    _judge(m, n, ELEMENT_DIMS)
+    if m["verdict"] == "unchanged" and m["flag"]:
+        m["flag"] = ("nothing measurable changed (its place, size, words and time on screen are the same): if the fix was a "
+                     "color, a sound or something elsewhere, say so (vs review resolve --expect)")
     return m
 
 
 def measure_sound(n, cues):
     """What the new version did to a sound the human answered, from vs mix's cues: its level against the voice, its
-    sound, its moment, or gone. flag: the answer went the other way from the ask, or a claimed fix measures as nothing."""
+    sound, its moment, or gone; judged against their ask (quieter, louder, a different sound, remove it)."""
     sd, res = n.get("sound") or {}, n.get("resolution") or {}
     name = res.get("renamed") or sd.get("el")
-    if not name or cues is None:
+    if not name or not isinstance(cues, list):  # no cues for this version (vs mix hasn't run: read_json's {}) ≠ the sound is gone
         return None
     c = next((x for x in cues if x["el"] == name), None)
-    m = {"el": name, "t": sd.get("t"), "flag": None, "sound": True}
-    ask = sd.get("ask")
+    m = {"el": name, "t": sd.get("t"), "flag": None, "sound": True, "changes": {}}
     if not c:
         m["gone"] = True
-        if not res.get("removed"):
-            m["flag"] = "the sound is gone, but the answer didn't say --renamed or --removed"
-        return m
+        m["changes"]["presence"] = -1
+        return _judge(m, n, ("level", "content", "time", "presence"))
     m.update(db={"old": sd.get("db"), "new": c.get("db")}, name={"old": sd.get("sound"), "new": c.get("sound")},
              dt=round((c["t"] or 0) - (sd.get("t") or 0), 3))
     louder = (c.get("db") or 0) - (sd.get("db") or 0)
-    same = abs(louder) < 0.5 and c.get("sound") == sd.get("sound") and abs(m["dt"]) < 0.02
-    if res.get("outcome") == "resolved":
-        if same and not res.get("renamed"):
-            m["flag"] = "nothing measurable changed (its level, its sound and its moment are the same)"
-        elif ask == "quieter" and louder > 0 or ask == "louder" and louder < 0:
-            m["flag"] = f"asked {ask}, measured {abs(louder):g} dB {'louder' if louder > 0 else 'quieter'}"
-        elif ask == "remove":
-            m["flag"] = "asked to remove it, and it's still there"
-        elif ask == "different" and c.get("sound") == sd.get("sound"):
-            m["flag"] = "asked for a different sound, and it's the same one"
+    ch = m["changes"]
+    if abs(louder) >= 0.5:
+        ch["level"] = louder
+    if c.get("sound") != sd.get("sound"):
+        ch["content"] = True
+    if abs(m["dt"]) >= 0.02:
+        ch["time"] = True
+    _judge(m, n, ("level", "content", "time", "presence"))
+    if m["verdict"] == "contrary" and "level" in ch:  # say it in dB, the way the Mix panel does
+        m["flag"] = f"asked {sd.get('ask')}, measured {abs(louder):g} dB {'louder' if louder > 0 else 'quieter'}"
+    elif m["verdict"] == "other" and sd.get("ask") == "remove":
+        m["flag"] = "asked to remove it, and it's still there"
+    elif m["verdict"] == "other" and sd.get("ask") == "different":
+        m["flag"] = "asked for a different sound, and it's the same one"
     return m
 
 
@@ -1106,15 +1226,34 @@ def _moved(px):
     return bool(px) and (px.get("changed", 0) >= 0.005 or px.get("faint", 0) >= 0.02)
 
 
-def measure_moment(n, old, new):
-    """A note pinned to a moment, not an element (a sound on a dark frame, "it repeats here"): the whole picture and the
-    sound around it, old version against new."""
+def measure_moment(n, old, new, E=None):
+    """A note pinned to a moment, not an element (a sound on a dark frame, "it repeats here"), or one the agent answered
+    by changing something else (--expect elsewhere): the whole picture and the sound around it, old version against new,
+    and how much is on screen."""
     t = n["time"].get("t", n["time"].get("t0"))
-    m = {"el": None, "t": t, "moment": True, "flag": None, "pixels": measure_pixels(old, new, t), "audio": measure_audio(old, new, t)}
+    m = {"el": None, "t": t, "moment": True, "flag": None, "pixels": measure_pixels(old, new, t), "audio": measure_audio(old, new, t),
+         "changes": {}}
     px, au = m["pixels"] or {}, m["audio"] or {}
-    if (n.get("resolution") or {}).get("outcome") == "resolved" and not _moved(px) and au.get("changed_secs", 0) < 0.1:
+    if _moved(px):
+        m["changes"]["pixels"] = True
+    if au.get("changed_secs", 0) >= 0.1:
+        m["changes"]["sound"] = True
+    busy = _busy(n, E, t)
+    if busy:
+        m["busy"] = busy
+        m["changes"]["busy"] = busy
+    if m["pixels"] is None and m["audio"] is None:
+        return unmeasured(n, "neither render could be read at that moment")
+    _judge(m, n, ("pixels", "sound", "busy"))
+    if m["verdict"] == "unchanged" and m["flag"]:
         m["flag"] = "nothing measurable changed at that moment (the picture and the sound around it are the same)"
     return m
+
+
+def unmeasured(n, why):
+    """A resolved note the tooling couldn't measure, said out loud (it used to be silence, which read like no news)."""
+    return {"el": (n.get("target") or {}).get("el") or (n.get("sound") or {}).get("el"), "t": n["time"].get("t", n["time"].get("t0")),
+            "verdict": "unmeasured", "why": why, "flag": f"not measured: {why}", "changes": {}}
 
 
 def _describe_pixels(px):
@@ -1137,9 +1276,19 @@ def _describe_audio(au):
     return f"the sound around it changed ({au['changed_secs']:g}s of the {au['window']:g}s around it){moved}"
 
 
+def _describe_busy(m):
+    b = m.get("busy")
+    return f"{abs(b)} {'more' if b > 0 else 'fewer'} thing{'s' if abs(b) != 1 else ''} on screen" if b else None
+
+
 def describe_measured(m):
+    """A measurement in plain words, for the agent (vs review show) and the human (the page's "Measured:" line)."""
+    if m.get("verdict") == "unmeasured" and not m.get("changes"):
+        return f"not measured: {m.get('why') or 'the tooling had nothing to compare'}"
+    if m.get("basis") == "pixels":  # no element map: only the pixels where the target was
+        return (_describe_pixels(m.get("pixels")) or "not measured") + " (no element map: pixels only)" + (f" · ⚠ {m['flag']}" if m["flag"] else "")
     if m.get("moment"):
-        parts = [x for x in (_describe_pixels(m.get("pixels")), _describe_audio(m.get("audio"))) if x]
+        parts = [x for x in (_describe_pixels(m.get("pixels")), _describe_audio(m.get("audio")), _describe_busy(m)) if x]
         return (" · ".join(parts) or "not measured") + (f" · ⚠ {m['flag']}" if m["flag"] else "")
     if m.get("sound") and not m.get("gone"):
         parts = []
@@ -1151,18 +1300,19 @@ def describe_measured(m):
             parts.append(f"{abs(m['dt']):.2f}s {'later' if m['dt'] > 0 else 'earlier'}")
         return " · ".join(parts) + (f" · ⚠ {m['flag']}" if m["flag"] else "")
     if m.get("gone"):
-        return "gone from this version" + (f" · ⚠ {m['flag']}" if m["flag"] else "")
+        return ("removed in this version, as the answer said" if m.get("verdict") == "removed" else "gone from this version") + (
+            f" · ⚠ {m['flag']}" if m["flag"] else "")
     parts = []
     if m.get("off_at_t"):
         parts.append(f"no longer on screen at {m['t']:.2f}s (now {m['on'][0]:.2f}–{m['on'][1]:.2f}s)")
     mv = []
-    if m["dx"]:
+    if m.get("dx"):
         mv.append(f"{abs(m['dx'])} px {'right' if m['dx'] > 0 else 'left'}")
-    if m["dy"]:
+    if m.get("dy"):
         mv.append(f"{abs(m['dy'])} px {'down' if m['dy'] > 0 else 'up'}")
     parts.append("moved " + ", ".join(mv) if mv else "didn't move")
-    if m["dw"] or m["dh"]:
-        parts.append(f"size {m['dw']:+d} × {m['dh']:+d} px")
+    if m.get("dw") or m.get("dh"):
+        parts.append(f"size {m.get('dw', 0):+d} × {m.get('dh', 0):+d} px")
     if "text" in m:
         parts.append(f"words \u201c{m['text']['old']}\u201d → \u201c{m['text']['new']}\u201d")
     if "span" in m:
@@ -1172,6 +1322,8 @@ def describe_measured(m):
                       (True, True): "still in the keep-clear zone", (False, True): "moved INTO the keep-clear zone"}[(k["before"], k["after"])])
     if "arrow" in m:
         parts.append(f"{m['arrow']['after']} px from where the arrow pointed (was {m['arrow']['before']})")
+    if m.get("busy"):
+        parts.append(_describe_busy(m))
     if m.get("pixels"):
         parts.append(_describe_pixels(m["pixels"]))
     return " · ".join(parts) + (f" · ⚠ {m['flag']}" if m["flag"] else "")
@@ -1183,8 +1335,10 @@ RED, AMBER = (232, 64, 44), (217, 164, 59)
 
 def _frame(video, t, W, H):
     # a note's moment is a frame's own time (k/fps, rounded to the millisecond): back off under half a frame so the
-    # rounding can't push ffmpeg onto the next one
-    t = max(0.0, t - 0.4 / fps_of(video))
+    # rounding can't push ffmpeg onto the next one. A moment at (or past) the end is the last frame: a note on the end
+    # card's final frame read "no frame at 159.99s" (corporate-job, Oct 2; an explainer, Oct 4, 2026)
+    fps = fps_of(video)
+    t = max(0.0, min(t, probe(video)[2] - 1 / fps) - 0.4 / fps)
     raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{t:.4f}", "-i", video, "-frames:v", "1",
                           "-f", "rawvideo", "-pix_fmt", "rgb24", "-"], capture_output=True, check=True).stdout
     import numpy as np
@@ -1382,7 +1536,13 @@ def show(args):
         return print("no rounds yet: vs review open starts one on a rendered version")
     if args.json:
         pick = [args.note] if args.note else [i for i, n in S["notes"].items() if n["round"] == R["n"] or n["status"] in WAITING | {"question"}]
-        return print(json.dumps({"round": R, "notes": [S["notes"][i] for i in pick]}, indent=1))
+        art = {"project": vslib.project_name(), "kind": kind_of()}
+        print(json.dumps({"round": R, "notes": [S["notes"][i] for i in pick],
+                          "records": [as_record(S["notes"][i], S, art) for i in pick],
+                          "rules": project_rules(S)}, indent=1))
+        if not args.note and (R.get("sends") or 0) > (R.get("read_sends") or 0):
+            append([{"type": "round.read", "round": R["n"]}], "agent")  # read as JSON is read all the same
+        return
     if args.note:
         notes = [S["notes"].get(args.note) or sys.exit(f"⛔ no note {args.note}")]
     else:
@@ -1412,12 +1572,20 @@ def show(args):
             print(f"  about their step: {n['step'].get('text')}" + (f" ({n['step']['at'][:16].replace('T', ' ')})" if n["step"].get("at") else ""))
         if (n.get("comment") or "").strip():
             print(f"  “{n['comment'].strip()}”")
+        if n.get("ask") or (n.get("scope") or "here") != "here":
+            print("  ask: " + " · ".join(x for x in [feedback.ASK_WORDS.get(n.get("ask")) if n.get("ask") else None,
+                                                     {"project": "everywhere in this video", "studio": "in every video (they want it to be a rule)"}.get(n.get("scope"))] if x))
         if n.get("follows"):
             print(f"  follows {n['follows']}")
         for h in n["thread"]:
             print(f"  {h['by']} ({h['type']}): {h['text']}")
         if n.get("measured"):
-            print(f"  measured (v{n['measured']['from']} → v{n['measured']['to']}): {describe_measured(n['measured'])}")
+            v = feedback.verdict(n["measured"])
+            st = n["measured"].get("strength") or feedback.strength(ask_of(n), (n.get("resolution") or {}).get("expect"), v)
+            print(f"  measured (v{n['measured'].get('from')} → v{n['measured'].get('to')}): {describe_measured(n['measured'])}"
+                  f"  [{feedback.VERDICT_WORDS.get(v, v)}{', by a stand-in' if st == 'proxy' else ''}]")
+        if n["status"] == "accepted" and (n.get("accepted") or {}).get("verdict") not in (None, *feedback.VERIFIED):
+            print(f"  accepted over the measurement ({feedback.VERDICT_WORDS[n['accepted']['verdict']]}): the human's eyes decided")
         if n.get("visible"):
             print(f"  on screen: {', '.join(v.split('/', 1)[-1] for v in n['visible'][:12])}{' …' if len(n['visible']) > 12 else ''}")
         if n.get("findings"):
@@ -1443,7 +1611,9 @@ def show(args):
             if lz["decision"] is None:
                 print(f"\nlesson {lz['id']} waits for the human: {lz['tag']} \u201c{lz['text']}\u201d")
             elif (lz.get("decided") or "") >= (R["opened"] or ""):
-                todo = {"remember": f"→ put it in {DEST[lz['dest']]}", "video": "→ this video only: put it in this video's plan",
+                todo = {"remember": f"→ every video: vs review promote {lz['id']} (writes it to {DEST[lz['dest']]})",
+                        "kind": f"→ every {kind_of()}: vs review promote {lz['id']}",
+                        "project": "→ this video only: it stays in this project (listed under this video's rules)",
                         "ignore": "→ ignored (never asked again)"}[lz["decision"]]
                 print(f"\nlesson {lz['id']} {lz['decision']}: {lz['tag']} \u201c{lz['text']}\u201d {todo}")
         for c in S["choices"].values():
@@ -1456,6 +1626,11 @@ def show(args):
                 lab = "none of these" if c["picked"] == "none" else next(f"{o['id']} ({o.get('label') or o['kind']})" for o in c["options"] if o["id"] == c["picked"])
                 print(f"\nchoice {c['id']} picked: {lab}" + (f" \u201c{c['said']}\u201d" if c.get("said") else "")
                       + f" → vs review apply {c['id']}")
+        rules = project_rules(S)
+        if rules:
+            print("\nthis video's rules (the human's, for this video only: apply them in every version):")
+            for r in rules:
+                print(f"  {r['from']}: {r['text']}")
         if S["done"]:
             print("\ndone (vs inspect holds their frames to that version; change one only if the human reopens it): "
                   + ", ".join(f"{k} (v{d['version']})" for k, d in S["done"].items()))
@@ -1471,6 +1646,40 @@ def show(args):
                   "but your recommendation is what makes them easy → vs review advise --check <check> --advice leave|fix --plain \"…\" --why \"…\"")
     if not args.note and (R.get("sends") or 0) > (R.get("read_sends") or 0):
         append([{"type": "round.read", "round": R["n"]}], "agent")  # the page: "Claude has it"
+
+
+def measure_note(n, old, new, E, size, cues):
+    """One answered note, measured in the new version: its sound in vs mix's cues, its target in vs inspect's map (then
+    its pixels, when the box didn't show the change), or the whole moment when it pointed at no one thing or the agent
+    said the change was elsewhere. A resolved note always gets a verdict, "unmeasured" (with why) included; a won't-do
+    is measured when it can be, for the record."""
+    res = n.get("resolution") or {}
+    claimed = res.get("outcome") == "resolved"
+    tgt = n.get("target") or {}
+    if n.get("sound"):
+        m = measure_sound(n, cues)
+        return m or (unmeasured(n, "no sound cues for this version (vs mix makes them)") if claimed else None)
+    if res.get("expect") in ("elsewhere", "sound") or not tgt.get("box"):
+        m = _safely(measure_moment, n, old, new, E)
+        return m or (unmeasured(n, "the renders couldn't be read at that moment") if claimed else None)
+    t = n["time"].get("t", n["time"].get("t0"))
+    if not E:  # no element map for this version: what's in the target's old place is the evidence
+        px = _safely(measure_pixels, old, new, t, tgt["box"])
+        if px is None:
+            return unmeasured(n, "no element map for this version (vs inspect makes one), and its pixels couldn't be compared") if claimed else None
+        m = {"el": tgt.get("el"), "t": t, "flag": None, "basis": "pixels", "pixels": px, "changes": {"pixels": True} if _moved(px) else {}}
+        return _judge(m, n, ("pixels",))
+    m = measure(n, E, size)
+    want = feedback.target_dims(ask_of(n), res.get("expect"))
+    if m and not m.get("gone") and (m["verdict"] == "unchanged" or want == {"pixels"}):
+        # the box didn't show it: look at its pixels (a color, a fade, a line's weight change nothing a box can show)
+        px = _safely(measure_pixels, old, new, m["t"], m.get("new_box"))
+        if px:
+            m["pixels"] = px
+            if _moved(px):
+                m["changes"]["pixels"] = True
+                _judge(m, n, ELEMENT_DIMS)
+    return m
 
 
 def open_round(args):
@@ -1522,19 +1731,7 @@ def open_round(args):
                 continue
             nv, E, size = maps[nc]
             old, new = bare(cut_video(S0["rounds"][n["round"] - 1], nc)), bare(nv)
-            if n.get("sound"):
-                m = measure_sound(n, cues)
-            elif (n.get("target") or {}).get("box"):
-                m = measure(n, E, size) if E else None
-                # the box didn't move: look at its pixels (a color, a fade, a line's weight change nothing a box can show)
-                if m and not m.get("gone") and (m.get("flag") or "").startswith("nothing measurable"):
-                    px = _safely(measure_pixels, old, new, m["t"], m.get("new_box"))
-                    if px:
-                        m["pixels"] = px
-                        if _moved(px):
-                            m["flag"] = None
-            else:
-                m = _safely(measure_moment, n, old, new)
+            m = measure_note(n, old, new, E, size, cues)
             if m:
                 m.update({"from": n["version"], "to": version})
                 measured.append({"type": "note.measured", "id": n["id"], "measured": {**m, "summary": describe_measured(m)}})
@@ -1561,7 +1758,7 @@ def open_round(args):
         m = e["measured"]
         print(f"  {e['id']} {(m['el'] or 'the moment').split('/', 1)[-1]}: {describe_measured(m)}")
     if not maps[cut][1] and any(n["status"] == "resolved" and n.get("target") for n in S0["notes"].values()):
-        print(f"⚠️  no element map for v{version} (vs inspect): the resolutions can't be measured")
+        print(f"⚠️  no element map for v{version} (vs inspect): the answers were measured by their pixels only")
 
 
 def advise(args):
@@ -1619,7 +1816,7 @@ def resolve(args):
     tgt = (n.get("target") or {}).get("el")
     e = {"type": "note.resolved", "id": args.note, "outcome": "wontdo" if args.wontdo else "resolved",
          "said": args.said, "files": args.files or [], "tags": args.tags or [], "renamed": args.renamed,
-         "removed": args.removed}
+         "removed": args.removed, **({"expect": args.expect} if getattr(args, "expect", None) else {})}
     if tgt and not args.wontdo and not (args.renamed or args.removed):
         # a target that's no longer in the build has to be accounted for: renamed, or removed on purpose (a sound's
         # address lives in vs mix's cues, an element's in vs inspect's map)
@@ -1630,7 +1827,9 @@ def resolve(args):
         if ids and tgt not in ids:
             raise Refused(f"{tgt} isn't in the build any more: say --renamed <new name> or --removed")
     append([e], "agent")
-    print(f"{args.note}: {e['outcome']}")
+    want = feedback.target_dims(ask_of(n), e.get("expect"))
+    print(f"{args.note}: {e['outcome']}" + (f" (the next version is measured for a change in {', '.join(sorted(want))})" if want and not args.wontdo
+                                             else " (the next version is measured at that moment, the whole frame)" if e.get("expect") == "elsewhere" else ""))
 
 
 def learn(args):
@@ -1655,7 +1854,8 @@ def propose(args):
     c = next((x for x in candidates() if x["tag"] == args.tag), None)
     S, new = append([{"type": "lesson.proposed", "lesson": {"tag": args.tag, "text": args.text, "dest": dest,
                                                             "evidence": c["notes"] if c else [], "count": c["count"] if c else 0}}], "agent")
-    print(f"{new[0]['lesson']['id']}: proposed ({args.tag} → {DEST[dest]}); the human answers Remember, This video only or Ignore")
+    print(f"{new[0]['lesson']['id']}: proposed ({args.tag} → {DEST[dest]}); the human answers Every video, Every {kind_of()}, "
+          f"This video only or Ignore; then vs review promote {new[0]['lesson']['id']} writes a kept one down")
 
 
 def report(args):
@@ -1672,6 +1872,7 @@ def report(args):
     reopened = sum(1 for n in notes if any(h["type"] == "reopened" for h in n["thread"]))
     follow = sum(1 for n in notes if n.get("follows"))
     flagged = sum(1 for n in notes if (n.get("measured") or {}).get("flag"))
+    over = sum(1 for n in accepted if (n.get("accepted") or {}).get("verdict") not in (None, *feedback.VERIFIED))
     shown = set()
     for R in S["rounds"]:
         shown |= set(R.get("asked") or [])
@@ -1704,6 +1905,7 @@ def report(args):
          ("…that needed a question back", f"{asked} ({pct(asked, len(notes))})"),
          ("…right first time (accepted, never reopened)", f"{first} of {len(accepted)} accepted ({pct(first, len(accepted))}); {reopened} reopened"),
          ("…answers the measurement flagged", f"{flagged}"),
+         ("…accepted over the measurement", f"{over}"),
          ("Choices offered / picked (none of these)", f"{len(S['choices'])} / {sum(1 for c in S['choices'].values() if c.get('picked'))}"
           f" ({sum(1 for c in S['choices'].values() if c.get('picked') == 'none')})"),
          ("Findings shown / fix it / leave it", f"{len(shown)} / {conf} / {dism}"),
@@ -1724,6 +1926,246 @@ def report(args):
         print(f"Review report · {vslib.project_name()}")
         for k, v in M:
             print(f"  {k:48s} {v}")
+
+
+# ── the protocol's view: one note as a feedback record, whose move it is, whether the review may end, and the rules
+#    the human made. The video's own addressing lives here; everything else is feedback.py's. ──
+def video_address(n):
+    """Where a note points, in a video's terms (the protocol carries this, never reads it): the moment or range, the
+    scene, the element and its box, the mark, the keep-clear zones, the sound, the step it's about."""
+    tm = n["time"]
+    a = {"domain": "video", **({"t": tm["t"]} if "t" in tm else {"t0": tm["t0"], "t1": tm["t1"]}),
+         "segment": n.get("segment"), "scene": n.get("scene")}
+    tg = n.get("target") or {}
+    for k, v in (("element", tg.get("el")), ("box", tg.get("box")), ("text", tg.get("text")), ("on", tg.get("on"))):
+        if v is not None:
+            a[k] = v
+    mk = n.get("mark") or {}
+    if mk.get("type") not in (None, "none"):
+        a["mark"] = mk
+    for k in ("also", "sound", "step", "visible"):
+        if n.get(k):
+            a[k] = n[k]
+    return a
+
+
+def as_record(n, S, art):
+    """A note as the protocol's feedback record: the video's address, the shape it was written on, and its ask (a sound's
+    ask lives on the sound)."""
+    return feedback.record(n, S["notes"], {**art, "rendition": n.get("cut")}, video_address(n), ask=ask_of(n))
+
+
+def project_rules(S):
+    """The human's rules for this video only: notes they said reach the whole video (once accepted), and lessons they
+    kept for this video. Project state: they never leave the project's review/ (a rule for every video needs its own yes)."""
+    out = [{"from": n["id"], "text": ((n.get("comment") or "").strip() or feedback.ASK_WORDS.get(n.get("ask"), "")),
+            "ask": n.get("ask")} for n in S["notes"].values() if n["status"] == "accepted" and n.get("scope") == "project"]
+    out += [{"from": l["id"], "text": l.get("text"), "tag": l.get("tag")} for l in S["lessons"].values() if l.get("decision") == "project"]
+    return out
+
+
+def context_package(S):
+    """What the review page is handed for the round, per shape: the render, and its version's own maps (the archive vs
+    build keeps beside every render). Missing pieces aren't fatal; they make the page point from less."""
+    R = current(S)
+    out = []
+    for c in (R.get("cuts") or [{"cut": R.get("cut"), "video": R["video"]}]) if R else []:
+        try:
+            base = version_of(c["video"])[1]
+        except Refused:
+            continue
+        tl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
+        fp = tl and tl.get("fingerprint")
+        have = {"video": os.path.exists(c["video"]), "timeline": bool(tl), "elements": bool(element_map(base, fp)),
+                "findings": inspected(base, fp) is not None, "qa": os.path.exists(f"{base}.review/qa.json"),
+                "cues": os.path.exists(f"{base}.review/cues.json"), "composition": os.path.exists(f"{base}.review/comp.html")}
+        out.append({"rendition": c["cut"], "video": c["video"], "archive": f"{base}.review/", "has": have})
+    return out
+
+
+def status(args):
+    """Whose move it is, and whether the review may end: decided from the diary alone, the same answer every time."""
+    S, Hv = state(), state("human")
+    held = len(Hv["pending"])
+    who, why = feedback.turn(S, held)
+    R = current(S)
+    shapes = [c["cut"] for c in (R or {}).get("cuts") or []] or [(R or {}).get("cut")]  # a round shows one version in each shape
+    checks = feedback.exit_checks(S, held, shapes, {(a.get("version"), a.get("cut")) for a in S["approved"]})
+    ready = all(ok for _, ok, _ in checks)
+    art = {"project": vslib.project_name(), "kind": kind_of()}
+    recs = [as_record(n, S, art) for n in S["notes"].values() if n["status"] != "withdrawn"]
+    out = {"turn": who, "why": why, "waiting": agent_waiting(), "stage": S.get("stage"),
+           "round": R and {k: R.get(k) for k in ("n", "version", "cut", "status", "sends", "read_sends")},
+           "exit": {"ready": ready, "checks": [{"id": i, "ok": ok, "text": t} for i, ok, t in checks]},
+           "advisories": feedback.advisories(S), "rules": project_rules(S), "context": context_package(S),
+           "records": recs, "finished": S.get("finished")}
+    if args.ready:
+        if not ready:
+            sys.exit("not yet: " + "; ".join(t for _, ok, t in checks if not ok))
+        return print("ready: the review may hand back to the workflow")
+    if args.json:
+        return print(json.dumps(out, indent=1))
+    print(f"Review · {art['project']} ({art['kind']})" + (f" · round {R['n']} on v{R['version']} · {R['status']}" if R else "")
+          + (f" · stage {S['stage']}" if S.get("stage") else ""))
+    print(f"turn: {who} · {why}" + (" · vs review wait is running" if out["waiting"] else ""))
+    print(f"exit: {'ready' if ready else 'not yet'}")
+    for i, ok, t in checks:
+        print(f"  {'✓' if ok else '✗'} {t}")
+    live = [r for r in recs if r["phase"] != "closed"]
+    if live:
+        print("notes: " + " · ".join(f"{r['id']} {r['phase']}" + (f" ({feedback.VERDICT_WORDS[r['verification']['verdict']]})" if r["verification"] else "")
+                                     for r in live))
+    for a in out["advisories"]:
+        print(f"  heads-up: {a}")
+    for c in out["context"]:
+        print(f"context ({c['rendition']}): {c['archive']} " + " ".join(f"{k} {'✓' if v else '✗'}" for k, v in c["has"].items()))
+
+
+# ── learning, the last step: a rule is written into the studio only after the human said how far it reaches ──
+HEADINGS = {"pacing": "Picture", "layout": "Picture", "type": "Picture", "motion": "Picture", "color": "Picture",
+            "copy": "Story and words", "story": "Story and words", "audio": "Sound", "qa": "Spend and process"}
+
+
+def lessons_path():
+    s = vslib.studio_root()
+    return os.path.join(s, "lessons.md") if s else None
+
+
+def _dotted(d, path):
+    for k in path.split(".")[:-1]:
+        d = d.setdefault(k, {}) if isinstance(d, dict) else None
+    return d
+
+
+def promote(args):
+    """vs review promote <lesson> [--heading …] [--set path=value] [--chat "<their words>" --as remember|kind]
+    Write a lesson the human decided (Every video / Every <kind>) into the studio: a line in lessons.md (dated, with a
+    marker so vs review rules lists it and vs review forget takes it out) and, for a value, the profile. Refused for a
+    lesson the human hasn't decided, ignored, or kept for this video only. --chat: they decided it in chat; their words
+    are kept as the decision (the page's buttons are the usual way)."""
+    S = state()
+    lz = S["lessons"].get(args.lesson) or sys.exit(f"⛔ no lesson {args.lesson} in this project (vs review show lists them)")
+    if args.chat is not None:
+        if not args.chat.strip() or args.as_ not in ("remember", "kind"):
+            raise Refused("--chat needs the human's own words and --as remember|kind (what they said it reaches)")
+        if lz.get("decision") is None:
+            append([{"type": "lesson.decided", "id": lz["id"], "decision": args.as_, "via": "chat", "said": args.chat.strip(),
+                     "recorded_by": "agent"}], "human")
+            lz = state()["lessons"][lz["id"]]
+    d = lz.get("decision")
+    if d is None:
+        raise Refused(f"{lz['id']} waits for the human: they answer it in the page (or, if they said it in chat, --chat \"<their words>\" --as remember|kind)")
+    if d == "ignore":
+        raise Refused(f"{lz['id']}: the human said ignore it, so it isn't a rule")
+    if d == "project":
+        raise Refused(f"{lz['id']}: this video only. It stays in this project (vs review show lists it under this video's rules); nothing goes into the studio")
+    if lz.get("dest") == "kit":
+        raise Refused(f"{lz['id']}: a kit rule is a kit change (scars.md and a regression test), not a studio file")
+    f = lessons_path() or sys.exit("⛔ no studio: a rule needs somewhere to be kept (vs setup)")
+    mark = f"{vslib.project_name()}/{lz['id']}"
+    doc = open(f).read() if os.path.exists(f) else "# Lessons\n"
+    if feedback.RULE_MARK.format(mark) in doc:
+        raise Refused(f"{mark} is already in lessons.md (vs review rules lists it)")
+    kind = kind_of()
+    heading = args.heading or HEADINGS.get((lz.get("tag") or "").split(".")[0], "Learned in review")
+    day = datetime.now()
+    setv = None
+    if args.set:
+        path, _, raw = args.set.partition("=")
+        if not path or not raw:
+            raise Refused("--set <path>=<value>, e.g. --set mix.music_db=-18 (a JSON value)")
+        try:
+            val = json.loads(raw)
+        except ValueError:
+            val = raw
+        pp = os.path.join(vslib.studio_root(), "profile.json")
+        prof = vslib.read_json(pp) or {}
+        parent = _dotted(prof, path)
+        if not isinstance(parent, dict):
+            raise Refused(f"--set {path}: there's a value (not a section) on the way to it in profile.json")
+        key = path.split(".")[-1]
+        setv = {"path": path, "old": parent.get(key), "new": val}
+        parent[key] = val
+        json.dump(prof, open(pp, "w"), indent=1)
+    scope_word = {"kind": f"{kind}s only"}.get(d)
+    extra = f"(profile: {setv['path']} = {json.dumps(setv['new'])})" if setv else None
+    line = feedback.rule_line(lz["text"], f"{day:%b} {day.day}", scope_word, extra, mark)
+    open(f, "w").write(feedback.insert_rule(doc, heading, line))
+    _studio_write([{"kind": "rule", "action": "promoted", "project": vslib.project_name(), "lesson": lz["id"], "tag": lz.get("tag"),
+                    "text": lz.get("text"), "scope": feedback.DECISION_SCOPE[d], "of_kind": kind, "file": "lessons.md",
+                    "heading": heading, "line": line, **({"set": setv} if setv else {}), "via": lz.get("via") or "page",
+                    "at": now()}])
+    print(f"{mark}: written to lessons.md under “{heading}”" + (f" and profile.json {setv['path']} = {json.dumps(setv['new'])}" if setv else "")
+          + f" ({'every ' + kind if d == 'kind' else 'every video'}). vs review forget {lz['id']} takes it out.")
+    if lz.get("dest") in ("profile", "check") and not setv:
+        print(f"  (it's a {lz['dest']} kind of lesson: if a value should change too, vs review promote can't guess it; set it with --set next time)")
+
+
+def promoted():
+    """Every rule promoted in this studio and not taken back: [{…the promote line…, "present": still in lessons.md}]."""
+    live = {}
+    for l in studio_feedback():
+        if l.get("kind") != "rule":
+            continue
+        k = f"{l['project']}/{l['lesson']}"
+        if l.get("action") == "promoted":
+            live[k] = l
+        elif l.get("action") == "forgotten":
+            live.pop(k, None)
+    f = lessons_path()
+    doc = open(f).read() if f and os.path.exists(f) else ""
+    return [{**l, "mark": k, "present": feedback.RULE_MARK.format(k) in doc} for k, l in live.items()]
+
+
+def rules(args):
+    """vs review rules: what the studio has learned through review, where each rule lives, and where it came from."""
+    rs = promoted()
+    S = state() if os.path.exists(LOG) else None
+    waiting = [l for l in (S or {}).get("lessons", {}).values() if l.get("decision") in ("remember", "kind")
+               and not any(r["mark"] == f"{vslib.project_name()}/{l['id']}" for r in rs)]
+    if args.json:
+        return print(json.dumps({"studio": rs, "decided_not_written": waiting, "this_video": project_rules(S) if S else []}, indent=1))
+    if not rs:
+        print("no rules promoted through review yet (lessons.md may hold older ones written by hand)")
+    for r in rs:
+        reach = {"studio": "every video", "kind": f"every {r.get('of_kind')}"}.get(r.get("scope"), r.get("scope"))
+        print(f"{r['mark']}  {reach} · {r.get('tag')} · {r.get('heading')}{'' if r['present'] else ' · ⚠ not in lessons.md any more (edited by hand?)'}")
+        print(f"    {r.get('text')}" + (f"  [profile {r['set']['path']}: {json.dumps(r['set']['old'])} → {json.dumps(r['set']['new'])}]" if r.get("set") else ""))
+    for l in waiting:
+        print(f"decided, not written yet: {l['id']} ({l['decision']}) “{l.get('text')}” → vs review promote {l['id']}")
+    if S and project_rules(S):
+        print("this video only: " + " · ".join(f"{r['from']} {r['text']}" for r in project_rules(S)))
+
+
+def forget(args):
+    """vs review forget <lesson | project/lesson>: take a promoted rule back out of lessons.md (and put a value it set in
+    the profile back, if nobody has changed it since). The tag isn't asked about again unless the human brings it up."""
+    mark = args.lesson if "/" in args.lesson else f"{vslib.project_name()}/{args.lesson}"
+    r = next((x for x in promoted() if x["mark"] == mark), None)
+    if not r:
+        raise Refused(f"no promoted rule {mark} (vs review rules lists them)")
+    f = lessons_path()
+    doc, hit = feedback.remove_rule(open(f).read(), mark) if f and os.path.exists(f) else ("", None)
+    if hit:
+        open(f, "w").write(doc)
+    restored = ""
+    if r.get("set"):
+        pp = os.path.join(vslib.studio_root(), "profile.json")
+        prof = vslib.read_json(pp) or {}
+        parent, key = _dotted(prof, r["set"]["path"]), r["set"]["path"].split(".")[-1]
+        if isinstance(parent, dict) and parent.get(key) == r["set"]["new"]:
+            if r["set"]["old"] is None:
+                parent.pop(key, None)
+            else:
+                parent[key] = r["set"]["old"]
+            json.dump(prof, open(pp, "w"), indent=1)
+            restored = f"; profile {r['set']['path']} back to {json.dumps(r['set']['old'])}"
+        else:
+            restored = f"; profile {r['set']['path']} changed since it was promoted, so it's left as it is"
+    proj, lid = mark.split("/", 1)
+    _studio_write([{"kind": "rule", "action": "forgotten", "project": proj, "lesson": lid, "tag": r.get("tag"), "at": now()},
+                   {"kind": "lesson", "decision": "forgotten", "project": proj, "lesson": lid, "tag": r.get("tag"), "at": now()}])
+    print(f"{mark}: forgotten" + (" (its line is out of lessons.md)" if hit else " (its line wasn't in lessons.md)") + restored)
 
 
 # ── Decide: choices with live variants. A variant is a built composition kept aside (build/variants/<id>/): the page
@@ -1975,6 +2417,7 @@ def main():
     q = sub.add_parser("ask"); q.add_argument("note"); q.add_argument("text")
     r = sub.add_parser("resolve"); r.add_argument("note"); r.add_argument("--said", required=True)
     r.add_argument("--wontdo", action="store_true"); r.add_argument("--files", nargs="*"); r.add_argument("--tags", nargs="*")
+    r.add_argument("--expect", choices=sorted(feedback.EXPECT))
     g = r.add_mutually_exclusive_group(); g.add_argument("--renamed"); g.add_argument("--removed", action="store_true")
     sub.add_parser("learn")
     rp = sub.add_parser("report"); rp.add_argument("--md", action="store_true")
@@ -1986,7 +2429,12 @@ def main():
     v.add_argument("--anyway", action="store_true"); v.add_argument("--replace", action="store_true")
     ap_ = sub.add_parser("apply"); ap_.add_argument("choice")
     sub.add_parser("serve")
-    w = sub.add_parser("wait"); w.add_argument("--hours", type=float, default=12)
+    w = sub.add_parser("wait"); w.add_argument("--hours", type=float, default=12); w.add_argument("--replace", action="store_true", help="stop a watcher already running here and take over")
+    stt = sub.add_parser("status"); stt.add_argument("--json", action="store_true"); stt.add_argument("--ready", action="store_true")
+    pr = sub.add_parser("promote"); pr.add_argument("lesson"); pr.add_argument("--heading"); pr.add_argument("--set")
+    pr.add_argument("--chat"); pr.add_argument("--as", dest="as_", choices=["remember", "kind"])
+    ru = sub.add_parser("rules"); ru.add_argument("--json", action="store_true")
+    fg = sub.add_parser("forget"); fg.add_argument("lesson")
     fi = sub.add_parser("finish"); fi.add_argument("--final", nargs="+", required=True)
     a = ap.parse_args()
     try:
@@ -1995,7 +2443,8 @@ def main():
             return review_server.serve(a.port)
         {"open": open_round, "show": show, "ask": ask, "resolve": resolve, "offer": offer, "learn": learn,
          "propose": propose, "report": report, "variant": variant, "apply": apply_choice, "advise": advise,
-         "step": log_step, "wait": wait, "finish": finish}[a.cmd](a)
+         "step": log_step, "wait": wait, "finish": finish, "status": status, "promote": promote, "rules": rules,
+         "forget": forget}[a.cmd](a)
     except Refused as x:
         sys.exit(f"⛔ {x}")
 
