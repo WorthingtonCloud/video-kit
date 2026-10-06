@@ -192,6 +192,13 @@
       );
       ownPush = true;
     }
+    // "overlay": a project scene drawn OVER this segment's footage (graphics pinned to a clip: a name card, stickers),
+    // on its own stage above the media; it never slides on widescreen, since the footage would slide with it (meet-earl, Oct 6, 2026)
+    if (seg.overlay) {
+      if (!SCENES[seg.overlay]) throw new Error(`unknown overlay scene "${seg.overlay}"`);
+      const f = fitStage(false);
+      SCENES[seg.overlay](div("stage", cam, "", `transform:translate(${f.x}px,${f.y}px) scale(${f.s})`), seg, f);
+    }
     // footage (shot / clip / still) was written into .cam by build.mjs: its media tags must be static HTML
     const panel = $(".panel", cam);
     if (panel) {

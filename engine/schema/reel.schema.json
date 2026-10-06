@@ -473,6 +473,10 @@
     },
     "fx": {
      "type": "object"
+    },
+    "overlay": {
+     "type": "string",
+     "description": "a project scene (scenes.js) drawn OVER this segment's footage: graphics pinned to a clip or still (its own camera holds still with \"push\": 0)"
     }
    }
   },

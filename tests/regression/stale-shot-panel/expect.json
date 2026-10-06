@@ -1,0 +1,28 @@
+{
+ "scar": "sizzle \u00b7 Checks \u00b7 vs snap showed shot panels black or on a stale frame: the page's timeline never moves its videos (video-kit-fusion v1, Oct 5, 2026)",
+ "make": {
+  "music/take1.mp3": "tone:12"
+ },
+ "clips": {
+  "media/colors.mp4": [
+   "red:3",
+   "blue:3"
+  ]
+ },
+ "snap": {
+  "at": {
+   "3.0": "red",
+   "6.5": "blue"
+  },
+  "broken": {
+   "remove": "build/comp/assets/shot-colors-1.mp4",
+   "at": [
+    6.5
+   ],
+   "warns_with": [
+    "s01_panel",
+    "NOT trustworthy"
+   ]
+  }
+ }
+}

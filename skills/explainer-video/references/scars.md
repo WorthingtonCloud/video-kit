@@ -92,6 +92,9 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
 
 - ⚠️ **ElevenLabs sound effects:** 11 credits a second; the "single click" came back as three; every file starts with a
   different amount of silence (`vs mix` aligns by the attack); loudness varies ~20 dB between files (it normalizes). ‹partly: unit/test_voice_and_sound.py · human: listen to every new sound›
+- 🚨 **Every whoosh was heard before its move** (Oct 6, 2026, a reviewer on a phone): a "peak" cue sits where the move
+  starts, and the move is fastest 0.1–0.45 s later (median 0.14 s). `vs mix` now measures each one's motion in the
+  render and moves the sound onto it (`motion.py`, `motion-sync.json`). ‹test: unit/test_motion_sync.py›
 - 🚨 **A generated sound can come back nearly silent** (two "stamps" at -55 and -49 dBFS). `vs sfx` and `vs ingest`
   measure every sound and flag it; layer it over a thud rather than normalizing noise up. ‹test: unit/test_voice_and_sound.py›
 - ⚠️ **Suno on kie.ai:** the model is nested (`ai-music-api/generate` outside, `V6` inside); `duration: 180` is honored;

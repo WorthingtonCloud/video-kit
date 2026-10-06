@@ -33,6 +33,7 @@ Call `vs` by its full path every time (shell variables don't carry between calls
    call empties `build/qa/snap/`, so a second call wipes the first one's sheets: plan the moments, then snap once
    (a later look goes to its own folder: `snap … --out build/qa/snap2`). It prints contact sheets, `build/qa/snap/sheet-N.jpg`, eight stills each with the time and
    segment under each. Read every sheet. Open a single still (`build/qa/snap/<time>.png`) only to check a detail.
+   If snap prints a `⚠ … not confirmed` line (or a sheet caption says `⚠ panel unconfirmed`), what that segment's video panel shows at that time is unconfirmed: report nothing inside it as a problem, and say it needs a look in a render.
 4. Compare each still with what it should show. Look for: words clipped, cut off by the frame, or covered; two things
    fighting for the same spot; something missing, early, late or still on screen after its moment; text too small or
    too dim to read on a phone; an empty or near-empty frame; anything that looks broken (a stray box, a misplaced icon,

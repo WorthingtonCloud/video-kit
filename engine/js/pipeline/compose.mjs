@@ -82,7 +82,7 @@ export function compose({ segHTML, media, CSS }) {
     media,
     punches: R.punches || [],
     scene_lib: R.scene_lib || "reel", // an explainer's layout.js centers its own scenes in widescreen; a reel's runtime does
-    segments: SEGS.map(({ name, t0, t1, in: inn, source, push, titles, fx }) => ({
+    segments: SEGS.map(({ name, t0, t1, in: inn, source, push, titles, fx, overlay }) => ({
       name,
       t0,
       t1,
@@ -91,6 +91,7 @@ export function compose({ segHTML, media, CSS }) {
       push,
       titles,
       fx,
+      ...(overlay ? { overlay } : {}),
     })),
   };
   const rt = runtime();

@@ -34,13 +34,14 @@ export function timeline(fingerprint) {
     beat: B,
     first_hit: Number.isFinite(HIT) ? HIT : null,
     end: END,
-    segments: SEGS.map(({ name, t0, t1, in: inn, source }) => ({
+    segments: SEGS.map(({ name, t0, t1, in: inn, source, overlay }) => ({
       name,
       t0,
       t1,
       in: inn,
       kind: Object.keys(source)[0],
       ...(source.scene ? { scene: source.scene } : {}),
+      ...(overlay ? { overlay } : {}),
     })),
     titles: SEGS.flatMap((s) => s.titles.map(({ id, t0, t1 }) => ({ id, el: `title/${id}`, segment: s.name, t0, t1 }))),
     // a narrated video's acts, first word to last (plan.py writes them into reel.json)

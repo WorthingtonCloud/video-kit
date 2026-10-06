@@ -22,6 +22,7 @@ export function timeSegments(R) {
       push: seg.push,
       scrim: seg.scrim,
       fx: seg.fx,
+      overlay: seg.overlay,
       titles: (seg.titles || []).map(([id, a, b]) => ({
         id,
         t0: r3(t + a * unit),

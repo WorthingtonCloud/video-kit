@@ -23,6 +23,9 @@ overshoots it: -2 read -0.1 dBTP after encoding; -3 reads about -1.8). Every oth
 - `sound`: a library name (`vs sfx list`) or a path (`media/door.wav`, a clip's own sound).
 - `align "peak"` puts the loudest moment on the time (a whoosh into a cut); `"on"` puts the attack there (everything
   else). Files start with different amounts of silence, so never align by the file start: the mixer measures each one.
+- Pin a whoosh to when its move STARTS: `vs mix` then moves each `"peak"` sound to where that move is fastest in the
+  render (0 to 0.45 s later, measured from the picture, kept in `motion-sync.json` and reported). `--no_sync` turns it
+  off; `--resync` measures again; a shift edited by hand in the file stays.
 - `TRIM = {"receipt": (0.0, 0.9)}` plays part of a sound every time; a library sound can carry its own (the "single
   click" came back as three: its index entry keeps the first).
 

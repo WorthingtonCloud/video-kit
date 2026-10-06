@@ -161,6 +161,10 @@ export function check({ dir = process.cwd(), quiet = false } = {}) {
         say(bag, L, `${at} › source`, kinds.length ? `one source only, not ${kinds.join(" + ")}` : "no source: scene, shot, clip, still, card or grid");
       if (src.scene != null && !scenes.has(src.scene))
         say(bag, L, `${at} › source.scene`, `no scene "${src.scene}"${near(src.scene, scenes)} (scenes.js and the kit have: ${list(scenes)})`);
+      if (s.overlay != null && !scenes.has(s.overlay))
+        say(bag, L, `${at} › overlay`, `no scene "${s.overlay}"${near(s.overlay, scenes)} (scenes.js and the kit have: ${list(scenes)})`);
+      if (s.overlay != null && !(src.clip != null || src.still != null))
+        say(bag, L, `${at} › overlay`, "an overlay draws over footage: give the segment a clip or still source");
       if (src.card != null) {
         used.add(src.card);
         if (!titles[src.card]) say(bag, L, `${at} › source.card`, `no title "${src.card}"${near(src.card, Object.keys(titles))}`);

@@ -90,3 +90,7 @@ From two reels (a 58 s lab reel, v1→v22, and a product reel, Sep 27–29, 2026
 - ⚠️ **A label with a halo isn't crossed by the line under it**: the hub's ring labels sit ON their ring, a halo in
   the ground color cutting it around each letter, and the ring runs on between the words. By design (Oct 1, 2026);
   `vs inspect` knows. ‹test: regression/haloed-ring-label›
+- 🚨 **`vs snap` showed shot panels wrong:** the page's timeline never moves its `<video>`s (HyperFrames does that only
+  while rendering), so a floating recording sat black or on a stale frame, and the checker reported five false
+  problems in them (video-kit-fusion v1, Oct 5, 2026). Snap now seeks each video to its time and waits for the frame;
+  one it can't confirm is named in a ⚠ line (and on the sheet): judge that panel from a render. ‹test: regression/stale-shot-panel›

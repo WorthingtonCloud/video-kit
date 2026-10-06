@@ -3,6 +3,7 @@
   END_T        the end card's start (the point lands at END_T + 1.0, the name at + 2.0, the address at + 3.0)
 A sound is a library name (vs sfx list: the kit's 30 plus anything bought or brought) or a path ("media/door.wav").
 align "peak" = the loudest moment on the time (a whoosh into a cut); "on" = the attack on the time (everything else).
+Pin a whoosh to when its move starts: vs mix moves it onto the motion it measures in the render (motion-sync.json).
 Starting levels that were approved: transitions -12…-15, a number landing -14, key hits -12…-15, ticks and pops -16…-21,
 long textures (a crowd, a shimmer) -16…-21, the logo sting -9. One sound per moment; a busy stretch gets fewer, not quieter.
 The worked example with 95 cues is the kit's examples/meeting-explainer/cues.py."""

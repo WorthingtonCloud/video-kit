@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """The sound pass: the voice, a faint music bed, and sound effects pinned to the picture. No re-render: the new audio is
 muxed onto the finished video. Effect times come from reel.json (the same word-pinned cues the scenes animate on) via
-the project's cues.py, so a re-recorded voice re-times the effects too.
+the project's cues.py, so a re-recorded voice re-times the effects too. Every whoosh ("peak" cue) then moves to where
+its motion peaks in the render being mixed (motion.py, kept in motion-sync.json; --no_sync leaves them on their cues,
+--resync measures again).
 
     vs mix --video out/<name>-vN.mp4 --tag vN [--takes 1 2 3] [--music_db -16] [--duck_db 6] [--sfx_db 0] [--no_sfx]
+      [--no_sync] [--resync]
       → out/<name>-vN-sfx.mp4 (voice + effects), out/<name>-vN-take<N>.mp4 (voice + music + effects) for every take,
         stems in build/mix/, and the Mix panel's data in build/mixer/ (vs mixer opens it: pick a take, set levels, Save):
         the music un-ducked + duck.json (the envelope: the panel ducks live, so the ducking slider plays as it moves),
@@ -18,7 +21,7 @@ A reel with no narrator (no plan.json): the reel's own track is the reference in
 effects against it."""
 import argparse, importlib.util, json, os, re, shutil, subprocess
 import numpy as np
-import vslib
+import motion, vslib
 from vslib import MIX, MIXER
 
 SR = 48000
@@ -31,6 +34,8 @@ ap.add_argument("--music_db", type=float, default=None, help="music bed vs the v
 ap.add_argument("--duck_db", type=float, default=None, help="extra dip under speech")
 ap.add_argument("--sfx_db", type=float, default=None, help="shift every effect up or down")
 ap.add_argument("--no_sfx", action="store_true")
+ap.add_argument("--no_sync", action="store_true", help="leave every whoosh on its cue (no motion measuring)")
+ap.add_argument("--resync", action="store_true", help="measure every whoosh's motion again (motion-sync.json)")
 ap.add_argument("--final", action="store_true", help="mix only what the mixer saved in mix.json")
 a = ap.parse_args()
 pick = lambda k, d: getattr(a, k) if getattr(a, k) is not None else saved.get(k, house.get(k, d))
@@ -95,6 +100,27 @@ if os.path.exists("cues.py"):
 
 # every effect gets an address, sfx/<sound>@<the nearest word cue, title or cut> (vslib.name_cues) → build/mix/cues.json
 named = vslib.name_cues(CUES, T, TT, C)
+
+# a cue is when a move STARTS, and a move is fastest a beat later: every "peak" sound (a whoosh) moves to where its
+# motion peaks in this render (motion.py; kept in motion-sync.json, so a re-mix of the same render is the same mix)
+peaks = [k for k, c in enumerate(CUES) if c[2] == "peak"]
+if peaks and not a.no_sync:
+    shifts, why = motion.sync(a.video, [CUES[k][0] for k in peaks], again=a.resync)
+    off = sum(w == "no clear motion" for w in why.values())
+    moved = []
+    for k in peaks:
+        when, name, align, lvl = CUES[k]
+        s = shifts[f"{when:.3f}"]
+        if s:
+            CUES[k] = (when + s, name, align, lvl)
+            named[k].update(t=round(when + s, 3), moved=s)  # the address stays the cue's; the time is where it plays
+            moved.append(s)
+    print(f"whooshes on the motion: {len(moved)} of {len(peaks)} moved later" +
+          (f" (median {np.median(moved):.2f} s, up to {max(moved):.2f})" if moved else "") +
+          (f", {off} with no clear motion left on their cue" if off else "") + f" → {motion.FILE}")
+    for k in peaks:
+        if named[k].get("moved", 0) >= 0.2:
+            print(f"   {named[k]['el']}  +{named[k]['moved']:.2f} s")
 
 ref = 20 * np.log10(np.sqrt(np.mean(voice[np.abs(voice).max(1) > 0.02] ** 2)) + 1e-9)  # the voice's active loudness
 sfx = np.zeros((N, 2), np.float32)

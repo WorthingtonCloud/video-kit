@@ -1,0 +1,46 @@
+{
+ "schema_version": 2,
+ "name": "panel",
+ "version": 1,
+ "size": [
+  1080,
+  1920
+ ],
+ "fps": 30,
+ "scene_lib": "explainer",
+ "music": {
+  "file": "music/take1.mp3",
+  "beat": 0.5,
+  "first_hit": 0,
+  "fade": 0.3
+ },
+ "titles": {},
+ "segments": [
+  {
+   "name": "s00_open",
+   "secs": 2.0,
+   "source": {
+    "scene": "endcard"
+   }
+  },
+  {
+   "name": "s01_panel",
+   "secs": 6.0,
+   "source": {
+    "shot": "colors"
+   }
+  },
+  {
+   "name": "s02_end",
+   "secs": 2.0,
+   "source": {
+    "scene": "endcard"
+   }
+  }
+ ],
+ "shots": {
+  "colors": {
+   "video": "media/colors.mp4"
+  }
+ }
+}
