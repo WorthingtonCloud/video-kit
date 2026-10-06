@@ -1,7 +1,7 @@
-https://github.com/user-attachments/assets/83dad20d-f32f-4455-9f84-5b578088c0dd
+https://github.com/user-attachments/assets/1c6b84dc-20d2-4e21-81ed-616f8b51dc99
 
 <p align="center">
-  58 seconds, sound on. This reel was made by the kit, about the kit.
+  72 seconds, sound on. This reel was made by the kit, about the kit.
 </p>
 
 # video-kit
@@ -10,10 +10,11 @@ https://github.com/user-attachments/assets/83dad20d-f32f-4455-9f84-5b578088c0dd
 seconds). The agent writes it, voices it, draws every scene in code, checks its own frames, and mixes the sound. You
 watch it in a review page, point at what's wrong, and send. You never open a video editor.
 
-The reel above was made this way: one request, music reused from an earlier reel, every scene drawn in code, and the
-Review Studio filmed live from a real round. Its reviewer gave eight notes over seven rounds, from "the red dot over the
-text makes it hard to read" to "the end card never shows the address." The agent traced each one to the kit and fixed it
-there, so every reel after this one gets the fix too. Nothing in it was paid for.
+The reel above was made this way: one request, music reused from an earlier reel, and every scene drawn in code, the
+Review Studio included. The agent lifted the page's own markup while it reviewed this very reel, so the camera can fly
+through the real interface and the reel shows up inside itself. Its reviewer gave two notes over three rounds, both on
+one transition ("the screen seems to freeze a bit on this fade"); the agent replaced it, and both shapes were approved
+on the next version. Nothing in it was paid for.
 
 ## How it works
 
