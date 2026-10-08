@@ -146,7 +146,8 @@ One request, then a few stops, and each one waits for you:
 5. **The other shape.** You start in vertical or widescreen. Once you approve it, the other shape is built from the same
    plan and shown beside it in the same Review Studio.
 6. **Done.** Approving both files them: every version you called done in `finals/<video>/`, the newest in
-   `latest/<video>/`.
+   `latest/<video>/`, each with a web copy beside it: the same picture at about a third of the size, small enough
+   for sites that cap uploads.
 7. **Later, a change.** `vs reopen <video>` puts the script and scenes back exactly as they made the last final, and
    the next draft picks up from there. When it's done again, it replaces the old one in `latest/`.
 
@@ -187,7 +188,8 @@ The kit is read-only. Your studio is the folder that grows:
 - `projects/<video>/`: one folder per video, both shapes, with every draft in `drafts/v1`, `v2` … and `video.json`
   saying where it stands (`vs status` reads it and names the next step).
 - `finals/<video>/`: every version you called done, both shapes (`<video>-vertical-v8.mp4`).
-  `latest/<video>/`: only the newest, no version in the name (`<video>-vertical.mp4`). `ledger.csv`: every paid call
+  `latest/<video>/`: only the newest, no version in the name (`<video>-vertical.mp4`), and its one web copy
+  (`<video>-vertical-web.mp4`: post this one, edit from the full one). `ledger.csv`: every paid call
   with what it cost.
 
 When you approve a video, `vs finish` files it and keeps what you decided: the levels you set, the music take that won.
@@ -220,7 +222,7 @@ One path for every file, from the first draft to the final and back, held by the
 anyone remembering it (`vs protocol files`). A video is one project with both shapes in it; the kit names every file,
 in words (`<video>-widescreen-v8.mp4`, never `16x9`), and reads each file's real width and height before filing it.
 Four commands move a video along: `vs status` (where it stands, and the next step), `vs shape` (the other shape, once
-the first is approved), `vs finish` (files the finals, refreshes `latest/`, tells the Review Studio it's done) and
+the first is approved), `vs finish` (files the finals, makes their web copies, refreshes `latest/`, tells the Review Studio it's done) and
 `vs reopen` (a finished video drafts again from exactly its last final). Each refuses the wrong order and names the way
 around it for a real change of plan, and the way around is logged. `vs new` now takes the shape a video starts in.
 

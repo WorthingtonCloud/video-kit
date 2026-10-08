@@ -7,8 +7,9 @@
                                       pivot, logged). An explainer is re-planned for it on the spot (vs plan).
     vs finish [--final <files>] [--one-shape] [--dry]
                                       the human approved every shape: file the finals into finals/<video>/, refresh
-                                      latest/<video>/, close the review (the page says Done) and keep what was learned
-                                      (vs learn). The files default to what the approved round showed, each shape's mix
+                                      latest/<video>/, make each final's web copy (small enough to upload; it replaces
+                                      the one in latest/), close the review (the page says Done) and keep what was
+                                      learned (vs learn). The files default to what the approved round showed, each shape's mix
                                       when there is one. --one-shape: a video made in one shape only.
     vs reopen [<video>] [--shape <s>]
                                       a finished video drafts again: the sources go back to exactly what made its last
@@ -199,7 +200,8 @@ def finish(a):
         if os.path.exists(cov):
             file_into(cov, vslib.final_file(S, V["video"], s, d["v"], cover=True), a.dry)
         rec[s] = {"version": d["v"], "draft": f, "final": os.path.relpath(dst, S),
-                  "latest": os.path.relpath(vslib.latest_file(S, V["video"], s), S)}
+                  "latest": os.path.relpath(vslib.latest_file(S, V["video"], s), S),
+                  "web": os.path.relpath(vslib.latest_file(S, V["video"], s, web=True), S)}
     print("\n".join(f"  {x}" for x in said))
     if a.dry:
         return print("(dry run: nothing filed)")
@@ -212,6 +214,8 @@ def finish(a):
         V["one_shape"] = True
     V.setdefault("finals", []).append({"n": len(V.get("finals", [])) + 1, "at": now(), "files": rec})
     save(V, f"finished: final #{len(V['finals'])}", why=("one shape only" if a.one_shape else None))
+    # the web copy: made here and only here, when the video is called done (latest.py says how)
+    latest.make_webs(S, [os.path.relpath(os.path.join(S, r["final"]), os.path.join(S, "finals")) for r in rec.values()])
     latest.rebuild(S)
     sh(os.path.join(PY, "learn.py"), "--final", *have.values())
     print(f"{V['video']}: final #{len(V['finals'])} filed → finals/{V['video']}/ and latest/{V['video']}/")

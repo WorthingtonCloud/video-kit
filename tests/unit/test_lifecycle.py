@@ -7,6 +7,7 @@ from conftest import ENGINE, vs, write_tree
 
 sys.path.insert(0, os.path.join(ENGINE, "py"))
 import review  # noqa: E402
+import vslib  # noqa: E402
 
 H, A = "human", "agent"
 
@@ -78,10 +79,16 @@ def test_the_happy_path_and_back(studio, monkeypatch):
     # finish: finals/<video>/ and latest/<video>/, named by the kit
     r = vs(d, "finish")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert sorted(os.listdir(studio / "finals/demo")) == ["demo-vertical-v1-cover.jpg", "demo-vertical-v1.mp4",
-                                                         "demo-widescreen-v1-cover.jpg", "demo-widescreen-v1.mp4"]
-    assert sorted(os.listdir(studio / "latest/demo")) == ["demo-vertical-cover.jpg", "demo-vertical.mp4",
-                                                         "demo-widescreen-cover.jpg", "demo-widescreen.mp4"]
+    assert sorted(os.listdir(studio / "finals/demo")) == ["demo-vertical-v1-cover.jpg", "demo-vertical-v1-web.mp4",
+                                                         "demo-vertical-v1.mp4", "demo-widescreen-v1-cover.jpg",
+                                                         "demo-widescreen-v1-web.mp4", "demo-widescreen-v1.mp4"]
+    assert sorted(os.listdir(studio / "latest/demo")) == ["demo-vertical-cover.jpg", "demo-vertical-web.mp4",
+                                                         "demo-vertical.mp4", "demo-widescreen-cover.jpg",
+                                                         "demo-widescreen-web.mp4", "demo-widescreen.mp4"]
+    for s in ("vertical", "widescreen"):  # the web copy: same picture, never bigger than the full file
+        full, web = studio / f"latest/demo/demo-{s}.mp4", studio / f"latest/demo/demo-{s}-web.mp4"
+        assert vslib.probe_size(str(web)) == vslib.probe_size(str(full))
+        assert web.stat().st_size <= full.stat().st_size
     V = json.load(open(d / "video.json"))
     assert V["status"] == "done" and V["finals"][0]["files"]["widescreen"]["final"] == "finals/demo/demo-widescreen-v1.mp4"
     assert review.state()["finished"]["files"]
@@ -109,7 +116,12 @@ def test_the_happy_path_and_back(studio, monkeypatch):
     review.append([{"type": "version.approved", "version": 2, "cut": "9x16", "video": w2}], H)
     r = vs(d, "finish")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert len(os.listdir(studio / "finals/demo")) == 8
+    assert len(os.listdir(studio / "finals/demo")) == 12  # 2 versions × 2 shapes × (video, web copy, cover)
+    # latest/ holds one web copy per shape, and it's the new final's
+    webs = sorted(f for f in os.listdir(studio / "latest/demo") if f.endswith("-web.mp4"))
+    assert webs == ["demo-vertical-web.mp4", "demo-widescreen-web.mp4"]
+    v2web = studio / "finals/demo/demo-vertical-v2-web.mp4"
+    assert (studio / "latest/demo/demo-vertical-web.mp4").stat().st_size == v2web.stat().st_size
     assert "| demo | vertical | v2 |" in (studio / "latest/VERSIONS.md").read_text()
     assert len(json.load(open(d / "video.json"))["finals"]) == 2
 
@@ -157,3 +169,21 @@ def test_finish_reads_the_pixels_and_never_overwrites(studio, monkeypatch):
     with pytest.raises(SystemExit, match="never overwritten"):
         V.file_into(str(d / "y.mp4"), str(studio / "finals/demo/x.mp4"), dry=False)
     assert (studio / "finals/demo/x.mp4").read_bytes() == b"old"
+
+
+def test_web_copies_are_made_only_by_finish(studio):
+    """vs latest alone never encodes: a final with no web copy shows none in latest/ (not an older one) until
+    vs latest --make-web, which is the backfill for finals filed before web copies existed."""
+    fin = studio / "finals/old"
+    fin.mkdir(parents=True)
+    video(fin / "old-vertical-v1.mp4", "108x192")
+    video(fin / "old-vertical-v1-web.mp4", "108x192")
+    video(fin / "old-vertical-v2.mp4", "108x192")
+    r = vs(studio, "latest")
+    assert r.returncode == 0, r.stderr
+    assert "--make-web" in r.stdout
+    assert sorted(os.listdir(studio / "latest/old")) == ["old-vertical.mp4"]  # v1's web copy isn't v2's
+    assert not (fin / "old-vertical-v2-web.mp4").exists()
+    r = vs(studio, "latest", "--make-web")
+    assert r.returncode == 0, r.stderr
+    assert sorted(os.listdir(studio / "latest/old")) == ["old-vertical-web.mp4", "old-vertical.mp4"]

@@ -175,8 +175,8 @@ def final_file(studio, video, shape, v, cover=False):
     return os.path.join(studio, "finals", video, f"{video}-{shape}-v{int(v)}" + ("-cover.jpg" if cover else ".mp4"))
 
 
-def latest_file(studio, video, shape, cover=False):
-    return os.path.join(studio, "latest", video, f"{video}-{shape}" + ("-cover.jpg" if cover else ".mp4"))
+def latest_file(studio, video, shape, cover=False, web=False):
+    return os.path.join(studio, "latest", video, f"{video}-{shape}" + ("-cover.jpg" if cover else "-web.mp4" if web else ".mp4"))
 
 
 def probe_size(path):

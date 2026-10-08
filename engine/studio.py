@@ -52,7 +52,7 @@ COMMANDS = [
     ("protocol", "self", None, False, None, "review", "the rules every skill shares: review (default), studio (where things live), files (names, folders, the path to final)"),
     ("status", "video", "video.py", True, None, "lifecycle", "where this video stands, and the one next step"),
     ("shape", "video", "video.py", True, None, "lifecycle", "build the other shape, once the first is approved"),
-    ("finish", "video", "video.py", True, None, "lifecycle", "file the approved finals, refresh latest, close the review"),
+    ("finish", "video", "video.py", True, None, "lifecycle", "file the approved finals + their web copies, refresh latest, close the review"),
     ("reopen", "video", "video.py", True, None, "lifecycle", "a finished video drafts again, from exactly its last final"),
     ("restructure", "py", "restructure.py", False, None, "lifecycle", "move a studio from the older flat layout to the folders (--dry first)"),
     ("ingest", "py", "ingest.py", True, "openai (own narration)", "studio", "bring your own media"),

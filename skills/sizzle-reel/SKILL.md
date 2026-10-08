@@ -98,7 +98,7 @@ REVIEW in the same page, both shapes on the switch. A reel made in one shape onl
 **9 · FINISH.** The cover JPEG (the kit writes it; frame one says the hook). Effects under the music, if the profile or
 the human wants them: `cues.py` + `vs mix` → REVIEW with `--stage final` (the Mix panel: the reel's own track is the
 reference; they set the effects against it) → `vs mix --final` (on each shape's render). Then `vs finish`: it files
-each shape into `finals/<video>/`, replaces `latest/<video>/`, marks the reel done, tells the page and keeps what was
+each shape into `finals/<video>/` with its web copy (small enough to upload), replaces `latest/<video>/`, marks the reel done, tells the page and keeps what was
 learned → `vs review wait` → promote only the lessons the human decided → `vs review report` → update `NEXT.md`.
 
 **Later: a change to a finished reel.** `vs reopen <video>` → back to 4–7 on the first shape, the next version; then

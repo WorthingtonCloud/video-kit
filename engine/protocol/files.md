@@ -13,6 +13,10 @@ enforced by a command (named in brackets), never by an agent remembering it.
 - **draft**: any render you haven't called done. **version** (`v1`, `v2` …): one per render; never reused, never
   overwritten. Both shapes of one version share its number.
 - **final**: a version the human called done. **latest**: the newest final of each shape.
+- **web copy**: a final re-encoded small enough to upload (same picture size and frame rate; H.264, constant quality,
+  about a third of the size). Made only when a video is called done [vs finish], one per final, never bigger than its
+  full file. `latest/` holds exactly one per shape, the newest final's: a later finish replaces it. Post the web copy;
+  edit from the full file. (Finals filed before web copies existed: `vs latest --make-web`.)
 
 ## The folders
 
@@ -33,17 +37,17 @@ studio/
     review/                               the review diary (log.jsonl), its snapshot, the note stills
     build/                                regenerated; safe to delete
   finals/<video>/                         every version called done, both shapes
-    <video>-vertical-v8.mp4  <video>-vertical-v8-cover.jpg
-    <video>-widescreen-v8.mp4  <video>-widescreen-v8-cover.jpg
+    <video>-vertical-v8.mp4  <video>-vertical-v8-web.mp4  <video>-vertical-v8-cover.jpg
+    <video>-widescreen-v8.mp4  <video>-widescreen-v8-web.mp4  <video>-widescreen-v8-cover.jpg
   latest/<video>/                         only the newest final of each shape, no version in the name
-    <video>-vertical.mp4  <video>-vertical-cover.jpg
-    <video>-widescreen.mp4  <video>-widescreen-cover.jpg
+    <video>-vertical.mp4  <video>-vertical-web.mp4  <video>-vertical-cover.jpg
+    <video>-widescreen.mp4  <video>-widescreen-web.mp4  <video>-widescreen-cover.jpg
   latest/VERSIONS.md                      which version each latest file is, and when it was filed
   archive/                                project folders a restructure retired (nothing reads them)
 ```
 
 Folders organize; names identify. A file dragged out of its folder still says which video, shape and version it is.
-`finals/` and `latest/` hold only videos and covers. `latest/` is rebuilt from `finals/` (clones: no extra space).
+`finals/` and `latest/` hold only videos, their web copies and covers. `latest/` is rebuilt from `finals/` (clones: no extra space).
 
 ## The happy path
 
@@ -55,7 +59,8 @@ human approves the first shape  →  vs shape <the other>
    │   status: second         (the other shape, built at the approved version; the same Review Studio page,
    ▼                           Vertical | Widescreen switch at the top, one address, one port)
 human approves both  →  vs finish
-   │   status: done           (finals/<video>/ gets both shapes; latest/<video>/ is replaced; the page says Done)
+   │   status: done           (finals/<video>/ gets both shapes + their web copies; latest/<video>/ is replaced;
+   │                           the page says Done)
    ▼
 later: "let's edit <video>"  →  vs reopen <video>
        status: first again    (the sources go back to exactly what made the last final; the next draft is

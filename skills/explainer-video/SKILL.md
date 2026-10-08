@@ -98,8 +98,8 @@ widescreen render (the saved mix fits it: same voice, same times) → REVIEW in 
 shapes with the Vertical | Widescreen switch at the top. Never a second server or port.
 - Gate: both shapes approved in one round (`vs review status --ready` checks each).
 
-**7 · FINISH.** `vs finish`: it files the approved mix of each shape into `finals/<video>/`, replaces
-`latest/<video>/`, marks the video done, tells the page (Done, with the downloads) and keeps what was learned. Then
+**7 · FINISH.** `vs finish`: it files the approved mix of each shape into `finals/<video>/` with its web copy (small
+enough to upload), replaces `latest/<video>/`, marks the video done, tells the page (Done, with the downloads) and keeps what was learned. Then
 `vs review wait` → send both files from `latest/<video>/` in chat too → promote only the lessons the human decided (the
 finish lists them) → any scene helper another video could use into `library/scenes/` → `vs review report` → update
 `NEXT.md`.
