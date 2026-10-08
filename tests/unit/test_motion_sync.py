@@ -57,14 +57,14 @@ def test_vs_mix_plays_the_whoosh_on_the_motion_and_says_so(tmp_path):
     run = lambda *a: subprocess.run([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), *a],
                                     capture_output=True, text=True)
     assert run("plan").returncode == 0
-    os.makedirs(d / "out")
-    moving_box(d / "out/t-v1.mp4", 14, [2.25])
-    r = run("mix", "--video", "out/t-v1.mp4", "--tag", "v1")
+    os.makedirs(d / "drafts/v1/data/vertical")
+    moving_box(d / "drafts/v1/t-vertical-v1.mp4", 14, [2.25])
+    r = run("mix", "--video", "drafts/v1/t-vertical-v1.mp4", "--tag", "v1")
     assert r.returncode == 0, r.stdout[-2000:] + r.stderr[-2000:]
     assert "whooshes on the motion: 1 of 1 moved later" in r.stdout
     whoosh, tick = json.load(open(d / "build/mix/cues.json"))
     assert whoosh["t"] == pytest.approx(2.25, abs=1.5 / FPS) and whoosh["moved"] > 0.2  # played where the box is fastest
     assert tick["t"] == 2.0 and "moved" not in tick  # a click is pinned to its moment and stays there
-    assert "t-v1.mp4" in json.load(open(d / motion.FILE))
-    r = run("mix", "--video", "out/t-v1.mp4", "--tag", "v1", "--no_sync")
+    assert "t-vertical-v1.mp4" in json.load(open(d / motion.FILE))
+    r = run("mix", "--video", "drafts/v1/t-vertical-v1.mp4", "--tag", "v1", "--no_sync")
     assert "whooshes on the motion" not in r.stdout and json.load(open(d / "build/mix/cues.json"))[0]["t"] == 2.0

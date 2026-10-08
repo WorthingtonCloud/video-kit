@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Read narration.txt via ElevenLabs with word timings. Paid: it prints the cost and stops; --yes spends (the spend gate).
-Usage: vs narrate <tag> [--voice ID] [--model eleven_v4] [--stability 0.3] [--acts 1-2] [--yes] [--cap N]
+Usage: vs narrate <tag> [--voice ID] [--model eleven_v4] [--stability 0.3] [--similarity 0.75] [--acts 1-2] [--yes] [--cap N]
 The narrator is the studio profile's "narrator" ({"voice": "<ElevenLabs voice ID>", "model": "eleven_v4", "stability": 0.3}),
 which a plan.json → "narrator" overrides for one video; the flags override both. Always the voice ID, never the name: two library voices can share one.
 Writes voice/narration-<tag>.mp3 + .words.json ({w, t0, t1, act}); prints per-act times and credits used."""
@@ -11,6 +11,7 @@ N = {**(profile().get("narrator") or {}), **(((json.load(open("plan.json")).get(
 tag, VOICE, MODEL = sys.argv[1], arg("--voice", N.get("voice")), arg("--model", N.get("model", "eleven_v4"))
 if not VOICE: sys.exit('no narrator: set the studio profile → "narrator": {"voice": "<voice ID>"} (vs voices to audition), or pass --voice')
 STAB = float(arg("--stability", N.get("stability", 0.3)))
+SIM = float(arg("--similarity", N.get("similarity", 0.75)))  # a cloned narrator's voice may want 1.0 (a reviewer, Oct 6, 2026)
 _a = arg("--acts", "1-99").split("-")  # "5" = act 5 alone, "4-6" a run
 lo, hi = int(_a[0]), int(_a[-1])
 acts = [" ".join(l for l in b.splitlines() if l.strip() and not l.startswith("#")) for b in open("narration.txt").read().split("\n\n")]
@@ -22,7 +23,7 @@ est, what = math.ceil(len(text) * 0.06), f"voice {tag} (acts {lo}-{lo + len(acts
 gate("elevenlabs", f"Narration {what}: {len(text)} characters, {MODEL}", credits=est, yes="--yes" in sys.argv,
      cap_key="elevenlabs_voice_credits_per_video", cap=float(arg("--cap", 0)) or None, scope="voice")
 KEY = key("ELEVENLABS_API_KEY")
-vs = {"stability": STAB, "similarity_boost": 0.75} if v4 else {"stability": STAB, "similarity_boost": 0.75, "style": 0, "speed": 1}
+vs = {"stability": STAB, "similarity_boost": SIM} if v4 else {"stability": STAB, "similarity_boost": SIM, "style": 0, "speed": 1}
 req = urllib.request.Request(f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE}/with-timestamps?output_format=mp3_44100_128",
                              data=json.dumps({"text": text, "model_id": MODEL, "voice_settings": vs}).encode(),
                              headers={"xi-api-key": KEY, "Content-Type": "application/json"})

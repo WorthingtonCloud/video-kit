@@ -14,7 +14,7 @@ picture.
 
 1. `vs narrate <tag>` prints the cost and stops (about 0.06 ElevenLabs credits a character: the spend gate). Say the
    number, wait for the human's yes, then `vs narrate <tag> --yes`.
-2. `vs check-take voice/narration-<tag>.mp3`: fix any word that changes the meaning.
+2. `vs check-take <tag>` (or the path, `voice/narration-<tag>.mp3`): fix any word that changes the meaning.
 3. `vs pitch voice/narration-<tag>.mp3`: a flat read is the failure.
 4. Too long for its slot? `vs fit --take voice/narration-<tag>.mp3 --secs N --out <tag>`: shorter pauses first, then a
    faster read, with the word timings moved along. `--pause none` keeps comic timing; `--rush "act:first..last#n"`

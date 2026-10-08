@@ -31,7 +31,7 @@ AGENT WORK         build, inspect (no errors), render a NEW version, vs qa
 UI REQUIRED        a version is ready for human judgment
    ↓
 CONTEXT PACKAGE    vs review open: the round names the version (both shapes if both are rendered), the
-                   version's own maps ride along (out/<name>-vN.review/: timeline, element map, findings,
+                   version's own maps ride along (drafts/vN/data/<shape>/: timeline, element map, findings,
                    qa, cues, composition), every earlier answer is measured in it
    ↓
 REVIEW UI          the human points, writes, answers, picks, approves; everything waits, held, with Undo
@@ -51,9 +51,10 @@ AGENT WORK         resolve every note, the next version … until the exit crite
    pane by the name it prints, at the first thing the human reviews (the narration, or the first cut). Its address,
    `http://localhost:<port>/review/`, is the only link the human ever gets. Every round and every stage use it: the
    open tab follows the project live. Never a second server, a `#hash` link or a file path.
-2. **Open the round.** `vs review open --stage <stage>` on the newest render. It's refused while `vs inspect` has open
+2. **Open the round.** `vs review open --stage <stage>` on the newest render of the shape being built. It's refused while `vs inspect` has open
    errors (`--ask` puts them to the human instead). It's also refused while the human has feedback they haven't sent.
-   Both shapes at the same version show as one round with a Vertical | Wide switch. Every note, finding and approval
+   Once the video is past its first shape (`vs status`), both shapes show as one round with a Vertical | Widescreen
+   switch, on the same page and port. Every note, finding and approval
    then belongs to the shape on screen.
 3. **Advise every finding** before you tell them: `vs review advise --check <check> --advice leave|fix --plain "…"
    --why "…"`. A warning they answered in an earlier round carries over (same check, same place, within 3 s). Never
@@ -104,7 +105,7 @@ intent to verification in one step.
 
 **Measured, never just claimed.** When the next round opens, each answered note's target is measured against the
 render it was written on: a new version without its mix, or the same picture re-mixed (a sound fix) mix against mix,
-the earlier one from the round's kept copy (`out/watched/`), since a re-mix writes over the take under its own name. The target's box, words, time on screen, keep-clear zones, the arrow's point, how much is
+the earlier one from the round's kept copy (`drafts/watched/`), since a re-mix writes over the take under its own name. The target's box, words, time on screen, keep-clear zones, the arrow's point, how much is
 on screen, its pixels, the sound around it, a sound's level. The measurement gets one verdict:
 
 | verdict | meaning |
@@ -174,10 +175,12 @@ Never write a rule into `lessons.md` or `profile.json` any other way. Taste neve
 
 ## Finish: the end of the flow is visible
 
-1. The last version approved (`vs review status --ready`) → the finals: `vs review finish --final <files>`. The page
-   shows Done with the downloads and a way back in (pick the part, leave a note, send). Run `vs review wait` again.
-2. `vs learn --final <files>` files the finals and keeps the settled values (levels, the winning music, the house
-   look). It lists any lesson the human decided that isn't written down yet. Promote those, nothing else.
+1. Every shape approved (`vs review status --ready`) → `vs finish`. It files the finals (`finals/<video>/`, then
+   `latest/<video>/`), marks the video done, and runs `vs review finish` itself, so the page shows Done with the downloads and a way back in (pick the
+   part, leave a note, send). Run `vs review wait` again.
+2. The same `vs finish` keeps the settled values (`vs learn`: levels, the winning music, the house look) and lists any
+   lesson the human decided that isn't written down yet. Promote those, nothing else.
+   A note sent from Done on a finished video means a change: `vs reopen <video>` first, then the loop.
 3. `vs review report` gives the review's numbers. Update the project's `NEXT.md` so the next session starts from the
    file.
 

@@ -14,6 +14,7 @@ H, A = "human", "agent"
 
 def video(path, secs=2.0, color="0x202020", size="108x192"):
     os.makedirs(os.path.dirname(str(path)) or ".", exist_ok=True)
+    os.makedirs(os.path.join(os.path.dirname(str(path)) or ".", "data", "widescreen" if "-widescreen-" in str(path) else "vertical"), exist_ok=True)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c={color}:s={size}:d={secs}:r=30",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
 
@@ -23,8 +24,8 @@ def proj(tmp_path, monkeypatch):
     d = tmp_path / "p"
     d.mkdir()
     (d / "reel.json").write_text("{}")
-    video(d / "out/p-v1.mp4")
-    (d / "out/p-v1.timeline.json").write_text(json.dumps({"fingerprint": "fp1", "end": 2.0}))
+    video(d / "drafts/v1/p-vertical-v1.mp4")
+    (d / "drafts/v1/data/vertical/timeline.json").write_text(json.dumps({"fingerprint": "fp1", "end": 2.0}))
     monkeypatch.chdir(d)
     return d
 
@@ -40,7 +41,7 @@ def studio(tmp_path, monkeypatch):
     return s
 
 
-def opened(video_="out/p-v1.mp4", version=1):
+def opened(video_="drafts/v1/p-vertical-v1.mp4", version=1):
     return review.append([{"type": "round.opened", "version": version, "cut": "9x16", "video": video_}], A)
 
 
@@ -212,19 +213,19 @@ def test_a_removal_the_answer_named_is_its_own_verdict():
 def test_a_dimension_the_note_cant_see_is_never_verified_by_another(proj):
     """Asked longer on a moment with no element: the picture changing there proves nothing about time on screen, so the
     verdict is unmeasured (with what it did see), never "changed"."""
-    video(proj / "out/p-v2.mp4", color="0xd02020")  # every pixel changed
+    video(proj / "drafts/v2/p-vertical-v2.mp4", color="0xd02020")  # every pixel changed
     n = {"id": "n-0001", "version": 1, "time": {"t": 1.0}, "ask": "longer", "resolution": {"outcome": "resolved", "said": "held it 1 s longer"}}
-    m = review.measure_moment(n, "out/p-v1.mp4", "out/p-v2.mp4")
+    m = review.measure_moment(n, "drafts/v1/p-vertical-v1.mp4", "drafts/v2/p-vertical-v2.mp4")
     assert m["changes"].get("pixels") and m["verdict"] == "unmeasured" and not feedback.verified(m)
     assert m["why"] == "asked longer, and this note's measurement can't see time"
     assert review.describe_measured(m).startswith("its pixels changed")  # what it did see stays in the evidence
     # the same with no element map: a target's old place changing color doesn't show it got bigger
     tn = answered(ask="bigger")
     tn["time"] = {"t": 1.0}
-    m = review.measure_note(tn, "out/p-v1.mp4", "out/p-v2.mp4", None, [108, 192], None)
+    m = review.measure_note(tn, "drafts/v1/p-vertical-v1.mp4", "drafts/v2/p-vertical-v2.mp4", None, [108, 192], None)
     assert m["basis"] == "pixels" and m["verdict"] == "unmeasured" and "can't see size" in m["why"]
     # nothing asked and nothing expected: any measured change counts, and the record says that's all it is
-    m = review.measure_moment({**n, "ask": None}, "out/p-v1.mp4", "out/p-v2.mp4")
+    m = review.measure_moment({**n, "ask": None}, "drafts/v1/p-vertical-v1.mp4", "drafts/v2/p-vertical-v2.mp4")
     assert m["verdict"] == "changed" and m["strength"] == "any"
 
 
@@ -261,13 +262,13 @@ def test_the_human_may_accept_over_the_measurement_and_it_is_kept(proj, studio):
 
 def test_a_note_that_cant_be_measured_says_so(proj):
     """No element map, no cues: the round says "not measured" and why, instead of nothing (which read as no news)."""
-    video(proj / "out/p-v2.mp4")
-    (proj / "out/p-v2.timeline.json").write_text(json.dumps({"fingerprint": "fp2", "end": 2.0}))
+    video(proj / "drafts/v2/p-vertical-v2.mp4")
+    (proj / "drafts/v2/data/vertical/timeline.json").write_text(json.dumps({"fingerprint": "fp2", "end": 2.0}))
     opened()
     review.append([note(sound={"el": "sfx/tick1@s01", "t": 1.0, "sound": "tick1", "db": -12, "ask": "quieter"}, target={"el": "sfx/tick1@s01"}),
                    note(1.0, target=dict(TARGET)), {"type": "round.sent"}], H)
     review.append([{"type": "note.resolved", "id": i, "said": "done", "outcome": "resolved"} for i in ("n-0001", "n-0002")], A)
-    r = cmd("open", "--video", "out/p-v2.mp4")
+    r = cmd("open", "--video", "drafts/v2/p-vertical-v2.mp4")
     assert r.returncode == 0, r.stderr
     S = review.state()
     m1, m2 = S["notes"]["n-0001"]["measured"], S["notes"]["n-0002"]["measured"]
@@ -300,7 +301,7 @@ def test_the_review_may_end_only_when_every_exit_check_holds(proj):
     opened()
     r = cmd("status", "--ready")
     assert r.returncode == 1 and "the person approved v1" in r.stderr
-    review.append([note(), {"type": "version.approved", "version": 1, "cut": "9x16", "video": "out/p-v1.mp4"}, {"type": "round.sent"}], H)
+    review.append([note(), {"type": "version.approved", "version": 1, "cut": "9x16", "video": "drafts/v1/p-vertical-v1.mp4"}, {"type": "round.sent"}], H)
     r = cmd("status", "--ready")
     assert r.returncode == 1 and "everything they sent has been read" in r.stderr
     cmd("show")
@@ -460,6 +461,12 @@ def test_every_skill_defers_to_the_one_review_protocol():
             assert drift not in md, f"{s} restates the review loop ({drift!r}): it belongs in engine/protocol/review.md"
         for c in set(re.findall(r"vs review ([a-z]+)", md)):
             assert c in cmds, f"{s} names vs review {c}, which doesn't exist"
+        # the file path is the kit's (engine/protocol/files.md): every skill points at it and its four moves, and none
+        # files a final or names a render by hand (a reviewer, Oct 8, 2026: a widescreen filed under the vertical's name)
+        for must in ("vs protocol files", "vs status", "vs shape", "vs finish", "vs reopen"):
+            assert must in md, f"{s} doesn't say {must!r}"
+        for drift in ("vs learn --final", "vs review finish --final", "out/", "-16x9"):
+            assert drift not in md, f"{s} still names the older layout ({drift!r})"
 
 
 def test_vs_test_runs_only_the_file_it_is_given():

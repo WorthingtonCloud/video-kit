@@ -21,10 +21,10 @@ test("a sent note's zone is a rule; a draft, a withdrawn note and an accepted wo
     "n-0002": note("n-0002", "draft"),
     "n-0003": note("n-0003", "withdrawn"),
     "n-0004": note("n-0004", "accepted", { resolution: { outcome: "wontdo" } }),
-  }, done: { s2: { version: 3, cut: "9x16", video: "out/x-v3.mp4" } } }));
+  }, done: { s2: { version: 3, cut: "9x16", video: "drafts/v3/x-vertical-v3.mp4" } } }));
   assert.deepEqual(R.keep.map((z) => z.note), ["n-0001"]);
   assert.deepEqual(R.keep[0].over, ["s/phone"]); // what it protects: what was mostly inside it, never the note's target
-  assert.deepEqual(R.done, [{ segment: "s2", version: 3, cut: "9x16", video: "out/x-v3.mp4" }]);
+  assert.deepEqual(R.done, [{ segment: "s2", version: 3, cut: "9x16", video: "drafts/v3/x-vertical-v3.mp4" }]);
   assert.deepEqual(readRules(fs.mkdtempSync(path.join(os.tmpdir(), "vk-rules-"))), { keep: [], done: [] });
 });
 

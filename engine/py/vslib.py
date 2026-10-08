@@ -65,6 +65,145 @@ def project_name():
     return os.path.basename(os.getcwd())
 
 
+# ── files: the one place a video's file and folder names are made (engine/protocol/files.md). JS: paths.mjs, the same
+# rules; tests/contract/cases.json → "files" holds both to the same answers. Nobody types a file name. ──
+SHAPES = {"vertical": "9x16", "widescreen": "16x9"}  # the shape's word (every file name) → the review diary's cut
+CUT_SHAPE = {c: s for s, c in SHAPES.items()}
+VARIANTS = r"take\d+|sfx|mixed|web"
+DRAFT_RE = re.compile(rf"^(?P<video>.+)-(?P<shape>vertical|widescreen)-v(?P<v>\d+)(?:-(?P<variant>{VARIANTS}))?\.mp4$")
+SOURCE_FILES = ("reel.json", "plan.json", "scenes.js", "scenes.vertical.js", "scenes.widescreen.js", "cues.py",
+                "narration.txt", "SCRIPT.md", "music.json", "sfx.json", "mix.json")
+VIDEO_JSON = "video.json"
+
+
+def shape_of(W, H):
+    return "widescreen" if W > H else "vertical"
+
+
+def other_shape(shape):
+    return "widescreen" if shape == "vertical" else "vertical"
+
+
+def shape_of_cut(cut):
+    return CUT_SHAPE.get(cut, cut)
+
+
+def video_name():
+    """A video's name is its project folder's name: every file it makes carries it."""
+    return project_name()
+
+
+def video_state(path=VIDEO_JSON):
+    """video.json: where this video stands (status first | second | done, the shape it started in, the shape being
+    built, its finals, its pivots). Written by vs new / shape / finish / reopen, never by hand."""
+    return read_json(path)
+
+
+def save_video_state(V, path=VIDEO_JSON):
+    tmp = path + ".part"
+    json.dump(V, open(tmp, "w"), indent=1)
+    os.replace(tmp, path)
+
+
+def active_shape(V=None):
+    """The shape being built: $VS_SHAPE (vs build --shape), else video.json → building, else what reel.json's (or
+    plan.json's) size says, else vertical."""
+    if os.environ.get("VS_SHAPE") in SHAPES:
+        return os.environ["VS_SHAPE"]
+    V = video_state() if V is None else V
+    if V.get("building") in SHAPES:
+        return V["building"]
+    for f in ("reel.json", "plan.json"):
+        size = read_json(f).get("size")
+        if size:
+            return shape_of(*size)
+    return "vertical"
+
+
+def draft_dir(v):
+    return f"drafts/v{int(v)}"
+
+
+def draft_file(shape, v, variant=None, video=None):
+    """drafts/vN/<video>-<shape>-vN[-variant].mp4: a render (variant None) or a mix of it (take2, sfx, mixed, web)."""
+    return f"{draft_dir(v)}/{video or video_name()}-{shape}-v{int(v)}" + (f"-{variant}" if variant else "") + ".mp4"
+
+
+def parse_draft(path):
+    """A draft's name → {video, shape, v, variant} (None if it isn't one of ours)."""
+    m = DRAFT_RE.match(os.path.basename(path))
+    return {**m.groupdict(), "v": int(m["v"])} if m else None
+
+
+def render_of(path):
+    """A mix's render (drafts/v8/x-vertical-v8-take2.mp4 → drafts/v8/x-vertical-v8.mp4); a render is its own."""
+    d = parse_draft(path)
+    return os.path.join(os.path.dirname(path), f"{d['video']}-{d['shape']}-v{d['v']}.mp4") if d else path
+
+
+def cover_of(path):
+    return re.sub(r"\.mp4$", "-cover.jpg", render_of(path))
+
+
+def data_dir(path):
+    """The kit's own files for a render (and its mixes): drafts/vN/data/<shape>/."""
+    d = parse_draft(path)
+    if not d:
+        raise ValueError(f"{path}: not a draft (drafts/vN/<video>-<shape>-vN….mp4)")
+    return os.path.join(os.path.dirname(path) or ".", "data", d["shape"])
+
+
+def drafts(shape=None):
+    """Every draft in this project, oldest version first: [(path, parsed)]."""
+    out = []
+    for d in sorted(os.listdir("drafts")) if os.path.isdir("drafts") else []:
+        if not re.fullmatch(r"v\d+", d):
+            continue
+        for f in os.listdir(os.path.join("drafts", d)):
+            p = parse_draft(f)
+            if p and (shape is None or p["shape"] == shape):
+                out.append((os.path.join("drafts", d, f), p))
+    return sorted(out, key=lambda x: (x[1]["v"], x[1]["shape"], x[1]["variant"] or ""))
+
+
+def last_version():
+    """The highest version any render of this video has (0 before the first)."""
+    return max([p["v"] for _, p in drafts()] + [0])
+
+
+def final_file(studio, video, shape, v, cover=False):
+    return os.path.join(studio, "finals", video, f"{video}-{shape}-v{int(v)}" + ("-cover.jpg" if cover else ".mp4"))
+
+
+def latest_file(studio, video, shape, cover=False):
+    return os.path.join(studio, "latest", video, f"{video}-{shape}" + ("-cover.jpg" if cover else ".mp4"))
+
+
+def probe_size(path):
+    """A video's real width and height (ffprobe)."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                        "-of", "csv=p=0", path], capture_output=True, text=True)
+    try:
+        W, H = (int(x) for x in r.stdout.strip().split(",")[:2])
+    except ValueError:
+        raise SystemExit(f"⛔ {path}: no video stream ffprobe can read")
+    return W, H
+
+
+def reel(path="reel.json", shape=None):
+    """reel.json as the build sees it for one shape: its "shapes" → <shape> block replaces the top-level keys it names,
+    and the size follows the shape (contracts.json sizes) unless the block sets one. (JS: paths.mjs loadReel.)"""
+    R = read_json(path)
+    if not R:
+        return R
+    shape = shape or active_shape()
+    over = (R.get("shapes") or {}).get(shape) or {}
+    R = {**{k: v for k, v in R.items() if k != "shapes"}, **over}
+    if "size" not in over and R.get("size") and shape_of(*R["size"]) != shape:
+        R["size"] = CONTRACTS["sizes"][shape]
+    return R
+
+
 def file_hash(path):
     """The same short sha256 the build stamps into build/timeline.json (engine/js/lib/paths.mjs → hash)."""
     return hashlib.sha256(open(path, "rb").read()).hexdigest()[:16]
@@ -200,6 +339,27 @@ def find_key(name):
                     if v:
                         return v
     return None
+
+
+def transcribe(path, fields, row=None):
+    """An audio file through OpenAI's transcriptions endpoint → the response text. fields: the form fields besides the
+    file ("model=whisper-1", ...). The key reaches curl on stdin (-K -), never on its command line: a failed call's
+    traceback printed the whole command, key and all (Oct 7, 2026, `vs check-take v2` with a tag for a path). A failure
+    marks the ledger row failed and exits with one plain line, the key scrubbed from whatever the vendor said."""
+    k = find_key("OPENAI_API_KEY")
+    if not k:
+        row and failed(row)
+        key("OPENAI_API_KEY")  # its plain sentence, and the exit
+    cfg = 'header = "Authorization: Bearer %s"\n' % k.replace("\\", "\\\\").replace('"', '\\"')
+    cmd = ["curl", "-sS", "--fail-with-body", "-K", "-", "https://api.openai.com/v1/audio/transcriptions", "-F", f"file=@{path}"]
+    for f in fields:
+        cmd += ["-F", f]
+    r = subprocess.run(cmd, input=cfg, capture_output=True, text=True)
+    if r.returncode == 0:
+        return r.stdout
+    said = " ".join((r.stdout.strip() or r.stderr.strip() or f"curl exit {r.returncode}").split())[:300].replace(k, "<key>")
+    row and failed(row)
+    sys.exit(f"⛔ transcribing {os.path.basename(path)} failed: {said}")
 
 
 # ── the ledger: every paid call, across every video, in the studio (a project without a studio keeps its own) ──

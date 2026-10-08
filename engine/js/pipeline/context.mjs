@@ -3,12 +3,23 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { loadReel, NODE_MODULES, COMP as COMP_DIR, QA } from "../lib/paths.mjs";
+import { loadReel, NODE_MODULES, COMP as COMP_DIR, QA, activeShape, draftFile, shapeOf } from "../lib/paths.mjs";
 
 export const ARGS = process.argv.slice(2),
   STORY = ARGS.includes("--storyboard"),
   NORENDER = ARGS.includes("--no-render") || STORY;
-export const R = loadReel(),
+// the shape being built (vs build --shape, else video.json → building): the reel is read for it, and it names the render
+export const SHAPE = activeShape();
+// an explainer's reel.json is written by vs plan for one shape: building the other from it would skip plan.json's
+// "shapes" block, so it stops and says to plan that shape first
+if (fs.existsSync("plan.json") && fs.existsSync("reel.json")) {
+  const size = JSON.parse(fs.readFileSync("reel.json", "utf8")).size;
+  if (size && shapeOf(...size) !== SHAPE) {
+    console.error(`⛔ reel.json was planned for the ${shapeOf(...size)} shape, and this build is the ${SHAPE}: vs plan first`);
+    process.exit(1);
+  }
+}
+export const R = loadReel("reel.json", SHAPE),
   [W, H] = R.size,
   FPS = R.fps || 30,
   LAND = W > H,
@@ -18,8 +29,8 @@ export const M = R.music,
   HIT = +M.first_hit;
 export const COMP = COMP_DIR,
   A = `${COMP}/assets`,
-  OUT = `out/${R.name}-v${R.version || 1}.mp4`;
-for (const d of [A, `${A}/tiles`, `${A}/fonts`, "out", QA]) fs.mkdirSync(d, { recursive: true });
+  OUT = draftFile(SHAPE, R.version || 1); // drafts/vN/<video>-<shape>-vN.mp4 (engine/protocol/files.md)
+for (const d of [A, `${A}/tiles`, `${A}/fonts`, QA]) fs.mkdirSync(d, { recursive: true });
 export const env = { ...process.env, HYPERFRAMES_NO_TELEMETRY: "1", DO_NOT_TRACK: "1", HYPERFRAMES_SKIP_SKILLS: "1" };
 export const die = (msg) => {
   console.error(`⛔ ${msg}`);

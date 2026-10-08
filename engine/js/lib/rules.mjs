@@ -3,7 +3,7 @@
 //   keep-clear  a zone a note drew ("nothing goes here"): in the note's scene, on the cut it was drawn on, nothing but
 //               what it was drawn over (and what that holds, and what holds it) may enter it
 //   done        a scene the human marked done (scene.done): its frames are locked to the version it was approved in.
-//               That version's composition is kept beside its render (out/<name>-vN.review/comp.html); both are snapped
+//               That version's composition is kept beside its render (drafts/vN/data/<shape>/comp.html); both are snapped
 //               at the same moments and compared. A snapshot of one composition is identical every time (measured: 0 of
 //               129,600 pixels), so any difference is a real change; the render itself can't be the reference (its
 //               grain and encoding differ from a snapshot by up to 234 levels).
@@ -12,6 +12,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { step } from "./browser.mjs";
+import { parseDraft, dataDir } from "./paths.mjs";
 
 const LIVE = new Set(["sent", "question", "resolved", "accepted", "reopened"]); // a draft isn't sent; withdrawn is gone
 
@@ -109,7 +110,7 @@ export function keepClear({ rules, TL, META, seenAt, W, H, near, MIN, STEP }) {
 
 // done scenes: the approved version's composition and this one, snapped at the same moments of the scene, compared at a
 // quarter size. Any pixel more than 24 levels apart, in more than 16 places, is a change.
-const archiveOf = (video) => video.replace(/-(take\d+|sfx|mixed)\.mp4$/, ".mp4").replace(/\.mp4$/, ".review");
+const archiveOf = (video) => (parseDraft(video) ? dataDir(video) : video.replace(/\.mp4$/, ".review")); // drafts/vN/data/<shape>
 export async function lockedScenes({ rules, TL, browser, W, H, COMP, seenAt, META }) {
   const out = [],
     warn = [];

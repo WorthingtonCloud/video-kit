@@ -27,15 +27,20 @@ blocks the render) → HyperFrames renders it frame by frame, audio included →
    loads), the full path in every call.
 2. **Read the studio's `lessons.md` and `profile.json` first** (`vs where`): the look, the reel's music direction, the
    spending caps, every note this user has given. Don't re-ask what they answer. `reel.json` overrides for one reel.
-3. `vs doctor`. No studio yet? `vs setup`. A new reel: `vs new <slug> --kind reel`.
-4. **Two shared protocols** govern every stage below. Read them when you first need them, and follow them as written:
-   `vs protocol review` (every REVIEW stage, learning, finishing) and `vs protocol studio` (where every piece of
-   information goes, and the gates every step shares). This file only adds what is particular to reels.
+3. `vs doctor`. No studio yet? `vs setup`. A new reel: `vs new <video> --kind reel --shape vertical` (the shape it
+   starts in; the other comes once that one is approved).
+4. **An existing reel? `vs status` first** (`vs -p <video> status` from anywhere). It says where the reel stands and the one next step. A finished
+   one the human wants changed: `vs reopen <video>` (never edit a finished reel's files first).
+5. **Three shared protocols** govern every stage below. Read them when you first need them, and follow them as written:
+   `vs protocol files` (every name and folder, and the path from first draft to final and back), `vs protocol review`
+   (every REVIEW stage, learning, finishing) and `vs protocol studio` (where every piece of information goes, and the
+   gates every step shares). This file only adds what is particular to reels.
 
-A project (`studio/projects/<slug>/`) holds the reel: `reel.json`, `SCRIPT.md`, `brainstorm-*.md`, `scenes.js` (its own
-scenes), `NEXT.md`; `inputs/` (what the human handed over), `media/` (working copies, generated stills and clips),
-`music/`; `out/` keeps every version. The widescreen cut is the sibling project `<slug>-16x9` (the same `reel.json`
-with `name` and `size` flipped, `scenes.js` copied).
+A reel is ONE project, both shapes (`studio/projects/<video>/`): `reel.json`, `SCRIPT.md`, `brainstorm-*.md`,
+`scenes.js` (its own scenes), `NEXT.md`; `inputs/` (what the human handed over), `media/` (working copies, generated
+stills and clips), `music/`. Every render lands in `drafts/vN/` as `<video>-<shape>-vN.mp4`. What the other shape
+does differently lives in the same `reel.json` → `"shapes"` → `"widescreen"` (its own `segments`, crops), with
+`scenes.widescreen.js` and `media/widescreen/` only when the code or a crop has to differ. The kit names every file.
 
 ## The stages
 
@@ -78,19 +83,26 @@ again. Every generation gets a ledger row, kept or rejected, with why.
 **6 · CUT.** Bump `version` in `reel.json`, `vs build` in the background (~a minute for 58 s; it runs `vs qa` on the
 cut itself and prints nothing until both are done, so don't check on it). Every ⚠️ either prints is a note a human once had to give: fix it, don't explain it. Open the first frame, the safe sheet and
 the cuts sheet (ghosted titles, empty frames, early lines, flashes of black).
-- Gate: inspect and qa clean. Produces: `out/<name>-vN.mp4` + its `.review/` archive.
+- Gate: inspect and qa clean. Produces: `drafts/vN/<video>-<shape>-vN.mp4` + its `data/<shape>/` (timing, maps, sources).
 
 **7 · REVIEW.** Enter REVIEW and follow `vs protocol review` exactly: open the round (`--stage picture`), advise the
 findings, `vs review wait` in the background, read, resolve, measure, repeat.
-- Reel context: with the widescreen cut rendered at the same version in `<slug>-16x9/`, the round shows both shapes;
-  fix a widescreen note in that project. Say the cost of any paid note before acting on it.
+- Reel context: while the first shape is drafted a round shows only it; after `vs shape` it shows both, on the same page
+  (the Vertical | Widescreen switch). Never a second server or port. Say the cost of any paid note before acting on it.
 - Gate: `vs review status --ready`. Notes → fix → back to 4–6 for the next version.
 
-**8 · FINISH.** The cover JPEG (the kit writes it; frame one says the hook); widescreen if wanted (LOOKED at again).
-Effects under the music, if the profile or the human wants them: `cues.py` + `vs mix --video out/<name>-vN.mp4 --tag vN`
-→ REVIEW with `--stage final` (the Mix panel: the reel's own track is the reference; they set the effects against it)
-→ `vs mix … --final`. Then the protocol's Finish: `vs review finish --final <files>` → `vs review wait` → `vs learn
---final <files>` → promote only the lessons the human decided → `vs review report` → update `NEXT.md`.
+**8 · THE OTHER SHAPE.** Once the first shape is approved: `vs shape widescreen` (refused until then) → its
+`reel.json` → `"shapes"` → `"widescreen"` block (segments, crops) → the build loop → `vs build` (LOOKED at again) →
+REVIEW in the same page, both shapes on the switch. A reel made in one shape only skips this (`vs finish --one-shape`).
+
+**9 · FINISH.** The cover JPEG (the kit writes it; frame one says the hook). Effects under the music, if the profile or
+the human wants them: `cues.py` + `vs mix` → REVIEW with `--stage final` (the Mix panel: the reel's own track is the
+reference; they set the effects against it) → `vs mix --final` (on each shape's render). Then `vs finish`: it files
+each shape into `finals/<video>/`, replaces `latest/<video>/`, marks the reel done, tells the page and keeps what was
+learned → `vs review wait` → promote only the lessons the human decided → `vs review report` → update `NEXT.md`.
+
+**Later: a change to a finished reel.** `vs reopen <video>` → back to 4–7 on the first shape, the next version; then
+8 and 9 again. The new final replaces the old one in `latest/`; `finals/` keeps both.
 
 ## Bring your own
 
@@ -110,7 +122,7 @@ as collage tiles. A reusable one (`--to library`) is named `lib:media/<file>`.
 
 ## References
 
-- `vs protocol review` · `vs protocol studio`: the shared protocols (above).
+- `vs protocol files` · `vs protocol review` · `vs protocol studio`: the shared protocols (above).
 - `references/motion.md`: the segment, source, transition and emphasis vocabulary (what `reel.json` can say).
 - `references/scars.md`: every mistake that cost a round of notes. Read it before the first cut.
 - `references/costs.md`: what things cost, from real reels.

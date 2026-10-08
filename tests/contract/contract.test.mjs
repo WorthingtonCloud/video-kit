@@ -5,7 +5,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { studioRoot, profile, findKey, hash } from "../../engine/js/lib/paths.mjs";
+import { studioRoot, profile, findKey, hash, activeShape, draftFile, dataDir, coverOf, parseDraft, forShape } from "../../engine/js/lib/paths.mjs";
 import { timeSegments } from "../../engine/js/lib/time.mjs";
 import { wordAt } from "../../engine/js/lib/words.mjs";
 
@@ -21,7 +21,7 @@ function runIn(c) {
     fs.mkdirSync(path.dirname(p), { recursive: true });
     fs.writeFileSync(p, (typeof body === "string" ? body : JSON.stringify(body)).replaceAll("{root}", root));
   }
-  for (const k of ["VIDEO_STUDIO", "K"]) delete process.env[k];
+  for (const k of ["VIDEO_STUDIO", "K", "VS_SHAPE"]) delete process.env[k];
   fs.mkdirSync(path.join(root, "home"), { recursive: true });
   Object.assign(process.env, { HOME: path.join(root, "home"), VIDEO_KIT_NO_SPEND: "1" });
   for (const [k, v] of Object.entries(c.env || {})) process.env[k] = v.replaceAll("{root}", root);
@@ -83,3 +83,36 @@ for (const c of CASES.words.cases)
   });
 
 for (const c of CASES.hash) test(`hash: ${JSON.stringify(c.text)}`, () => assert.equal(hash(c.text), c.expect));
+
+for (const c of CASES.files.shape)
+  test(`files shape: ${c.name}`, () => {
+    runIn(c);
+    try {
+      assert.equal(activeShape(), c.expect);
+    } finally {
+      restore();
+    }
+  });
+
+for (const c of CASES.files.draft)
+  test(`files draft: ${c.expect.file}`, () => {
+    runIn({ tree: { [`${c.cwd}/.keep`]: "" }, cwd: c.cwd });
+    try {
+      const f = draftFile(...c.args.map((a) => a ?? null));
+      assert.equal(f, c.expect.file);
+      assert.equal(dataDir(f), c.expect.data);
+      assert.equal(coverOf(f), c.expect.cover);
+      assert.deepEqual(parseDraft(f), c.expect.parsed);
+    } finally {
+      restore();
+    }
+  });
+
+for (const c of CASES.files.reel)
+  test(`files reel: ${c.name}`, () => {
+    const R = forShape(c.reel, c.shape);
+    assert.equal("shapes" in R, false);
+    for (const [k, v] of Object.entries(c.expect)) assert.deepEqual(R[k], v, k);
+  });
+
+for (const n of CASES.files.not_drafts) test(`files not a draft: ${n}`, () => assert.equal(parseDraft(n), null));

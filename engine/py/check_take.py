@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
 """Check a narration take against the script: transcribe it back and list every word that differs.
 
-    vs check-take voice/narration-v4.mp3 [--acts 9-10] --yes     (acts: which part of narration.txt the take reads)
+    vs check-take v4 [--acts 9-10] --yes     (a take's tag, or its path: voice/narration-v4.mp3; acts: which part of
+                                              narration.txt the take reads)
 
 OpenAI gpt-4o-mini-transcribe, about a cent for two minutes (OPENAI_API_KEY, from the environment or a .env), through the
 spend gate like every paid step: without --yes it says the cost and stops. Writes <take>.heard.txt.
 Why: the voice model changes words, and some changes flip the meaning. The demo's first take (Sep 30, 2026) said "fell to 12"
 for "fell twelve percent", "aligned" for "a line", "a role" for "agents to roles". Reword the line and record it again;
 don't ship a take with a meaning change. Stage directions ([wry]) and "..." are not spoken, so they are stripped first."""
-import difflib, os, re, subprocess, sys
-from vslib import key as get_key, log, gate, done
+import difflib, os, re, sys
+from vslib import log, gate, done, transcribe
 
-take = sys.argv[1]
+take = sys.argv[1] if len(sys.argv) > 1 and not sys.argv[1].startswith("--") else sys.exit("which take? vs check-take <tag or path>")
+if not os.path.isfile(take) and os.path.isfile(f"voice/narration-{take}.mp3"):
+    take = f"voice/narration-{take}.mp3"  # a tag, the way vs narrate names it
+if not os.path.isfile(take):
+    sys.exit(f"⛔ no take called {take}: give its tag (v2 = voice/narration-v2.mp3) or its path")
 acts = sys.argv[sys.argv.index("--acts") + 1] if "--acts" in sys.argv else "1-99"
 _a = acts.split("-")  # "5" = act 5 alone, "4-6" a run
 lo, hi = int(_a[0]), int(_a[-1])
 gate("openai", f"Transcribing {os.path.basename(take)} back to check it", usd=0.01, yes="--yes" in sys.argv)
-key = get_key("OPENAI_API_KEY")
 row = log("openai", f"take check {os.path.basename(take)}", usd=0.01, note="gpt-4o-mini-transcribe")
-heard = subprocess.run(["curl", "-s", "https://api.openai.com/v1/audio/transcriptions", "-H", f"Authorization: Bearer {key}",
-                        "-F", f"file=@{take}", "-F", "model=gpt-4o-mini-transcribe", "-F", "response_format=text"],
-                       capture_output=True, text=True, check=True).stdout.strip()
+heard = transcribe(take, ["model=gpt-4o-mini-transcribe", "response_format=text"], row).strip()
 open(take.replace(".mp3", ".heard.txt"), "w").write(heard + "\n")
 done(row)
 blocks = [" ".join(l for l in b.splitlines() if l.strip() and not l.startswith("#")) for b in open("narration.txt").read().split("\n\n")]

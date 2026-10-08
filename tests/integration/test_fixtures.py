@@ -35,18 +35,18 @@ def test_the_beat_reel_builds_inspects_and_names_everything(tmp_path, font_studi
     assert tl["end"] == pytest.approx(25.77) and [s["name"] for s in tl["segments"]][:2] == ["s01_open", "s02_turn"]
     # versions are never overwritten: a render onto an existing one stops before it starts (Oct 1, 2026: a re-render
     # without the version bump replaced the v1 a review round was looking at)
-    os.makedirs(d / "out", exist_ok=True)
-    (d / "out/beat-reel-v1.mp4").write_bytes(b"v1")
+    os.makedirs(d / "drafts/v1/data/vertical", exist_ok=True)
+    (d / "drafts/v1/beat-reel-vertical-v1.mp4").write_bytes(b"v1")
     r = subprocess.run([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "build"], capture_output=True, text=True)
     assert r.returncode and "versions are never overwritten" in r.stdout + r.stderr and "--replace" in r.stdout + r.stderr
     os.makedirs(d / "review")
     sys.path.insert(0, os.path.join(ENGINE, "py"))
     import review
     json.dump(review.fold([{"type": "round.opened", "by": "agent", "version": 1, "cut": "9x16",
-                            "video": "out/beat-reel-v1-mixed.mp4"}]), open(d / "review/state.json", "w"))
+                            "video": "drafts/v1/beat-reel-vertical-v1-mixed.mp4"}]), open(d / "review/state.json", "w"))
     r = subprocess.run([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "build", "--replace"], capture_output=True, text=True)
     assert r.returncode and "a review round played it" in r.stdout + r.stderr
-    assert (d / "out/beat-reel-v1.mp4").read_bytes() == b"v1"
+    assert (d / "drafts/v1/beat-reel-vertical-v1.mp4").read_bytes() == b"v1"
 
 
 def test_the_tiny_explainer_plans_builds_inspects_and_mixes(tmp_path, font_studio):
@@ -65,19 +65,19 @@ def test_the_tiny_explainer_plans_builds_inspects_and_mixes(tmp_path, font_studi
     assert board["named"] and board["src"] == "scenes.js:5" and board["on"]
     assert "s01_plan/~ex-k:the-plan" in els and "s01_plan/~ex-chip:pinned-to-a" in els
     assert "s02_words/the-board" in els  # one scene drawing two segments: names are unique per segment
-    os.makedirs(d / "out", exist_ok=True)
+    os.makedirs(d / "drafts/v1/data/vertical", exist_ok=True)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=black:s=108x192:d={tl['end']}:r=30",
-                    "-c:v", "libx264", "-preset", "ultrafast", str(d / "out/t-v1.mp4")], check=True)
+                    "-c:v", "libx264", "-preset", "ultrafast", str(d / "drafts/v1/t-vertical-v1.mp4")], check=True)
     # a take linked in from somewhere else (a scratch copy of a real project) is replaced, never written through:
     # Oct 1, 2026 a scratch re-mix wrote through such a link into an approved final (identical bytes, by luck)
     elsewhere = tmp_path / "someone-elses-final.mp4"
     elsewhere.write_bytes(b"the approved final")
-    os.symlink(elsewhere, d / "out/t-v1-sfx.mp4")
-    vs(d, "mix", "--video", "out/t-v1.mp4", "--tag", "v1")
+    os.symlink(elsewhere, d / "drafts/v1/t-vertical-v1-sfx.mp4")
+    vs(d, "mix", "--video", "drafts/v1/t-vertical-v1.mp4", "--tag", "v1")
     assert os.path.exists(d / "build/mix/stem-voice.wav") and json.load(open(d / "build/mix/cues.json")) == []
-    assert elsewhere.read_bytes() == b"the approved final" and not os.path.islink(d / "out/t-v1-sfx.mp4")
-    assert json.load(open(d / "build/mixer/config.json"))["video"] == "out/t-v1.mp4"  # the Mix panel knows its video
-    assert json.load(open(d / "out/t-v1.review/cues.json")) == []  # and the version keeps the cues it was mixed with
+    assert elsewhere.read_bytes() == b"the approved final" and not os.path.islink(d / "drafts/v1/t-vertical-v1-sfx.mp4")
+    assert json.load(open(d / "build/mixer/config.json"))["video"] == "drafts/v1/t-vertical-v1.mp4"  # the Mix panel knows its video
+    assert json.load(open(d / "drafts/v1/data/vertical/cues.json")) == []  # and the version keeps the cues it was mixed with
 
 
 def test_the_mix_hands_the_review_page_what_plays_live(tmp_path, font_studio):
@@ -93,10 +93,10 @@ def test_the_mix_hands_the_review_page_what_plays_live(tmp_path, font_studio):
     vs(d, "plan")
     vs(d, "build", "--no-render")
     end = json.load(open(d / "build/timeline.json"))["end"]
-    os.makedirs(d / "out", exist_ok=True)
+    os.makedirs(d / "drafts/v1/data/vertical", exist_ok=True)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=black:s=108x192:d={end}:r=30",
-                    "-c:v", "libx264", "-preset", "ultrafast", str(d / "out/t-v1.mp4")], check=True)
-    vs(d, "mix", "--video", "out/t-v1.mp4", "--tag", "v1")
+                    "-c:v", "libx264", "-preset", "ultrafast", str(d / "drafts/v1/t-vertical-v1.mp4")], check=True)
+    vs(d, "mix", "--video", "drafts/v1/t-vertical-v1.mp4", "--tag", "v1")
     media = d / "build/mixer/media"
     cfg = json.load(open(d / "build/mixer/config.json"))
     D = json.load(open(media / "duck.json"))
@@ -126,13 +126,13 @@ def test_done_scenes_and_keep_clear_zones_are_enforced(tmp_path, font_studio):
     vs(d, "build", "--no-render")
     vs(d, "inspect")
     # what a render keeps (js/lib/archive.mjs): its timeline and its composition
-    os.makedirs(d / "out/beat-reel-v1.review")
-    shutil.copy(d / "build/timeline.json", d / "out/beat-reel-v1.review/timeline.json")
-    shutil.copy(d / "build/comp/index.html", d / "out/beat-reel-v1.review/comp.html")
+    os.makedirs(d / "drafts/v1/data/vertical")
+    shutil.copy(d / "build/timeline.json", d / "drafts/v1/data/vertical/timeline.json")
+    shutil.copy(d / "build/comp/index.html", d / "drafts/v1/data/vertical/comp.html")
     sys.path.insert(0, os.path.join(ENGINE, "py"))
     import review
     S = review.fold([{**e, "at": "2026-10-01T19:00:00-04:00"} for e in [
-        {"type": "round.opened", "by": "agent", "version": 1, "cut": "9x16", "video": "out/beat-reel-v1.mp4"},
+        {"type": "round.opened", "by": "agent", "version": 1, "cut": "9x16", "video": "drafts/v1/beat-reel-vertical-v1.mp4"},
         {"type": "scene.done", "by": "human", "segment": "s02_turn"},
         {"type": "note.added", "by": "human", "note": {"id": "n-0001", "time": {"t": 13.0}, "segment": "s03_hub", "comment": "keep the middle clear",
          "also": [{"type": "keep-clear", "box": [0.39, 0.28, 0.61, 0.42], "keeps": ["s03_hub/core", "s03_hub/core-disc", "s03_hub/~mono:agent"]}]}},

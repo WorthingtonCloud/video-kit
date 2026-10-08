@@ -22,40 +22,17 @@ def kit_version():
 
 
 def url(p):
-    """A project file's address. A file in a project beside this one (a reel's widescreen cut lives in <slug>-16x9/)
-    is /@<that project>/…: the server serves only its out/, and only for a project the open round names."""
+    """A project file's address (every shape of a video lives in its one project: engine/protocol/files.md)."""
     if not p:
         return None
-    p = os.path.normpath(p)
-    if p.startswith(".." + os.sep):
-        parts = p.split(os.sep)
-        return "/@" + "/".join(parts[1:])
-    return "/" + p.replace(os.sep, "/")
-
-
-def neighbors():
-    """The projects beside this one the open round shows a shape from (the only ones /@… may read)."""
-    R = review.current(review.state())
-    out = set()
-    for c in (R or {}).get("cuts") or []:
-        p = os.path.normpath(c["video"]).split(os.sep)
-        if p[0] == ".." and len(p) > 2:
-            out.add(p[1])
-    return out
+    return "/" + os.path.normpath(p).replace(os.sep, "/")
 
 
 def context(S):
-    """Where the page finds the round's files. A version's own maps (out/<…>-vN.review/, its timeline) win; the build's
+    """Where the page finds the round's files. A version's own maps (drafts/vN/data/<shape>/, its timeline) win; the build's
     are used only when they're the same composition (same fingerprint). exact: false = the build moved on since this
     version was rendered, so outlines come from the nearest map and may be off."""
-    versions = []
-    for v in sorted(os.listdir("out")) if os.path.isdir("out") else []:
-        if v.endswith(".mp4"):
-            try:
-                n, base = review.version_of(os.path.join("out", v))
-            except review.Refused:
-                continue
-            versions.append({"video": url(os.path.join("out", v)), "version": n, "cut": "16x9" if "-16x9-" in v else "9x16"})
+    versions = [{"video": url(p), "version": d["v"], "cut": vslib.SHAPES[d["shape"]]} for p, d in vslib.drafts()]
     kind = "explainer" if os.path.exists("plan.json") else "reel"
     ctx = {"project": vslib.project_name(), "kit": kit_version(), "versions": versions, "round": None, "mixer": None,
            "kind": kind, "stages": review.STAGES[kind], "plain": review.PLAIN, "waiting": review.agent_waiting(),
@@ -75,17 +52,16 @@ def context(S):
 
     def shape(video, cut, size):
         """One render's files: its version's own maps first, this project's build only when it's the same composition."""
-        n, base = review.version_of(video)
-        here = not os.path.normpath(video).startswith("..")
-        vtl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
-        btl = vslib.read_json("build/timeline.json") if here else None
+        n, base = review.version_of(video)  # base: the render's data folder, drafts/vN/data/<shape>
+        vtl = vslib.read_json(f"{base}/timeline.json")
+        btl = vslib.read_json("build/timeline.json")
         fp = (vtl or {}).get("fingerprint")
         same = bool(btl and fp and btl.get("fingerprint") == fp)
 
         def pick(name):
-            if os.path.exists(f"{base}.review/{name}"):
-                return url(f"{base}.review/{name}"), True
-            F = vslib.read_json(f"build/{name}") if here else None
+            if os.path.exists(f"{base}/{name}"):
+                return url(f"{base}/{name}"), True
+            F = vslib.read_json(f"build/{name}")
             if F:
                 return url(f"build/{name}"), bool(fp and F.get("fingerprint") == fp)
             return None, False
@@ -95,13 +71,12 @@ def context(S):
         comp = same and os.path.exists("build/comp/index.html")  # the composition that made this version, to hit-test
         return {
             "video": url(video), "version": n, "cut": cut, "size": size,
-            "timeline": url(f"{base}.review/timeline.json") if os.path.exists(f"{base}.review/timeline.json")
-            else url(f"{base}.timeline.json") if vtl else url("build/timeline.json") if btl else None,
+            "timeline": url(f"{base}/timeline.json") if vtl else url("build/timeline.json") if btl else None,
             "elements": els, "findings": fnd,
             "words": url(words) if words and os.path.exists(words) else None,
-            "cues": url(f"{base}.review/cues.json") if os.path.exists(f"{base}.review/cues.json")
+            "cues": url(f"{base}/cues.json") if os.path.exists(f"{base}/cues.json")
             else url("build/mix/cues.json") if same and os.path.exists("build/mix/cues.json") else None,
-            "qa": url(f"{base}.review/qa.json") if os.path.exists(f"{base}.review/qa.json") else None,  # qa.py's warnings
+            "qa": url(f"{base}/qa.json") if os.path.exists(f"{base}/qa.json") else None,  # qa.py's warnings
             "comp": url("build/comp/index.html") if comp else None,
             "exact": {"timeline": bool(vtl), "elements": els_exact, "findings": fnd_exact, "comp": comp},
         }
@@ -148,12 +123,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if p.startswith("/fonts/"):
                 root, p = os.path.join(vslib.studio_root() or "", "library/brand/fonts"), p[len("/fonts"):]
         parts = [w for w in posixpath.normpath(p).split("/") if w and w not in (".", "..")]
-        if p.startswith("/@") and parts:
-            # a shape from the project beside this one: its out/ only, and only one the open round names
-            nb = parts[0][1:]
-            if nb not in neighbors() or len(parts) < 3 or parts[1] != "out":
-                return os.path.join(root, ".not-served")
-            return os.path.join(os.path.dirname(root), nb, *parts[1:])
         return os.path.join(root, *parts) + ("/" if p.endswith("/") else "")
 
     def do_GET(self):

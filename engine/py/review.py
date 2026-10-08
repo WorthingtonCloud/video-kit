@@ -4,10 +4,10 @@ snapshot and answers in the same diary. The page only ever writes feedback: neve
 source file (mix.json is the one exception, as in the mixer: a level set by ear is the human's setting).
 
   vs review [--port 4470]               serve the review page on this machine only: http://localhost:4470/review/
-  vs review open [--video out/<name>-vN[-takeK].mp4] [--ask] [--stage picture] [--also <the other shape> | --only]
-                                        a new round on a rendered version (default: the newest). Both shapes when both
-                                        are rendered at that version (an explainer's out/<name>-16x9-vN…, a reel's
-                                        ../<slug>-16x9/out/…; --also names it, --only shows one): the page switches
+  vs review open [--video drafts/vN/<video>-<shape>-vN[-takeK].mp4] [--ask] [--stage picture] [--also <the other shape> | --only]
+                                        a new round on a rendered version (default: the newest of the shape being
+                                        built). Both shapes once the video is past its first shape (vs status: second
+                                        or done): the other shape's newest render rides along (--also names one, --only shows one): the page switches
                                         between them, and every note, finding and approval is about the one on screen,
                                         so each gets its own feedback (vs review show labels them). Refused while vs inspect
                                         has open errors for it (errors never reach a round); --ask puts them in front
@@ -57,7 +57,7 @@ source file (mix.json is the one exception, as in the mixer: a level set by ear 
                                         beside a round's notes: make the link there, or the card comes back next round
   vs review apply <choice>              do what was picked: a variant's sources go back into the project, a take into
                                         mix.json, a paid option's step is printed to run (the pick was the yes)
-  vs review finish --final out/<name>-vN-takeK.mp4 [out/<name>-16x9-vN-takeK.mp4]
+  vs review finish --final drafts/vN/<video>-vertical-vN-takeK.mp4 [drafts/vN/<video>-widescreen-vN-takeK.mp4]  (vs finish runs it)
                                         the finals are filed: the page says it's done, with the downloads and a way back in
                                         (opens a round on the final, stage final, if needed); then vs review wait
   vs review report [--md]               the dogfood's numbers: notes pinned, right first time, findings, QA misses,
@@ -92,7 +92,7 @@ a change.
 
 Standing rules vs inspect enforces: every keep-clear zone in a sent note (nothing but what it was drawn over may enter
 it, in that note's scene, on its cut), and every scene the human marked done (its frames and length are held to the
-version it was approved in: that version's out/<…>-vN.review/comp.html). A finding the human dismisses stays dismissed.
+version it was approved in: that version's drafts/vN/data/<shape>/comp.html). A finding the human dismisses stays dismissed.
 
 Tags (resolve --tags): pacing.reveal pacing.hold pacing.cut · layout.safe-zone layout.overlap layout.spacing
   layout.keep-clear layout.balance · type.size type.contrast · copy.wording copy.fast-text · motion.style ·
@@ -124,7 +124,7 @@ HELD = {"note.added", "note.edited", "note.withdrawn", "note.answered", "note.ac
 HUMAN = HELD | {"round.sent", "undo", "friction.noted", "time.spent"}
 AGENT = {"round.opened", "note.question", "note.resolved", "note.measured", "choice.offered", "choice.applied",
          "lesson.proposed", "finding.advised", "step.logged", "round.read", "finding.carried", "project.finished",
-         "card.covered"}
+         "project.reopened", "card.covered"}
 # the human's ask on a visual note (the note box's buttons: what they want, never how) and on a sound (the timeline's
 # Sound row); how far a note reaches (just here, this whole video = "project", every video = "studio": a candidate rule)
 NOTE_ASKS = {"move", "bigger", "smaller", "longer", "shorter", "simpler", "remove"}
@@ -409,6 +409,8 @@ def _step(S, e, seq, pending):
         text = "No notes this round: nothing to change"
     elif t == "project.finished":
         text = "Claude filed the finals: done"
+    elif t == "project.reopened":
+        text = f"Reopened from the final (v{e.get('from')}): the next draft is v{e.get('next')}"
     elif t == "step.logged" and (e.get("text") or "").strip():
         text, x = e["text"].strip(), {"where": e.get("where")}
     else:
@@ -648,6 +650,8 @@ def apply(S, e):
         R["nonotes"] = at
     elif t == "project.finished":  # the agent filed the finals: the page shows the downloads and the way back in
         S["finished"] = {"files": e.get("files") or [], "at": at, "round": R and R["n"]}
+    elif t == "project.reopened":  # vs reopen: a finished video is drafting again, so the page stops saying Done
+        S["finished"] = None
     elif t == "finding.advised":
         ids = e.get("ids") or []
         if not ids or e.get("advice") not in ("leave", "fix"):
@@ -952,38 +956,32 @@ def candidates(project=None):
     return feedback.patterns(studio_feedback(), project, kind_of(), pending)
 
 
-# ── versions: a render is out/<name>[-16x9]-vN.mp4; its mixes add -takeK / -sfx / -mixed ──
+# ── versions: a render is drafts/vN/<video>-<shape>-vN.mp4; its mixes add -takeK / -sfx / -mixed; its maps and sources
+# live in drafts/vN/data/<shape>/ (engine/protocol/files.md: the names come from vslib, never typed) ──
 def version_of(video):
-    b = os.path.splitext(os.path.basename(video))[0]
-    m = re.search(r"-v(\d+)(?:-(?:take\d+|sfx|mixed))?$", b)
-    if not m:
-        raise Refused(f"{video}: not a rendered version (out/<name>-vN.mp4)")
-    base = os.path.join(os.path.dirname(video), b[: m.start()] + f"-v{m.group(1)}")
-    return int(m.group(1)), base
+    """A draft → (its version, its data folder: drafts/vN/data/<shape>)."""
+    d = vslib.parse_draft(video)
+    if not d:
+        raise Refused(f"{video}: not a rendered version (drafts/vN/<video>-<shape>-vN.mp4)")
+    return d["v"], vslib.data_dir(video)
 
 
 def partner(video):
-    """The same version in the other shape, when it's rendered: an explainer keeps both in out/ (<name>-vN… and
-    <name>-16x9-vN…); a reel's widescreen cut is its own project beside this one (<slug>-16x9/out/<slug>-16x9-vN.mp4),
-    and the vertical's is <slug> beside a -16x9 project. The same take when there is one, else the bare render."""
-    d, b = os.path.split(video)
-    m = re.search(r"-v(\d+)((?:-(?:take\d+|sfx|mixed))?)\.mp4$", b)
-    if not m:
+    """The other shape beside this one in a round, once the video is past its first shape (video.json status second or
+    done): that shape's newest render at or below this version, the same mix when there is one, else a mix, else the
+    bare render. While the first shape is being drafted a round shows only it (--also names another on purpose)."""
+    d = vslib.parse_draft(video)
+    if not d or vslib.video_state().get("status") == "first":
         return None
-    name, v, tail = b[: m.start()], m.group(1), m.group(2)
-    proj = os.path.basename(os.getcwd())
-    if name.endswith("-16x9"):
-        other = name[:-5]
-        cands = [os.path.join(d, f"{other}-v{v}{{}}.mp4")]
-        if proj.endswith("-16x9"):
-            cands.append(os.path.join("..", proj[:-5], "out", f"{other}-v{v}{{}}.mp4"))
-    else:
-        cands = [os.path.join(d, f"{name}-16x9-v{v}{{}}.mp4"), os.path.join("..", f"{proj}-16x9", "out", f"{name}-16x9-v{v}{{}}.mp4")]
-    for t in ([tail, ""] if tail else [""]):
-        for c in cands:
-            if os.path.exists(c.format(t)):
-                return c.format(t)
-    return None
+    other = vslib.other_shape(d["shape"])
+    cands = [(p, x) for p, x in vslib.drafts(other) if x["v"] <= d["v"] and x["video"] == d["video"]]
+    if not cands:
+        return None
+    v = max(x["v"] for _, x in cands)
+    same = [p for p, x in cands if x["v"] == v]
+    pick = [p for p in same if (vslib.parse_draft(p)["variant"] or None) == d["variant"]] or \
+           [p for p in same if re.search(r"-(take\d+|mixed)\.mp4$", p)] or [p for p in same if not vslib.parse_draft(p)["variant"]]
+    return sorted(pick)[-1] if pick else None
 
 
 def cut_of(video):
@@ -993,10 +991,10 @@ def cut_of(video):
 
 def keep(video, rnd, cut):
     """A copy of the render a round shows, so the next round has a "before" even when the file is written over in place
-    (a sound fix re-mixes out/<name>-vN-takeK.mp4 under the same name: on Oct 5, 2026 the render three sound answers
+    (a sound fix re-mixes drafts/vN/<video>-<shape>-vN-takeK.mp4 under the same name: on Oct 5, 2026 the render three sound answers
     were made on was gone by the time they could be measured). A clone where the disk can make one (APFS, Btrfs, XFS)
-    costs no space; elsewhere it's a copy. out/ is the project's renders, never committed. → its path, or None."""
-    dst = f"out/watched/round{rnd}-{cut}.mp4"
+    costs no space; elsewhere it's a copy. drafts/ is the project's renders, never committed. → its path, or None."""
+    dst = f"drafts/watched/round{rnd}-{cut}.mp4"
     try:
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         if os.path.exists(dst):
@@ -1046,18 +1044,20 @@ def fps_of(video):
 
 
 def newest_video():
-    vids = [v for v in glob.glob("out/*.mp4") if re.search(r"-v\d+(-take\d+|-mixed)?\.mp4$", v)]
+    """The newest render of the shape being built (video.json → building), and of its files the mixed one (with the
+    sound) over the bare render."""
+    shape = vslib.active_shape()
+    vids = [p for p, d in vslib.drafts(shape) if d["variant"] in (None, "mixed") or (d["variant"] or "").startswith("take")]
     if not vids:
-        raise Refused("nothing rendered yet in out/: vs build renders a version")
-    # the newest version, and of its files the mixed one (with the sound) over the bare render
+        raise Refused(f"no {shape} render yet in drafts/: vs build renders a version")
     key = lambda v: (version_of(v)[0], os.path.getmtime(v), "-take" in v or "-mixed" in v)
     return max(vids, key=key)
 
 
 def inspected(base, fingerprint):
-    """The findings vs inspect wrote for this version: its archive (out/<…>-vN.review/), else the build's own if it's
+    """The findings vs inspect wrote for this version: its archive (drafts/vN/data/<shape>/), else the build's own if it's
     the same composition. None when nobody can tell."""
-    for f in (f"{base}.review/findings.json", "build/findings.json"):
+    for f in (f"{base}/findings.json", "build/findings.json"):
         F = vslib.read_json(f)
         if F and (not fingerprint or F.get("fingerprint") == fingerprint):
             return F
@@ -1067,7 +1067,7 @@ def inspected(base, fingerprint):
 def element_map(base, fingerprint):
     """The element map vs inspect made for this version: its archive, else the build's own if it's the same
     composition. None when there's none to trust."""
-    for f in (f"{base}.review/elements.json", "build/elements.json"):
+    for f in (f"{base}/elements.json", "build/elements.json"):
         E = vslib.read_json(f)
         if E and (not fingerprint or E.get("fingerprint") == fingerprint):
             return E
@@ -1226,11 +1226,8 @@ def measure_sound(n, cues):
 
 # ── what the box can't show: the pixels and the sound themselves, from the two renders (the bare ones, no music) ──
 def bare(video):
-    """A version's render without the mix (the music would make every moment's sound differ): out/<name>-vN.mp4."""
-    try:
-        b = version_of(video)[1] + ".mp4"
-    except Refused:
-        return video
+    """A version's render without the mix (the music would make every moment's sound differ): drafts/vN/<video>-<shape>-vN.mp4."""
+    b = vslib.render_of(video)
     return b if os.path.exists(b) else video
 
 
@@ -1586,13 +1583,13 @@ def finish(args):
     says it's done, offers the downloads and a way back in (a note on any part reaches the agent like any other)."""
     files = [f for f in args.final if os.path.exists(f)]
     if not files:
-        raise Refused("vs review finish --final <the final files in out/>")
+        raise Refused("vs review finish --final <the final files in drafts/> (vs finish runs this for you)")
     S = state()
     R = current(S)
     if not R or R["video"] != files[0] or R["status"] == "closed":
-        open_round(argparse.Namespace(video=files[0], ask=False, stage="final"))
+        open_round(argparse.Namespace(video=files[0], also=files[1] if len(files) > 1 else None, ask=False, stage="final"))
     append([{"type": "project.finished", "files": [{"url": "/" + f.replace(os.sep, "/"), "name": os.path.basename(f),
-                                                     "cut": "16x9" if "-16x9-" in f else "9x16"} for f in files]}], "agent")
+                                                     "cut": cut_of(f)} for f in files]}], "agent")
     print(f"finished: {', '.join(os.path.basename(f) for f in files)} → the page shows the downloads; run vs review wait")
 
 
@@ -1610,10 +1607,10 @@ def round_findings(S=None):
         except Refused:
             continue
         pre = "" if c["cut"] == R.get("cut") else f"{c['cut']}:"  # the other shape's carry its name (open_round)
-        tl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
+        tl = vslib.read_json(f"{base}/timeline.json")
         F = inspected(base, tl and tl.get("fingerprint")) or {}
         mine = [f for f in F.get("items", []) if f.get("severity") == "warning" or pre + f["id"] in asked]
-        mine += (vslib.read_json(f"{base}.review/qa.json") or {}).get("items", [])
+        mine += (vslib.read_json(f"{base}/qa.json") or {}).get("items", [])
         out += [{**f, "id": pre + f["id"], "cut": c["cut"]} if pre else f for f in mine]
     return out
 
@@ -1815,15 +1812,13 @@ def open_round(args):
     version, base = version_of(video)
     W, H, _ = probe(video)
     cut = "16x9" if W > H else "9x16"
-    # both shapes in one round when both are rendered at this version: the human watches either, and each note, finding
-    # and approval belongs to the one on screen (a reviewer, Oct 4, 2026: "view both … and give feedback on each independently")
+    # both shapes in one round once the video is past its first shape (partner): the human watches either, and each
+    # note, finding and approval belongs to the one on screen (a reviewer, Oct 4, 2026: "view both … and give feedback on each independently")
     named = getattr(args, "also", None)
     other = None if getattr(args, "only", False) else (named or partner(video))
     if named:
         if not os.path.exists(named):
             raise Refused(f"{named} doesn't exist")
-        if version_of(named)[0] != version:
-            raise Refused(f"{named} is v{version_of(named)[0]}, the round is v{version}: render both shapes at one version")
         if cut_of(named) == cut:
             raise Refused(f"{named} is the same shape as {video}: --also takes the other one")
     elif other and cut_of(other) == cut:
@@ -1835,7 +1830,7 @@ def open_round(args):
     asked, maps = [], {}
     dismissed = state()["findings"]
     for v, b, c in shapes:
-        tl = vslib.read_json(f"{b}.review/timeline.json") or vslib.read_json(f"{b}.timeline.json")
+        tl = vslib.read_json(f"{b}/timeline.json")
         F = inspected(b, tl and tl.get("fingerprint"))
         pre = "" if c == cut else f"{c}:"  # the other shape's findings carry its name: the same check on both is two answers
         maps[c] = (v, element_map(b, tl and tl.get("fingerprint")), list(probe(v)[:2]))
@@ -1850,7 +1845,7 @@ def open_round(args):
         asked += [pre + f["id"] for f in errs]
     # every answer since the last round, measured in this version's element map (of the note's own shape): the human
     # sees the claim and the proof
-    cues = vslib.read_json(f"{base}.review/cues.json") or vslib.read_json("build/mix/cues.json")  # vs mix's, for this version
+    cues = vslib.read_json(f"{base}/cues.json") or vslib.read_json("build/mix/cues.json")  # vs mix's, for this version
     # every answer not measured yet, in any later round: a sound fix re-mixes the same picture version, so "a new
     # version" was the wrong test (Oct 5, 2026: three sound answers in a row were never measured)
     measured = []
@@ -2090,7 +2085,7 @@ def report(args):
     for R in S["rounds"]:
         shown |= set(R.get("asked") or [])
         try:
-            home = f"{version_of(R['video'])[1]}.review"
+            home = version_of(R['video'])[1]
         except Refused:
             continue
         shown |= {f["id"] for f in (vslib.read_json(f"{home}/qa.json") or {}).get("items", [])}
@@ -2187,24 +2182,45 @@ def context_package(S):
             base = version_of(c["video"])[1]
         except Refused:
             continue
-        tl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
+        tl = vslib.read_json(f"{base}/timeline.json")
         fp = tl and tl.get("fingerprint")
         have = {"video": os.path.exists(c["video"]), "timeline": bool(tl), "elements": bool(element_map(base, fp)),
-                "findings": inspected(base, fp) is not None, "qa": os.path.exists(f"{base}.review/qa.json"),
-                "cues": os.path.exists(f"{base}.review/cues.json"), "composition": os.path.exists(f"{base}.review/comp.html")}
-        out.append({"rendition": c["cut"], "video": c["video"], "archive": f"{base}.review/", "has": have})
+                "findings": inspected(base, fp) is not None, "qa": os.path.exists(f"{base}/qa.json"),
+                "cues": os.path.exists(f"{base}/cues.json"), "composition": os.path.exists(f"{base}/comp.html")}
+        out.append({"rendition": c["cut"], "video": c["video"], "archive": f"{base}/", "has": have})
     return out
+
+
+def exit_state(S=None):
+    """(ready, checks, held): may the review end? The same gate vs review status --ready and vs finish use."""
+    S, Hv = S or state(), state("human")
+    held = len(Hv["pending"])
+    R = current(S)
+    shapes = [c["cut"] for c in (R or {}).get("cuts") or []] or [(R or {}).get("cut")]  # a round shows one version in each shape
+    checks = feedback.exit_checks(S, held, shapes, {(a.get("version"), a.get("cut")) for a in S["approved"]})
+    return all(ok for _, ok, _ in checks), checks, held
+
+
+def approved_video(cut, S=None):
+    """The newest render of a shape the human approved (the cut's own file in the round they approved), or None."""
+    S = S or state()
+    hits = [a for a in S["approved"] if a.get("cut") == cut or a.get("cut") is None]
+    best = None
+    for a in hits:
+        Rn = next((R for R in reversed(S["rounds"]) if R["version"] == a.get("version")), None)
+        vid = next((c["video"] for c in (Rn or {}).get("cuts") or [] if c["cut"] == cut), None) or \
+            ((Rn or {}).get("video") if (Rn or {}).get("cut") == cut else None)
+        if vid and vslib.parse_draft(vid) and (not best or vslib.parse_draft(vid)["v"] >= vslib.parse_draft(best)["v"]):
+            best = vid
+    return best
 
 
 def status(args):
     """Whose move it is, and whether the review may end: decided from the diary alone, the same answer every time."""
-    S, Hv = state(), state("human")
-    held = len(Hv["pending"])
+    S = state()
+    ready, checks, held = exit_state(S)
     who, why = feedback.turn(S, held)
     R = current(S)
-    shapes = [c["cut"] for c in (R or {}).get("cuts") or []] or [(R or {}).get("cut")]  # a round shows one version in each shape
-    checks = feedback.exit_checks(S, held, shapes, {(a.get("version"), a.get("cut")) for a in S["approved"]})
-    ready = all(ok for _, ok, _ in checks)
     art = {"project": vslib.project_name(), "kind": kind_of()}
     recs = [as_record(n, S, art) for n in S["notes"].values() if n["status"] != "withdrawn"]
     out = {"turn": who, "why": why, "waiting": agent_waiting(), "stage": S.get("stage"),
@@ -2386,7 +2402,7 @@ def forget(args):
 #    Mix panel's stems. A picture or clip is shown as it is. A paid option is priced by its own step's spend gate (run in
 #    estimate mode: nothing spent) and only made once the human picks it. ──
 VARIANTS = "build/variants"
-SOURCES = ("reel.json", "plan.json", "scenes.js", "cues.py")  # what made a variant: apply puts them back
+SOURCES = ("reel.json", "plan.json", "scenes.js", "scenes.vertical.js", "scenes.widescreen.js", "cues.py")  # what made a variant: apply puts them back
 MEDIA = {".mp4": "video", ".mov": "video", ".webm": "video", ".jpg": "image", ".jpeg": "image", ".png": "image",
          ".webp": "image", ".mp3": "audio", ".wav": "audio", ".m4a": "audio"}
 
@@ -2512,7 +2528,7 @@ def offer(args):
     if R:
         try:
             base = version_of(R["video"])[1]
-            rtl = vslib.read_json(f"{base}.review/timeline.json") or vslib.read_json(f"{base}.timeline.json")
+            rtl = vslib.read_json(f"{base}/timeline.json")
         except Refused:
             pass
     labels = dict(x.partition("=")[::2] for x in args.label or [])

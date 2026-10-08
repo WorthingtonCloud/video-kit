@@ -12,6 +12,7 @@ H, A = "human", "agent"
 
 def video(path, secs=2.0, size="108x192"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    os.makedirs(os.path.join(os.path.dirname(path), "data", "widescreen" if "-widescreen-" in str(path) else "vertical"), exist_ok=True)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x202020:s={size}:d={secs}:r=30",
                     "-c:v", "libx264", "-pix_fmt", "yuv420p", str(path)], check=True)
 
@@ -21,13 +22,13 @@ def proj(tmp_path, monkeypatch):
     d = tmp_path / "p"
     d.mkdir()
     (d / "reel.json").write_text("{}")
-    video(d / "out/p-v1.mp4")
-    (d / "out/p-v1.timeline.json").write_text(json.dumps({"fingerprint": "fp1", "end": 2.0}))
+    video(d / "drafts/v1/p-vertical-v1.mp4")
+    (d / "drafts/v1/data/vertical/timeline.json").write_text(json.dumps({"fingerprint": "fp1", "end": 2.0}))
     monkeypatch.chdir(d)
     return d
 
 
-def opened(video="out/p-v1.mp4", version=1):
+def opened(video="drafts/v1/p-vertical-v1.mp4", version=1):
     return review.append([{"type": "round.opened", "version": version, "cut": "9x16", "video": video}], A)
 
 
@@ -51,7 +52,7 @@ def test_a_round_from_open_to_accepted(proj):
     assert S["notes"]["n-0001"]["status"] == "accepted" and S["notes"]["n-0002"]["status"] == "reopened"
     # a reopened note is owed an answer before the next round
     with pytest.raises(review.Refused, match="answer every note first: n-0002"):
-        opened("out/p-v2.mp4", 2)
+        opened("drafts/v2/p-vertical-v2.mp4", 2)
 
 
 # ── the loop: feedback waits (held, undoable) until the human sends it; the agent sees only what was sent ──
@@ -104,7 +105,7 @@ def test_a_round_waits_for_the_humans_unsent_feedback(proj):
     review.append([held(note()), {"type": "round.sent"}], H)
     review.append([held({"type": "finding.dismissed", "id": "q-covered-top-1"})], H)
     with pytest.raises(review.Refused, match="haven't sent"):
-        opened("out/p-v1.mp4", 2)
+        opened("drafts/v1/p-vertical-v1.mp4", 2)
 
 
 def test_a_held_mix_reaches_mix_json_when_its_sent(proj):
@@ -118,9 +119,9 @@ def test_a_held_mix_reaches_mix_json_when_its_sent(proj):
 
 
 def test_findings_get_claudes_advice_and_the_report_counts_it_taken(proj):
-    os.makedirs("out/p-v1.review")
+    os.makedirs("drafts/v1/data/vertical", exist_ok=True)
     json.dump({"items": [{"id": f"q-covered-top-{t}", "check": "covered", "severity": "warning", "elements": [], "t0": t, "t1": t + .25}
-                         for t in (0.5, 1.5)]}, open("out/p-v1.review/qa.json", "w"))
+                         for t in (0.5, 1.5)]}, open("drafts/v1/data/vertical/qa.json", "w"))
     opened()
     assert "no 'flash' findings" in cmd("advise", "--check", "flash", "--advice", "leave", "--plain", "x").stderr
     r = cmd("advise", "--check", "covered", "--advice", "leave", "--plain", "a phone's clock bar sits there", "--why", "it's decoration")
@@ -139,8 +140,8 @@ def test_findings_get_claudes_advice_and_the_report_counts_it_taken(proj):
 def test_the_steps_have_stages_and_a_note_can_be_about_one(proj):
     assert cmd("step", "Okayed the outline", "--stage", "story", "--when", "2020-01-01T20:20").returncode == 0
     assert cmd("step", "--stage", "nonsense").returncode != 0
-    review.append([{"type": "round.opened", "version": 1, "cut": "9x16", "video": "out/p-v1.mp4", "stage": "picture"}], A)
-    S, _ = review.append([held(note(0.2)), held({"type": "version.approved", "version": 1, "cut": "9x16", "video": "out/p-v1.mp4"})], H)
+    review.append([{"type": "round.opened", "version": 1, "cut": "9x16", "video": "drafts/v1/p-vertical-v1.mp4", "stage": "picture"}], A)
+    S, _ = review.append([held(note(0.2)), held({"type": "version.approved", "version": 1, "cut": "9x16", "video": "drafts/v1/p-vertical-v1.mp4"})], H)
     st = S["steps"]
     assert [(s["text"], s["stage"]) for s in st[:2]] == [("Okayed the outline", "story"), ("Round 1 opened on v1", "picture")]
     assert st[-1]["text"] == "Approved v1: it's done" and st[-1]["pending"] and S["stage"] == "picture"
@@ -306,14 +307,14 @@ def test_the_snapshot_meets_its_schema(proj):
 # ── carried answers, no notes, the end of the flow (a reviewer's notes, Oct 2: "Once it's been dispositioned, it shouldn't do
 #    that"; "I should also be able to just indicate no notes"; "a more obvious ending to the flow") ──
 def qa(version, *ids):
-    os.makedirs(f"out/p-v{version}.review", exist_ok=True)
+    os.makedirs(f"drafts/v{version}/data/vertical", exist_ok=True)
     json.dump({"items": [{"id": i, "check": i.split("-")[1], "severity": "warning", "elements": [],
-                          "t0": review._fkey(i)[1], "t1": review._fkey(i)[1] + .25} for i in ids]}, open(f"out/p-v{version}.review/qa.json", "w"))
+                          "t0": review._fkey(i)[1], "t1": review._fkey(i)[1] + .25} for i in ids]}, open(f"drafts/v{version}/data/vertical/qa.json", "w"))
 
 
 def next_version(version):
-    video(f"out/p-v{version}.mp4")
-    json.dump({"fingerprint": f"fp{version}", "end": 2.0}, open(f"out/p-v{version}.timeline.json", "w"))
+    video(f"drafts/v{version}/p-vertical-v{version}.mp4")
+    json.dump({"fingerprint": f"fp{version}", "end": 2.0}, open(f"drafts/v{version}/data/vertical/timeline.json", "w"))
 
 
 @pytest.mark.parametrize("fid, key, t", [("q-covered-left-55", "q-covered-left", 55.0), ("q-covered-left-9.25", "q-covered-left", 9.25),
@@ -330,7 +331,7 @@ def test_an_answer_carries_to_the_same_finding_in_the_next_round(proj):
     # v2: the voice moved a second (54: the same finding), one moved too far to be the same (60), one is another place
     next_version(2)
     qa(2, "q-covered-left-54", "q-covered-left-60", "q-covered-top-55", "q-covered-right-56.5", "q-flash-55")
-    r = cmd("open", "--video", "out/p-v2.mp4")
+    r = cmd("open", "--video", "drafts/v2/p-vertical-v2.mp4")
     assert r.returncode == 0 and "2 finding(s) answered in an earlier round" in r.stdout, r.stdout
     F = review.state()["findings"]
     assert F["q-covered-left-54"]["status"] == "dismissed" and F["q-covered-left-54"]["round"] == 2
@@ -342,7 +343,7 @@ def test_an_answer_carries_to_the_same_finding_in_the_next_round(proj):
     # a carried answer goes on: v3 carries it from round 1 still (through round 2's carry)
     next_version(3)
     qa(3, "q-covered-left-53")
-    assert cmd("open", "--video", "out/p-v3.mp4").returncode == 0
+    assert cmd("open", "--video", "drafts/v3/p-vertical-v3.mp4").returncode == 0
     assert review.state()["findings"]["q-covered-left-53"]["carried"]["round"] == 1
 
 
@@ -352,7 +353,7 @@ def test_the_humans_answer_this_round_wins_over_a_carried_one(proj):
     review.append([held({"type": "finding.dismissed", "id": "q-covered-left-55"}), {"type": "round.sent"}], H)
     next_version(2)
     qa(2, "q-covered-left-54")
-    cmd("open", "--video", "out/p-v2.mp4")
+    cmd("open", "--video", "drafts/v2/p-vertical-v2.mp4")
     S, _ = review.append([held({"type": "finding.confirmed", "id": "q-covered-left-54"}), {"type": "round.sent"}], H)
     d = review.state()["findings"]["q-covered-left-54"]
     assert d["status"] == "confirmed" and "carried" not in d
@@ -373,20 +374,20 @@ def test_no_notes_is_a_send_that_says_so(proj):
 
 def test_finish_records_the_finals_and_opens_a_final_round(proj):
     opened()
-    assert "vs review finish --final" in cmd("finish", "--final", "out/nope.mp4").stderr
-    for f in ("out/p-v1-take1.mp4", "out/p-16x9-v1-take1.mp4"):
-        video(f)
-    r = cmd("finish", "--final", "out/p-v1-take1.mp4", "out/p-16x9-v1-take1.mp4")
-    assert r.returncode == 0 and "finished: p-v1-take1.mp4, p-16x9-v1-take1.mp4" in r.stdout, r.stderr
+    assert "vs review finish --final" in cmd("finish", "--final", "drafts/v9/nope-vertical-v9.mp4").stderr
+    video("drafts/v1/p-vertical-v1-take1.mp4")
+    video("drafts/v1/p-widescreen-v1-take1.mp4", size="192x108")
+    r = cmd("finish", "--final", "drafts/v1/p-vertical-v1-take1.mp4", "drafts/v1/p-widescreen-v1-take1.mp4")
+    assert r.returncode == 0 and "finished: p-vertical-v1-take1.mp4, p-widescreen-v1-take1.mp4" in r.stdout, r.stderr
     S = review.state()
     R = review.current(S)
-    assert R["video"] == "out/p-v1-take1.mp4" and R["stage"] == "final" and R["n"] == 2
-    assert S["finished"]["files"] == [{"url": "/out/p-v1-take1.mp4", "name": "p-v1-take1.mp4", "cut": "9x16"},
-                                      {"url": "/out/p-16x9-v1-take1.mp4", "name": "p-16x9-v1-take1.mp4", "cut": "16x9"}]
+    assert R["video"] == "drafts/v1/p-vertical-v1-take1.mp4" and R["stage"] == "final" and R["n"] == 2
+    assert S["finished"]["files"] == [{"url": "/drafts/v1/p-vertical-v1-take1.mp4", "name": "p-vertical-v1-take1.mp4", "cut": "9x16"},
+                                      {"url": "/drafts/v1/p-widescreen-v1-take1.mp4", "name": "p-widescreen-v1-take1.mp4", "cut": "16x9"}]
     assert S["finished"]["round"] == 2 and S["steps"][-1]["text"] == "Claude filed the finals: done"
     assert "review/state.json" not in vs(proj, "check").stdout
     # finishing again on the same final doesn't open another round
-    assert cmd("finish", "--final", "out/p-v1-take1.mp4").returncode == 0 and len(review.state()["rounds"]) == 2
+    assert cmd("finish", "--final", "drafts/v1/p-vertical-v1-take1.mp4").returncode == 0 and len(review.state()["rounds"]) == 2
 
 
 # ── the server ──
@@ -413,7 +414,7 @@ def test_the_page_writes_the_humans_events_only(server, proj):
     opened()
     code, body, _ = call(f"{server}/review/api/events", {"events": [note()]})
     j = json.loads(body)
-    assert code == 200 and j["ids"] == ["n-0001"] and j["context"]["round"]["video"] == "/out/p-v1.mp4"
+    assert code == 200 and j["ids"] == ["n-0001"] and j["context"]["round"]["video"] == "/drafts/v1/p-vertical-v1.mp4"
     assert os.path.exists("review/frames/n-0001.jpg")
     code, body, _ = call(f"{server}/review/api/events", {"events": [{"type": "note.resolved", "id": "n-0001", "said": "x"}]})
     assert code == 403 and "can't write note.resolved" in json.loads(body)["error"]
@@ -430,9 +431,9 @@ def test_only_its_own_page_can_write(server, proj):
 
 
 def test_the_video_seeks_and_the_page_is_the_kits(server, proj):
-    code, body, hd = call(f"{server}/out/p-v1.mp4", headers={"Range": "bytes=10-29"})
+    code, body, hd = call(f"{server}/drafts/v1/p-vertical-v1.mp4", headers={"Range": "bytes=10-29"})
     assert code == 206 and len(body) == 20 and hd["Content-Range"].startswith("bytes 10-29/")
-    assert body == open("out/p-v1.mp4", "rb").read()[10:30]
+    assert body == open("drafts/v1/p-vertical-v1.mp4", "rb").read()[10:30]
     code, body, _ = call(f"{server}/review/")
     assert code == 200 and b"Review Studio" in body
     # no way out of the page's folder into the engine's code
@@ -456,7 +457,7 @@ def test_the_page_finds_the_rounds_maps(proj):
     json.dump([{"w": "Hi", "t0": 0.1, "t1": 0.3, "act": 1}], open("voice/w.words.json", "w"))
     json.dump({"words": "voice/w.words.json"}, open("plan.json", "w"))
     R = review_server.context(review.state())["round"]
-    assert R["timeline"] == "/out/p-v1.timeline.json" and R["words"] == "/voice/w.words.json" and R["cues"] == "/build/mix/cues.json"
+    assert R["timeline"] == "/drafts/v1/data/vertical/timeline.json" and R["words"] == "/voice/w.words.json" and R["cues"] == "/build/mix/cues.json"
     # the build moved on since this version: its element map is offered, but not as exact
     assert R["elements"] == "/build/elements.json" and R["exact"] == {"timeline": True, "elements": False, "findings": False, "comp": False}
 
@@ -531,26 +532,27 @@ def test_a_target_gone_without_a_word_is_flagged_and_a_rename_is_followed():
 
 
 def test_opening_the_next_round_measures_every_answer(proj):
-    video(proj / "out/p-v2.mp4")
-    (proj / "out/p-v2.timeline.json").write_text(json.dumps({"fingerprint": "fp2", "end": 2.0}))
+    video(proj / "drafts/v2/p-vertical-v2.mp4")
+    (proj / "drafts/v2/data/vertical/timeline.json").write_text(json.dumps({"fingerprint": "fp2", "end": 2.0}))
     os.makedirs("build")
     json.dump(emap(("s01/label", "OLD", [[0.0, 2.0]], [[0.0, 0.5, 0.1, 0.7, 0.2]])), open("build/elements.json", "w"))
     opened()
     review.append([note(1.0, target={"el": "s01/label", "box": [0.1, 0.1, 0.3, 0.2], "text": "OLD", "on": [0.0, 2.0]}),
                    {"type": "round.sent"}], H)
     assert vs(proj, "review", "resolve", "n-0001", "--said", "moved right").returncode == 0
-    r = vs(proj, "review", "open", "--video", "out/p-v2.mp4")
+    r = vs(proj, "review", "open", "--video", "drafts/v2/p-vertical-v2.mp4")
     assert r.returncode == 0 and "n-0001 label: moved 43 px right" in r.stdout, r.stdout
     S = review.state()
     m = S["notes"]["n-0001"]["measured"]
-    assert m["from"] == 1 and m["to"] == 2 and m["summary"].startswith("moved 43 px right") and S["rounds"][1]["video"] == "out/p-v2.mp4"
+    assert m["from"] == 1 and m["to"] == 2 and m["summary"].startswith("moved 43 px right") and S["rounds"][1]["video"] == "drafts/v2/p-vertical-v2.mp4"
     assert "measured (v1 → v2): moved 43 px right" in vs(proj, "review", "show", "n-0001").stdout
-    review.append([{"type": "version.approved", "version": 2, "cut": "9x16", "video": "out/p-v2.mp4"}], H)
+    review.append([{"type": "version.approved", "version": 2, "cut": "9x16", "video": "drafts/v2/p-vertical-v2.mp4"}], H)
     assert "✓ v2 (9x16) approved" in vs(proj, "review", "show").stdout
 
 
 def av(path, color, beep):
     """2 s at 108x192: a box drawn in `color`, and a 440 Hz tone (with a 1 kHz beep from 0.8 to 1.2 s when `beep`)."""
+    os.makedirs(os.path.join(os.path.dirname(path), "data", "vertical"), exist_ok=True)
     tone = "0.3*sin(2*PI*440*t)" + ("+if(between(t,0.8,1.2),0.6*sin(2*PI*1000*t),0)" if beep else "")
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=0x202020:s=108x192:d=2:r=30,drawbox=x=20:y=40:w=60:h=60:color={color}:t=fill",
                     "-f", "lavfi", "-i", f"aevalsrc='{tone}':s=44100:d=2", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac",
@@ -558,9 +560,9 @@ def av(path, color, beep):
 
 
 def test_a_color_change_and_a_change_in_the_sound_are_measured(proj):
-    av(proj / "out/p-v1.mp4", "white", True)
-    av(proj / "out/p-v2.mp4", "red", False)
-    (proj / "out/p-v2.timeline.json").write_text(json.dumps({"fingerprint": "fp2", "end": 2.0}))
+    av(proj / "drafts/v1/p-vertical-v1.mp4", "white", True)
+    av(proj / "drafts/v2/p-vertical-v2.mp4", "red", False)
+    (proj / "drafts/v2/data/vertical/timeline.json").write_text(json.dumps({"fingerprint": "fp2", "end": 2.0}))
     box = [round(20 / 108, 4), round(40 / 192, 4), round(80 / 108, 4), round(100 / 192, 4)]
     os.makedirs("build")
     json.dump(emap(("s01/box", "", [[0.0, 2.0]], [[0.0, *box]])), open("build/elements.json", "w"))
@@ -569,7 +571,7 @@ def test_a_color_change_and_a_change_in_the_sound_are_measured(proj):
                    note(1.0, comment="the beep is too loud"), {"type": "round.sent"}], H)
     for n in ("n-0001", "n-0002"):
         assert vs(proj, "review", "resolve", n, "--said", "done").returncode == 0
-    r = vs(proj, "review", "open", "--video", "out/p-v2.mp4")
+    r = vs(proj, "review", "open", "--video", "drafts/v2/p-vertical-v2.mp4")
     assert r.returncode == 0, r.stderr
     S = review.state()
     m1, m2 = S["notes"]["n-0001"]["measured"], S["notes"]["n-0002"]["measured"]
@@ -582,16 +584,16 @@ def test_a_color_change_and_a_change_in_the_sound_are_measured(proj):
 def test_a_versions_own_maps_win_after_the_build_moves_on(proj):
     import review_server
     opened()
-    os.makedirs("out/p-v1.review")
+    os.makedirs("drafts/v1/data/vertical", exist_ok=True)
     os.makedirs("build")
-    for f, fp in (("out/p-v1.review/timeline.json", "fp1"), ("build/timeline.json", "fp2")):
+    for f, fp in (("drafts/v1/data/vertical/timeline.json", "fp1"), ("build/timeline.json", "fp2")):
         json.dump({"fingerprint": fp, "end": 2.0}, open(f, "w"))
-    json.dump({"fingerprint": "fp1", "items": []}, open("out/p-v1.review/elements.json", "w"))
+    json.dump({"fingerprint": "fp1", "items": []}, open("drafts/v1/data/vertical/elements.json", "w"))
     json.dump({"fingerprint": "fp2", "items": []}, open("build/elements.json", "w"))
-    json.dump([], open("out/p-v1.review/cues.json", "w"))
+    json.dump([], open("drafts/v1/data/vertical/cues.json", "w"))
     R = review_server.context(review.state())["round"]
-    assert R["timeline"] == "/out/p-v1.review/timeline.json" and R["elements"] == "/out/p-v1.review/elements.json"
-    assert R["cues"] == "/out/p-v1.review/cues.json" and R["comp"] is None
+    assert R["timeline"] == "/drafts/v1/data/vertical/timeline.json" and R["elements"] == "/drafts/v1/data/vertical/elements.json"
+    assert R["cues"] == "/drafts/v1/data/vertical/cues.json" and R["comp"] is None
     assert R["exact"] == {"timeline": True, "elements": True, "findings": False, "comp": False}
 
 
@@ -768,8 +770,8 @@ def test_a_variant_is_kept_only_when_inspected_and_clean(proj):
 def test_offer_reads_its_options_and_says_when_timing_differs(proj):
     opened()
     built(segs=(("s01", 0.0, 2.0),))
-    os.makedirs("out/p-v1.review", exist_ok=True)
-    json.dump({"end": 2.0, "segments": [{"name": "s01", "t0": 0.0}]}, open("out/p-v1.review/timeline.json", "w"))
+    os.makedirs("drafts/v1/data/vertical", exist_ok=True)
+    json.dump({"end": 2.0, "segments": [{"name": "s01", "t0": 0.0}]}, open("drafts/v1/data/vertical/timeline.json", "w"))
     cmd("variant", "a", "as it is")
     built(html="<html>b</html>", end=2.5)
     cmd("variant", "b", "longer")
@@ -877,7 +879,7 @@ def test_a_scene_marked_done_and_reopened(proj):
         review.append([{"type": "scene.done", "segment": "s02"}], H)
     opened()
     S, _ = review.append([{"type": "scene.done", "segment": "s02"}], H)
-    assert S["done"]["s02"]["version"] == 1 and S["done"]["s02"]["video"] == "out/p-v1.mp4"
+    assert S["done"]["s02"]["version"] == 1 and S["done"]["s02"]["video"] == "drafts/v1/p-vertical-v1.mp4"
     with pytest.raises(review.Refused, match="written by the human"):
         review.append([{"type": "scene.done", "segment": "s03"}], A)
     assert "done (vs inspect holds their frames to that version" in cmd("show").stdout and "s02 (v1)" in cmd("show").stdout
@@ -888,26 +890,30 @@ def test_a_scene_marked_done_and_reopened(proj):
     assert vs(proj, "check").returncode == 0
 
 
-# ── both shapes in one round (a reviewer, Oct 4, 2026: "view both … and give feedback on each independently") ──
-def _reel_pair(tmp_path, monkeypatch):
-    """A reel and its widescreen sibling project, both rendered at v1, each with an inspect warning of the same id."""
-    for name, size in (("r", "108x192"), ("r-16x9", "192x108")):
-        d = tmp_path / name
-        (d / "out" / f"{name}-v1.review").mkdir(parents=True)
-        (d / "reel.json").write_text("{}")
-        video(d / f"out/{name}-v1.mp4", size=size)
-        (d / f"out/{name}-v1.timeline.json").write_text(json.dumps({"fingerprint": f"fp-{name}", "end": 2.0}))
-        F = {"fingerprint": f"fp-{name}", "items": [{"id": "f-two-zones-title-t-x", "check": "two-zones", "severity": "warning",
-                                                     "elements": ["title/t_x"], "t0": 0.5, "t1": 1.0, "text": "two zones"}]}
-        (d / f"out/{name}-v1.review/findings.json").write_text(json.dumps(F))
-    monkeypatch.chdir(tmp_path / "r")
+# ── both shapes in one round (a reviewer, Oct 4, 2026: "view both … and give feedback on each independently"); since
+# Oct 8, 2026 both live in the one project (engine/protocol/files.md: one video, one page, one port) ──
+def _two_shapes(tmp_path, monkeypatch, status="second"):
+    """One video, both shapes rendered at v1 in its one project, each with an inspect warning of the same id."""
+    d = tmp_path / "r"
+    d.mkdir()
+    (d / "reel.json").write_text("{}")
+    (d / "video.json").write_text(json.dumps({"schema_version": 1, "video": "r", "first": "vertical",
+                                              "building": "widescreen", "status": status}))
+    for shape, size in (("vertical", "108x192"), ("widescreen", "192x108")):
+        video(d / f"drafts/v1/r-{shape}-v1.mp4", size=size)
+        (d / f"drafts/v1/data/{shape}/timeline.json").write_text(json.dumps({"fingerprint": f"fp-{shape}", "end": 2.0}))
+        F = {"fingerprint": f"fp-{shape}", "items": [{"id": "f-two-zones-title-t-x", "check": "two-zones", "severity": "warning",
+                                                      "elements": ["title/t_x"], "t0": 0.5, "t1": 1.0, "text": "two zones"}]}
+        (d / f"drafts/v1/data/{shape}/findings.json").write_text(json.dumps(F))
+    monkeypatch.chdir(d)
+    return d
 
 
 def test_a_round_opens_on_both_shapes_and_keeps_their_feedback_apart(tmp_path, monkeypatch):
     import argparse
-    _reel_pair(tmp_path, monkeypatch)
-    assert review.partner("out/r-v1.mp4") == os.path.join("..", "r-16x9", "out", "r-16x9-v1.mp4")
-    review.open_round(argparse.Namespace(video="out/r-v1.mp4", ask=False, stage=None))
+    _two_shapes(tmp_path, monkeypatch)
+    assert review.partner("drafts/v1/r-vertical-v1.mp4") == "drafts/v1/r-widescreen-v1.mp4"
+    review.open_round(argparse.Namespace(video="drafts/v1/r-vertical-v1.mp4", ask=False, stage=None))
     R = review.current(review.state())
     assert [c["cut"] for c in R["cuts"]] == ["9x16", "16x9"] and R["cut"] == "9x16"
     # the same check on both shapes is two findings: the other shape's carries its name
@@ -918,18 +924,34 @@ def test_a_round_opens_on_both_shapes_and_keeps_their_feedback_apart(tmp_path, m
     review.append([note(cut="16x9"), note(t=1.5, cut="9x16")], H)
     S = review.state()
     assert [n["cut"] for n in S["notes"].values()] == ["16x9", "9x16"]
-    assert review.cut_video(R, "16x9").endswith("r-16x9-v1.mp4")
+    assert review.cut_video(R, "16x9") == "drafts/v1/r-widescreen-v1.mp4"
     with pytest.raises(review.Refused):  # a shape the round doesn't have
-        review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "out/r-v2.mp4"}], A)
+        review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "drafts/v2/r-vertical-v2.mp4"}], A)
         review.append([note(cut="16x9")], H)
+
+
+def test_the_other_shape_rides_along_at_its_own_newest_version(tmp_path, monkeypatch):
+    """The widescreen gets a fix at v2; the approved vertical v1 stays beside it, so the switch always has both."""
+    d = _two_shapes(tmp_path, monkeypatch)
+    video(d / "drafts/v2/r-widescreen-v2.mp4", size="192x108")
+    assert review.partner("drafts/v2/r-widescreen-v2.mp4") == "drafts/v1/r-vertical-v1.mp4"
+    assert review.partner("drafts/v1/r-vertical-v1.mp4") == "drafts/v1/r-widescreen-v1.mp4"  # never a later version
+
+
+def test_while_the_first_shape_is_drafted_a_round_shows_only_it(tmp_path, monkeypatch):
+    import argparse
+    _two_shapes(tmp_path, monkeypatch, status="first")
+    assert review.partner("drafts/v1/r-vertical-v1.mp4") is None
+    review.open_round(argparse.Namespace(video="drafts/v1/r-vertical-v1.mp4", ask=False, stage=None))
+    assert "cuts" not in review.current(review.state())
 
 
 def test_only_and_a_lone_shape_open_one(tmp_path, monkeypatch):
     import argparse
-    _reel_pair(tmp_path, monkeypatch)
-    review.open_round(argparse.Namespace(video="out/r-v1.mp4", ask=False, stage=None, only=True))
+    _two_shapes(tmp_path, monkeypatch)
+    review.open_round(argparse.Namespace(video="drafts/v1/r-vertical-v1.mp4", ask=False, stage=None, only=True))
     assert "cuts" not in review.current(review.state())
-    assert review.partner("out/none-v3.mp4") is None
+    assert review.partner("drafts/v3/none-vertical-v3.mp4") is None
 
 
 def test_one_watcher_per_project(proj):
@@ -979,12 +1001,12 @@ def test_an_answer_the_person_sent_a_round_past_lapses_and_leaves_the_inbox(proj
     review.append([note()], H)
     review.append([{"type": "round.sent"}], H)
     review.append([{"type": "note.resolved", "id": "n-0001", "said": "slower", "outcome": "resolved"}], A)
-    review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "out/p-v2.mp4"}], A)
+    review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "drafts/v2/p-vertical-v2.mp4"}], A)
     review.append([note(0.5)], H)  # round 2: a new note, and no call on n-0001's card
     review.append([{"type": "round.sent"}], H)
     S, _ = review.append([{"type": "note.resolved", "id": "n-0002", "said": "louder", "outcome": "resolved"}], A)
     assert not S["notes"]["n-0001"].get("lapsed")  # still round 2: its card is up
-    S, _ = review.append([{"type": "round.opened", "version": 3, "cut": "9x16", "video": "out/p-v3.mp4"}], A)
+    S, _ = review.append([{"type": "round.opened", "version": 3, "cut": "9x16", "video": "drafts/v3/p-vertical-v3.mp4"}], A)
     n1, n2 = S["notes"]["n-0001"], S["notes"]["n-0002"]
     assert n1["lapsed"] == 2 and feedback.phase(n1, S["notes"]) == ("closed", None) and feedback.acceptance(n1, S["notes"]) == "lapsed"
     assert not n2.get("lapsed") and feedback.acceptance(n2, S["notes"]) == "pending"  # the latest round's card stays
@@ -993,16 +1015,16 @@ def test_an_answer_the_person_sent_a_round_past_lapses_and_leaves_the_inbox(proj
 def test_a_sound_fix_on_the_same_picture_is_measured_against_the_mix_it_was_made_on(proj):
     # Oct 5, 2026: three sound answers were never measured. A sound round re-mixes the same picture version, so the
     # "new version" test skipped them, and the fix re-wrote the take under the same name, so the "before" was gone
-    av(proj / "out/p-v1.mp4", "white", True)
-    av(proj / "out/p-v1-take1.mp4", "white", True)  # the mix the person heard: a beep at 0.8–1.2 s
-    (proj / "out/p-v1.review").mkdir()
-    r = vs(proj, "review", "open", "--video", "out/p-v1-take1.mp4", "--only")
+    av(proj / "drafts/v1/p-vertical-v1.mp4", "white", True)
+    av(proj / "drafts/v1/p-vertical-v1-take1.mp4", "white", True)  # the mix the person heard: a beep at 0.8–1.2 s
+    (proj / "drafts/v1/data/vertical").mkdir(parents=True, exist_ok=True)
+    r = vs(proj, "review", "open", "--video", "drafts/v1/p-vertical-v1-take1.mp4", "--only")
     assert r.returncode == 0, r.stderr
-    assert os.path.exists("out/watched/round1-9x16.mp4")  # the round's kept copy
+    assert os.path.exists("drafts/watched/round1-9x16.mp4")  # the round's kept copy
     review.append([note(1.0, comment="that whoosh"), {"type": "round.sent"}], H)
     assert vs(proj, "review", "resolve", "n-0001", "--said", "took the breath out", "--expect", "sound").returncode == 0
-    av(proj / "out/p-v1-take1.mp4", "white", False)  # the fix, re-mixed under the same name
-    r = vs(proj, "review", "open", "--video", "out/p-v1-take1.mp4", "--only")
+    av(proj / "drafts/v1/p-vertical-v1-take1.mp4", "white", False)  # the fix, re-mixed under the same name
+    r = vs(proj, "review", "open", "--video", "drafts/v1/p-vertical-v1-take1.mp4", "--only")
     assert r.returncode == 0, r.stderr
     m = review.state()["notes"]["n-0001"]["measured"]
     assert m and m["audio"]["changed_secs"] >= 0.2 and (m["from_round"], m["to_round"]) == (1, 2), m
@@ -1020,7 +1042,7 @@ def test_a_note_that_speaks_to_an_open_card_closes_it(proj):
                                                           "options": [{"id": "3", "kind": "take", "take": 3}, {"id": "4", "kind": "take", "take": 4}]}},
                    {"type": "choice.offered", "choice": {"id": "c-0002", "question": "which end card?",
                                                           "options": [{"id": "a", "kind": "image"}, {"id": "b", "kind": "image"}]}}], A)
-    review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "out/p-v2.mp4"}], A)
+    review.append([{"type": "round.opened", "version": 2, "cut": "9x16", "video": "drafts/v2/p-vertical-v2.mp4"}], A)
     review.append([note(0.5, comment="still too fast, and go with the warm theme"), note(0.2, comment="neither end card, just the logo"),
                    {"type": "round.sent"}], H)
     assert {i for i, _ in review.open_cards(review.state())} >= {"n-0001", "c-0001", "c-0002"}

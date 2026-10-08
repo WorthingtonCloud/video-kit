@@ -9,7 +9,7 @@ exactly one of them, and the table below says which.
 |---|---|---|---|
 | **Engine** (the kit: `engine/`, `skills/`, `templates/`, `library/sfx/`) | reusable implementation and the protocols: the steps, the checks, the schemas, Review Studio, this file | every user, every video; read-only while you make a video | kit commits only |
 | **Studio** (`vs where`: `profile.json`, `lessons.md`, `library/`, `finals/`, `latest/`, `ledger.csv`, `feedback.jsonl`) | this user's taste and what they keep: settled values, learned rules, reusable media, every spend, every accepted note | across all their videos | `vs learn`, `vs review promote/forget`, `vs ingest --to library`, the spend gate |
-| **Project** (`studio/projects/<slug>/`) | one video: its words, plan, scenes, cues, media, versions, renders, and its review | that video | the agent (sources), the steps (`build/`, `out/`), the review page and `vs review` (`review/`) |
+| **Project** (`studio/projects/<video>/`) | one video, both shapes: its words, plan, scenes, cues, media, `video.json` (where it stands), every draft (`drafts/vN/`), and its review | that video | the agent (sources), the steps (`build/`, `drafts/`, `video.json`), the review page and `vs review` (`review/`) |
 
 ## Where a new piece of information goes
 
@@ -22,9 +22,10 @@ exactly one of them, and the table below says which.
 | what this video overrides of the profile | project `plan.json` / `reel.json` | the agent |
 | a sound, a music bed, a logo, a picture another video could use | studio `library/` | `vs ingest --to library`, `vs learn` |
 | a scene helper another video could use | studio `library/scenes/` | the agent, after `vs learn` lists candidates |
-| an approved final | studio `finals/` (then `latest/`) | `vs learn --final` |
+| an approved final | studio `finals/<video>/` (then `latest/<video>/`) | `vs finish` (never by hand: `vs protocol files`) |
 | a paid call | studio `ledger.csv` | the spend gate, on every paid step |
-| a render, its timeline and its maps | project `out/<name>-vN…` + `out/<name>-vN.review/` | `vs build`, `vs inspect`, `vs qa`, `vs mix` |
+| a render, its mixes, its timeline, maps and sources | project `drafts/vN/<video>-<shape>-vN…` + `drafts/vN/data/<shape>/` | `vs build`, `vs inspect`, `vs qa`, `vs mix` |
+| where the video stands (first shape, second, done) | project `video.json` | `vs new`, `vs shape`, `vs finish`, `vs reopen` (`vs status` reads it) |
 | anything regenerated (comp, stills, stems, variants) | project `build/` | the steps; safe to delete |
 | a bug anyone using the kit would hit | the engine | a kit change with a regression test (`references/scars.md`) |
 | status for the next session | project `NEXT.md` | the agent, at the end of each session |
@@ -38,6 +39,9 @@ Taste never goes into the engine. Nothing in a project reaches the studio withou
   for the kit's own debugging, never a video).
 - **Every version is new.** Bump `"version"` before every render. The gate refuses to overwrite a version a round has
   seen.
+- **The path is the kit's** (`vs protocol files`): one project per video, both shapes; the second shape only after the
+  first is approved (`vs shape`); finals only through `vs finish`; a finished video changes only after `vs reopen`.
+  The commands refuse the wrong order, so no step depends on remembering it.
 - **Paid steps ask first, with the number.** Every paid step prints its estimate and this video's spend, refuses past
   the profile's caps and budget, and needs `--yes`. Say the number, wait for the yes, and only then run it. Some
   vendors auto-recharge: a balance is not a budget.

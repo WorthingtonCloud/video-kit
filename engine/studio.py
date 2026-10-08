@@ -18,7 +18,7 @@ import vslib  # noqa: E402
 # Every step, once: name · runs (self: in studio.py) · script · needs a project · paid (who bills it) · group · what
 COMMANDS = [
     ("setup", "self", None, False, None, "setup", "make the studio, install the engine, fetch the fonts, check it all"),
-    ("new", "self", None, False, None, "setup", "a new video: new <slug> --kind explainer|reel"),
+    ("new", "self", None, False, None, "setup", "a new video: new <video> --kind explainer|reel --shape vertical|widescreen"),
     ("where", "self", None, False, None, "setup", "the kit, the studio, this project, what's settled"),
     ("doctor", "node", "js/doctor.mjs", False, None, "setup", "is everything installed and set up"),
     ("fonts", "node", "js/fonts.mjs", False, None, "setup", "download a Google Font into the studio once"),
@@ -49,7 +49,12 @@ COMMANDS = [
     ("mix", "py", "mix.py", True, None, "sound", "voice + music + effects onto the picture"),
     ("mixer", "py", "serve.py", True, None, "sound", "Review Studio's Mix panel: take, levels, ducking, Save"),
     ("review", "py", "review.py", True, None, "review", "Review Studio: point at the video, say what's wrong; rounds, choices, rules"),
-    ("protocol", "self", None, False, None, "review", "the rules every skill shares: review (default) or studio (where things live)"),
+    ("protocol", "self", None, False, None, "review", "the rules every skill shares: review (default), studio (where things live), files (names, folders, the path to final)"),
+    ("status", "video", "video.py", True, None, "lifecycle", "where this video stands, and the one next step"),
+    ("shape", "video", "video.py", True, None, "lifecycle", "build the other shape, once the first is approved"),
+    ("finish", "video", "video.py", True, None, "lifecycle", "file the approved finals, refresh latest, close the review"),
+    ("reopen", "video", "video.py", True, None, "lifecycle", "a finished video drafts again, from exactly its last final"),
+    ("restructure", "py", "restructure.py", False, None, "lifecycle", "move a studio from the older flat layout to the folders (--dry first)"),
     ("ingest", "py", "ingest.py", True, "openai (own narration)", "studio", "bring your own media"),
     ("learn", "py", "learn.py", True, None, "studio", "after approval: keep what was decided"),
     ("latest", "py", "latest.py", False, None, "studio", "studio/latest/: the newest version of every video, plain names"),
@@ -60,26 +65,30 @@ SELF_HELP = {  # the steps studio.py runs itself
     "setup": ("vs setup [--studio PATH] [--default]\n"
               "  Makes the studio (default ~/video-studio, remembered in ~/.config/video-studio), installs the\n"
               "  engine's packages and a Python with numpy once, fetches the profile's fonts, and runs vs doctor."),
-    "new": ("vs new <slug> --kind explainer|reel\n"
-            "  A new video in studio/projects/<slug>, from the templates. The studio's profile fills in the look,\n"
-            "  the narrator and the levels; anything the project's plan.json or reel.json sets overrides it."),
+    "new": ("vs new <video> --kind explainer|reel --shape vertical|widescreen\n"
+            "  A new video in studio/projects/<video>, from the templates; its folder's name is the video's name, in\n"
+            "  every file it makes (lowercase words and hyphens). --shape is the one it starts in: the other is made once\n"
+            "  that one is approved (vs shape). The studio's profile fills in the look, the narrator and the levels;\n"
+            "  anything the project's plan.json or reel.json sets overrides it. vs protocol files: the whole path."),
     "where": ("vs where\n"
               "  The kit, the studio, this project, and what the profile has settled (brand, narrator, mix, videos)."),
     "spent": "vs spent [--all]\n  What this video (or every video) has cost, per vendor, from the studio's ledger.csv.",
-    "protocol": ("vs protocol [review | studio]\n"
+    "protocol": ("vs protocol [review | studio | files]\n"
                  "  The rules every skill follows, printed from engine/protocol/: review = how a version is handed to the human\n"
                  "  and their intent taken back (the loop, the lifecycle, the exit criteria, learning, finishing); studio = where\n"
-                 "  every piece of information lives (engine, studio, project) and the gates every step shares."),
+                 "  every piece of information lives (engine, studio, project) and the gates every step shares; files = every\n"
+                 "  name and folder, and how a video moves from first draft to final and back (vs reopen)."),
     "test": ("vs test [--fast] [a test file or folder…] [pytest or node --test arguments…]\n"
              "  The kit's own tests (tests/): unit, contract (the same cases in Python and JavaScript), regression and\n"
              "  integration (fixtures built and inspected in a browser; --fast skips those). Name a file or folder (a\n"
              "  .py, a .test.mjs, file.py::test) and only that runs; otherwise everything does. Nothing paid can run:\n"
              "  VIDEO_KIT_NO_SPEND is set. Python's tests need pytest; the first run installs it into the engine's Python."),
 }
-GROUPS = ["setup", "checks", "voice", "picture", "sound", "review", "studio"]
+GROUPS = ["setup", "lifecycle", "checks", "voice", "picture", "sound", "review", "studio"]
 CMD = {c[0]: c for c in COMMANDS}
 NODE = {n: sc for n, r, sc, *_ in COMMANDS if r == "node"}
-PY = {n: os.path.basename(sc) for n, r, sc, *_ in COMMANDS if r == "py"}
+PY = {n: os.path.basename(sc) for n, r, sc, *_ in COMMANDS if r in ("py", "video")}
+VIDEO = {n for n, r, *_ in COMMANDS if r == "video"}  # video.py's moves: it takes the step's name first
 ANYWHERE = {n for n, r, sc, proj, *_ in COMMANDS if not proj and r != "self"} | {"spent"}
 
 
@@ -90,7 +99,7 @@ def header(name):
         return SELF_HELP[name]
     path = os.path.join(ENGINE, script if runs == "node" else os.path.join("py", script))
     src = open(path).read()
-    if runs == "py":
+    if runs in ("py", "video"):
         import ast
         return ast.get_docstring(ast.parse(src)) or ""
     lines = [l for l in src.splitlines() if not l.startswith("#!")]
@@ -278,19 +287,30 @@ def setup(args):
 
 
 def new(args):
-    if not args or "--kind" not in args: sys.exit("vs new <slug> --kind explainer|reel")
-    slug, kind = args[0], args[args.index("--kind") + 1]
+    import re
+    if not args or "--kind" not in args or "--shape" not in args:
+        sys.exit("vs new <video> --kind explainer|reel --shape vertical|widescreen   (the shape it starts in)")
+    slug, kind, shape = args[0], args[args.index("--kind") + 1], args[args.index("--shape") + 1]
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", slug) or re.search(r"-(vertical|widescreen|9x16|16x9|v\d+)$", slug):
+        sys.exit(f"⛔ {slug!r}: a video's name is lowercase words joined by hyphens, with no shape or version in it "
+                 "(the kit adds those to every file)")
+    if shape not in vslib.SHAPES: sys.exit(f"⛔ --shape {shape}: vertical or widescreen")
     s = vslib.studio_root() or sys.exit("⛔ no studio yet: vs setup")
     d = os.path.join(s, "projects", slug)
-    if os.path.exists(d): sys.exit(f"⛔ {d} exists")
+    if os.path.exists(d): sys.exit(f"⛔ {d} exists (a finished video changes with vs reopen {slug})")
     shutil.copytree(os.path.join(KIT, "templates", kind), d)
     if os.path.exists(os.path.join(d, "gitignore")): os.rename(os.path.join(d, "gitignore"), os.path.join(d, ".gitignore"))
-    for sub in ["inputs", "media", "out", "build"] + (["voice", "music"] if kind == "explainer" else ["music"]):
+    for sub in ["inputs", "media", "drafts", "build"] + (["voice", "music"] if kind == "explainer" else ["music"]):
         os.makedirs(os.path.join(d, sub), exist_ok=True)
     f = os.path.join(d, "plan.json" if kind == "explainer" else "reel.json")
-    j = json.load(open(f)); j["name"] = slug
+    j = json.load(open(f)); j["name"] = slug; j["size"] = vslib.CONTRACTS["sizes"][shape]
     json.dump(j, open(f, "w"), indent=1)
-    print(f"{d}\n  the studio's profile fills in the look, the narrator and the levels; anything set in {os.path.basename(f)} overrides it")
+    from datetime import datetime
+    vslib.save_video_state({"schema_version": 1, "video": slug, "first": shape, "building": shape, "status": "first",
+                            "finals": [], "log": [{"at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                                                   "event": f"started in {shape} (vs new)"}]}, os.path.join(d, "video.json"))
+    print(f"{d}\n  starts {shape}; the other shape comes once it's approved (vs status says the next step)\n"
+          f"  the studio's profile fills in the look, the narrator and the levels; anything set in {os.path.basename(f)} overrides it")
 
 
 def where():
@@ -352,6 +372,12 @@ def main():
     if a[:1] in (["-p"], ["--project"]): proj, a = a[1], a[2:]
     if not a or a[0] in ("-h", "--help", "help"): return help_cmd(a[1:])
     cmd, rest = ALIASES.get(a[0], a[0]), a[1:]
+    if cmd == "reopen" and rest[:1] and not rest[0].startswith("-"): proj, rest = rest[0], rest[1:]  # vs reopen <video>
+    if "--shape" in rest and cmd not in ("new", "shape", "reopen"):  # this run builds/plans/inspects that shape
+        i = rest.index("--shape")
+        if rest[i + 1:i + 2] and rest[i + 1] in vslib.SHAPES:
+            os.environ["VS_SHAPE"] = rest[i + 1]
+            rest = rest[:i] + rest[i + 2:]
     if cmd == "setup": return setup(rest)
     if cmd == "new": return new(rest)
     if cmd == "where": return where()
@@ -363,7 +389,7 @@ def main():
     if d: os.chdir(d)
     if cmd == "spent": return spent(rest)
     run = ["node", os.path.join(ENGINE, NODE[cmd])] if cmd in NODE else [python(), os.path.join(ENGINE, "py", PY[cmd])]
-    os.execvp(run[0], run + rest)
+    os.execvp(run[0], run + ([cmd] if cmd in VIDEO else []) + rest)
 
 
 def near(x):

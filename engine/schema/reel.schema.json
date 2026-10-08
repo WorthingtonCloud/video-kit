@@ -236,6 +236,19 @@
      }
     }
    }
+  },
+  "shapes": {
+   "type": "object",
+   "description": "what differs per shape (engine/protocol/files.md): a block per shape whose keys replace the top-level ones when that shape is built; the size follows the shape unless the block sets one",
+   "propertyNames": {
+    "enum": [
+     "vertical",
+     "widescreen"
+    ]
+   },
+   "additionalProperties": {
+    "type": "object"
+   }
   }
  },
  "$defs": {

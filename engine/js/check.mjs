@@ -11,7 +11,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
-import { ENGINE, studioRoot, CONTRACTS } from "./lib/paths.mjs";
+import { ENGINE, studioRoot, CONTRACTS, forShape, activeShape, scenesFile } from "./lib/paths.mjs";
 import { wordAt } from "./lib/words.mjs";
 
 const require = createRequire(path.join(ENGINE, "package.json"));
@@ -53,7 +53,7 @@ function availableScenes(R, dir) {
     const ld = studioRoot() && path.join(studioRoot(), "library/scenes");
     if (ld && fs.existsSync(ld)) fs.readdirSync(ld).filter((f) => f.endsWith(".js")).forEach((f) => add(read(path.join(ld, f))));
   }
-  add(read(path.join(dir, "scenes.js")));
+  add(read(path.join(dir, scenesFile(activeShape(dir), dir))));
   return all;
 }
 
@@ -306,7 +306,7 @@ export function check({ dir = process.cwd(), quiet = false } = {}) {
   }
   if (has("reel.json")) {
     const r = validate("reel.json", path.join(dir, "reel.json"), "reel", { versioned: true });
-    if (r?.doc) reelRules(r.doc, r.bag);
+    if (r?.doc) reelRules(forShape(r.doc, activeShape(dir)), r.bag); // the reel as the shape being built sees it
   } else if (!has("plan.json")) say(errors, "reel.json", "", "not found: run from a project folder (or vs plan, for an explainer)");
   for (const [f, s] of [
     ["music.json", "music"],
@@ -315,6 +315,7 @@ export function check({ dir = process.cwd(), quiet = false } = {}) {
     ["media.json", "media"],
     ["music/takes.json", "takes"],
     ["review/state.json", "review"],
+    ["video.json", "video"],
   ])
     if (has(f)) validate(f, path.join(dir, f), s);
   if (S) {

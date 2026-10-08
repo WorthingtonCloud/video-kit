@@ -29,11 +29,14 @@ def _serve(tmp_path, wide=False):
     # wide: an explainer at its last stage with a long name and both shapes, the top line as full as it gets in use
     n = "video-kit-explainer" if wide else "p"
     d = tmp_path / n
-    os.makedirs(d / "out")
+    os.makedirs(d / "drafts/v1/data/vertical")
     (d / ("plan.json" if wide else "reel.json")).write_text("{}")
-    for size, name in [("216x384", f"{n}-v1")] + ([("384x216", f"{n}-16x9-v1")] if wide else []):
+    if wide:  # past its first shape: the round shows both
+        (d / "video.json").write_text(json.dumps({"schema_version": 1, "video": n, "first": "vertical", "building": "vertical",
+                                                  "status": "second"}))
+    for size, name in [("216x384", f"{n}-vertical-v1")] + ([("384x216", f"{n}-widescreen-v1")] if wide else []):
         subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s={size}:d=3:r=30", "-c:v", "libx264",
-                        "-pix_fmt", "yuv420p", str(d / f"out/{name}.mp4")], check=True)
+                        "-pix_fmt", "yuv420p", str(d / f"drafts/v1/{name}.mp4")], check=True)
     run = lambda *a: subprocess.run([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), *a],
                                     capture_output=True, text=True)
     r = run("review", "open", *(["--stage", "final"] if wide else []))
@@ -67,11 +70,11 @@ def reel(tmp_path, font_studio):
     for step in (("build", "--no-render"), ("inspect",)):
         r = run(*step)  # the rare browser failure names its step only in its own output: keep all of it
         assert r.returncode == 0, f"vs {' '.join(step)} failed:\n{r.stdout[-3000:]}\n{r.stderr[-6000:]}"
-    os.makedirs(d / "out", exist_ok=True)
+    os.makedirs(d / "drafts/v1/data/vertical", exist_ok=True)
     tl = json.load(open(d / "build/timeline.json"))
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s=216x384:d={tl['end']}:r=30", "-c:v",
-                    "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(d / "out/beat-reel-v1.mp4")], check=True)
-    shutil.copy(d / "build/timeline.json", d / "out/beat-reel-v1.timeline.json")
+                    "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(d / "drafts/v1/beat-reel-vertical-v1.mp4")], check=True)
+    shutil.copy(d / "build/timeline.json", d / "drafts/v1/data/vertical/timeline.json")
     assert run("review", "open").returncode == 0
     port = free_port()
     log = open(d / "server.log", "w")  # a file, not a pipe: a pipe nobody reads fills up and stalls the server mid-test
@@ -119,7 +122,7 @@ def test_the_top_line_with_both_shapes_folds_instead_of_clipping(served_two):
         assert m["h"] <= 52 and not m["over"] and not m["tall"] and not m["scroll"] and not m["clip"], (w, m)
         assert int(w) <= 600 or "f4" in m["fold"] or m["now"], (w, m)  # the current step shows while the strip does
     assert out["widths"]["1680"]["fold"] == ""  # a wide window shows everything
-    assert sorted(out["shapes"]) == ["Vertical", "Wide"]  # one word each
+    assert sorted(out["shapes"]) == ["Vertical", "Widescreen"]  # one word each
 
 
 def test_the_loop_undo_review_send_and_claudes_turn(served):
@@ -219,7 +222,7 @@ def test_the_human_says_what_and_how_far_never_how(reel):
 
 def test_an_older_build_points_from_the_map_and_says_so(reel):
     d, url, run = reel
-    f = d / "out/beat-reel-v1.timeline.json"
+    f = d / "drafts/v1/data/vertical/timeline.json"
     tl = json.load(open(f))
     tl["fingerprint"] = "an-older-build"
     json.dump(tl, open(f, "w"))
@@ -231,22 +234,22 @@ def test_an_older_build_points_from_the_map_and_says_so(reel):
 def test_findings_in_plain_words_with_claudes_advice(reel):
     d, url, run = reel
     # qa.py's warnings on this render, and one vs inspect error put to the human (a second version, opened with --ask)
-    os.makedirs(d / "out/beat-reel-v2.review")
+    os.makedirs(d / "drafts/v2/data/vertical")
     json.dump({"findings": 1, "source": "qa", "items": [
         {"id": "q-covered-top-15.25", "check": "covered", "severity": "warning", "elements": ["s03_hub/node-files"],
          "t0": 15.25, "t1": 15.5, "at": 15.38, "text": "something bright in the top (status bar)", "hint": "move it"},
         {"id": "q-covered-right-18.25", "check": "covered", "severity": "warning", "elements": ["s05_sources/claim"],
          "t0": 18.25, "t1": 18.5, "at": 18.38, "text": "something bright in the right", "hint": "move it"}]},
-        open(d / "out/beat-reel-v2.review/qa.json", "w"))
+        open(d / "drafts/v2/data/vertical/qa.json", "w"))
     F = json.load(open(d / "build/findings.json"))
     F["items"].append({"id": "f-spills-s03_hub-core", "check": "spills", "severity": "error", "elements": ["s03_hub/core"],
                        "text": "", "t0": 12.0, "t1": 13.0, "at": 12.5})
     json.dump(F, open(d / "build/findings.json", "w"))
     import shutil
-    shutil.copy(d / "out/beat-reel-v1.mp4", d / "out/beat-reel-v2.mp4")
-    shutil.copy(d / "out/beat-reel-v1.timeline.json", d / "out/beat-reel-v2.timeline.json")
-    assert "errors never reach a round" in run("review", "open", "--video", "out/beat-reel-v2.mp4").stderr
-    r = run("review", "open", "--video", "out/beat-reel-v2.mp4", "--ask")
+    shutil.copy(d / "drafts/v1/beat-reel-vertical-v1.mp4", d / "drafts/v2/beat-reel-vertical-v2.mp4")
+    shutil.copy(d / "drafts/v1/data/vertical/timeline.json", d / "drafts/v2/data/vertical/timeline.json")
+    assert "errors never reach a round" in run("review", "open", "--video", "drafts/v2/beat-reel-vertical-v2.mp4").stderr
+    r = run("review", "open", "--video", "drafts/v2/beat-reel-vertical-v2.mp4", "--ask")
     assert r.returncode == 0 and "advise each in plain words" in r.stdout
     assert run("review", "advise", "--check", "covered", "--advice", "leave", "--plain", "two bright edges", "--why", "decoration").returncode == 0
     out = drive(url, "findings")
@@ -268,7 +271,7 @@ def test_findings_in_plain_words_with_claudes_advice(reel):
 
 def test_the_mix_panel_plays_the_stems_and_saves_what_a_reel_can_bake(reel):
     d, url, run = reel
-    assert run("mix", "--video", "out/beat-reel-v1.mp4", "--tag", "v1").returncode == 0
+    assert run("mix", "--video", "drafts/v1/beat-reel-vertical-v1.mp4", "--tag", "v1").returncode == 0
     out = drive(url, "mix")
     assert out["open"] == "true" and out["music"] == 0 and out["muted"]  # a reel: its own track, no takes to pick
     assert out["playing"][0] > 5.5 and out["playing"][1] == "❚❚"       # the picture followed the stems' clock
@@ -277,9 +280,9 @@ def test_the_mix_panel_plays_the_stems_and_saves_what_a_reel_can_bake(reel):
     saved = json.load(open(d / "mix.json"))  # written when it was sent
     assert saved["take"] == 0 and saved["sfx_db"] == -3 and json.load(open(d / "review/state.json"))["mix"]["sfx_db"] == -3
     assert run("check").returncode == 0  # take 0 is a reel's mix, not a broken file
-    r = run("mix", "--video", "out/beat-reel-v1.mp4", "--tag", "v1", "--final")
+    r = run("mix", "--video", "drafts/v1/beat-reel-vertical-v1.mp4", "--tag", "v1", "--final")
     assert r.returncode == 0, r.stdout + r.stderr  # it used to read take 0 as "no mix.json yet"
-    assert os.path.exists(d / "out/beat-reel-v1-mixed.mp4") and "final: take 0" in r.stdout
+    assert os.path.exists(d / "drafts/v1/beat-reel-vertical-v1-mixed.mp4") and "final: take 0" in r.stdout
 
 def answered_round(d, run):
     """Round 1 as the page would write it, the agent's answers, and round 2 on the same build (so a claimed fix measures
@@ -301,9 +304,10 @@ def answered_round(d, run):
         os.chdir(cwd)
     assert run("review", "resolve", "n-0001", "--said", "it reads kinds now", "--files", "reel.json").returncode == 0
     assert run("review", "resolve", "n-0002", "--said", "two beats sooner").returncode == 0
-    for ext in (".mp4", ".timeline.json"):
-        shutil.copy(d / f"out/beat-reel-v1{ext}", d / f"out/beat-reel-v2{ext}")
-    return run("review", "open", "--video", "out/beat-reel-v2.mp4")
+    os.makedirs(d / "drafts/v2/data/vertical", exist_ok=True)
+    shutil.copy(d / "drafts/v1/beat-reel-vertical-v1.mp4", d / "drafts/v2/beat-reel-vertical-v2.mp4")
+    shutil.copy(d / "drafts/v1/data/vertical/timeline.json", d / "drafts/v2/data/vertical/timeline.json")
+    return run("review", "open", "--video", "drafts/v2/beat-reel-vertical-v2.mp4")
 
 
 def test_rounds_measure_compare_looks_right_still_wrong_approve(reel):
@@ -314,7 +318,7 @@ def test_rounds_measure_compare_looks_right_still_wrong_approve(reel):
     # v2 is v1's own bytes: the box didn't move and its pixels didn't change (n-0001), and the stretch's picture and sound
     # are the same (n-0002, a range with no target): both claimed fixes are flagged
     assert out["cards"] == [["n-0001", "Claude says it's fixed in v2", True], ["n-0002", "Claude says it's fixed in v2", True]]
-    assert out["compare"] == ["/out/beat-reel-v1.mp4", "/out/beat-reel-v2.mp4"] and out["outlines"] == 2
+    assert out["compare"] == ["/drafts/v1/beat-reel-vertical-v1.mp4", "/drafts/v2/beat-reel-vertical-v2.mp4"] and out["outlines"] == 2
     assert out["follow"] is None  # looks right: nothing left to follow up from here
     assert "Approved: v2 is done" in out["approve"] and "v2 approved" in out["approved"]  # one click, then sent
     assert out["sent"]["list"] == ["Claude's fix for \u201csay kinds\u201d: looks right",
@@ -409,12 +413,12 @@ def explainer(tmp_path, font_studio):
         r = run(*step)
         assert r.returncode == 0, f"vs {' '.join(step)} failed:\n{r.stdout[-3000:]}\n{r.stderr[-3000:]}"
     tl = json.load(open(d / "build/timeline.json"))
-    os.makedirs(d / "out", exist_ok=True)
+    os.makedirs(d / "drafts/v1/data/vertical", exist_ok=True)
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s=216x384:d={tl['end']}:r=30", "-c:v",
-                    "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(d / "out/t-v1.mp4")], check=True)
-    shutil.copy(d / "build/timeline.json", d / "out/t-v1.timeline.json")
-    assert run("mix", "--video", "out/t-v1.mp4", "--tag", "v1").returncode == 0
-    assert run("review", "open", "--video", "out/t-v1-take1.mp4").returncode == 0
+                    "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(d / "drafts/v1/t-vertical-v1.mp4")], check=True)
+    shutil.copy(d / "build/timeline.json", d / "drafts/v1/data/vertical/timeline.json")
+    assert run("mix", "--video", "drafts/v1/t-vertical-v1.mp4", "--tag", "v1").returncode == 0
+    assert run("review", "open", "--video", "drafts/v1/t-vertical-v1-take1.mp4").returncode == 0
     port = free_port()
     log = open(d / "server.log", "w")  # a file, not a pipe: a pipe nobody reads fills up and stalls the server mid-test
     srv = subprocess.Popen([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "review", "--port", str(port)],
@@ -496,13 +500,13 @@ def test_an_answer_from_an_earlier_round_is_not_asked_again(served):
     import shutil
     d, url, run = served
     for v in (1, 2):
-        os.makedirs(d / f"out/p-v{v}.review", exist_ok=True)
+        os.makedirs(d / f"drafts/v{v}/data/vertical", exist_ok=True)
         json.dump({"items": [{"id": f"q-covered-left-{1 + v * 0.25}", "check": "covered", "severity": "warning", "elements": [],
                               "t0": 1 + v * 0.25, "t1": 1.5 + v * 0.25, "at": 1.2, "text": "something bright in the left"}]},
-                  open(d / f"out/p-v{v}.review/qa.json", "w"))
+                  open(d / f"drafts/v{v}/data/vertical/qa.json", "w"))
     post_human(url, [{"type": "finding.dismissed", "id": "q-covered-left-1.25", "check": "covered", "held": True}, {"type": "round.sent"}])
-    shutil.copy(d / "out/p-v1.mp4", d / "out/p-v2.mp4")
-    r = run("review", "open", "--video", "out/p-v2.mp4")
+    shutil.copy(d / "drafts/v1/p-vertical-v1.mp4", d / "drafts/v2/p-vertical-v2.mp4")
+    r = run("review", "open", "--video", "drafts/v2/p-vertical-v2.mp4")
     assert "1 finding(s) answered in an earlier round" in r.stdout, r.stdout + r.stderr
     out = drive(url, "carried")
     assert out["line"].startswith("✓ Leave it") and "your answer from round 1" in out["line"] and out["todo"] == 0
@@ -512,12 +516,13 @@ def test_an_answer_from_an_earlier_round_is_not_asked_again(served):
 def test_the_end_of_the_flow_says_done_with_the_files_and_a_way_back(served):
     import shutil
     d, url, run = served
-    shutil.copy(d / "out/p-v1.mp4", d / "out/p-v1-take1.mp4")
-    shutil.copy(d / "out/p-v1.mp4", d / "out/p-16x9-v1-take1.mp4")
-    assert run("review", "finish", "--final", "out/p-v1-take1.mp4", "out/p-16x9-v1-take1.mp4").returncode == 0
+    shutil.copy(d / "drafts/v1/p-vertical-v1.mp4", d / "drafts/v1/p-vertical-v1-take1.mp4")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=384x216:d=3:r=30", "-c:v", "libx264",
+                    "-pix_fmt", "yuv420p", str(d / "drafts/v1/p-widescreen-v1-take1.mp4")], check=True)
+    assert run("review", "finish", "--final", "drafts/v1/p-vertical-v1-take1.mp4", "drafts/v1/p-widescreen-v1-take1.mp4").returncode == 0
     out = drive(url, "finished")
     assert out["done"] and out["fetched"] == 200
-    assert [f[:2] for f in out["files"]] == [["/out/p-v1-take1.mp4", "p-v1-take1.mp4"], ["/out/p-16x9-v1-take1.mp4", "p-16x9-v1-take1.mp4"]]
+    assert [f[:2] for f in out["files"]] == [["/drafts/v1/p-vertical-v1-take1.mp4", "p-vertical-v1-take1.mp4"], ["/drafts/v1/p-widescreen-v1-take1.mp4", "p-widescreen-v1-take1.mp4"]]
     assert out["files"][0][2].startswith("⤓ Vertical") and out["files"][1][2].startswith("⤓ Widescreen")
     assert out["parts"] == ["the words", "the voice", "the picture", "the sound"]
     assert out["sheetHidden"] and out["note"] == "About the sound: " and out["focus"] == "c-text"

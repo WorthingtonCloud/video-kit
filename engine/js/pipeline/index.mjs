@@ -2,8 +2,8 @@
 // Build the video from reel.json as ONE HyperFrames composition (build/comp/index.html), check it, render it.
 // Nothing here spends money. Re-run end to end any time; footage and music are only re-cut when their inputs change.
 //
-//   vs build                       prepare, lint, check the safe zone, render out/<name>-v<N>.mp4 + cover + the
-//                                  version's timeline.json, once vs inspect has passed THIS composition (gate.mjs);
+//   vs build                       prepare, lint, check the safe zone, render drafts/vN/<video>-<shape>-vN.mp4 + cover +
+//                                  its data/<shape>/ (timing, maps, sources), once vs inspect has passed THIS composition (gate.mjs);
 //                                  then vs qa on the new cut. Run it in the background: it prints nothing until it's
 //                                  done, then the QA report and one "✓ vs build finished" line. Don't check on it.
 //   vs build --no-qa               render only
@@ -55,7 +55,11 @@
 // The steps, in order: vs check (the contracts, check.mjs) → context.mjs (the reel and the helpers) → timing → checks →
 // media → css → compose (writes build/comp/index.html and build/timeline.json, the one timing every later step reads) →
 // the HyperFrames lint → the safe zone → collage frames → storyboard, or the render gate (gate.mjs) and the render.
+import { lifecycle } from "../lib/lifecycle.mjs";
 import { check } from "../check.mjs";
+
+// a finished video, or the second shape before the first is approved: refused before anything else runs
+if (!process.argv.slice(2).some((a) => a === "--no-render" || a === "--storyboard")) lifecycle();
 
 // the contracts first, before any step loads (they read reel.json as they load): a misspelled scene used to fail inside
 // the browser mid-build, a wrong path deep in ffmpeg
@@ -66,13 +70,13 @@ if (chk.errors.length) {
   process.exit(1);
 }
 const { STORY, NORENDER, hf } = await import("./context.mjs");
+const { gate } = await import("./gate.mjs");
 const { checkNever } = await import("./checks.mjs");
 const { prepareMedia } = await import("./media.mjs");
 const { css } = await import("./css.mjs");
 const { compose } = await import("./compose.mjs");
 const { checkSafeZone } = await import("./safezone.mjs");
 const { snapTiles, storyboard, render } = await import("./render.mjs");
-const { gate } = await import("./gate.mjs");
 
 checkNever();
 const m = prepareMedia();

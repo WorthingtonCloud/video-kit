@@ -78,7 +78,8 @@ from) and delete it from the project. Every later video gets it. `vs learn` list
 
 ## Widescreen
 
-`vs plan --wide` makes the same plan 1920 × 1080 with the same times. The words live on the left, so `layout.js` keeps
+`vs shape widescreen` (once the vertical is approved) plans the same video 1920 × 1080 with the same times; what
+must differ goes in plan.json → `"shapes"` → `"widescreen"`. The words live on the left, so `layout.js` keeps
 each scene centered and slides it right only while a title is up (arriving as the title lands, back as it leaves; short
 gaps and titles near a cut hold the side). A photo's box shows its sides on a wide frame: `exPhoto` fades them. LOOK at
 every scene in the wide cut: nothing measures an exit that stops in plain sight.

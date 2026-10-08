@@ -95,8 +95,9 @@ aren't enough.
   changed at all. The agent's "fixed" and the measurement sit side by side; you decide.
 - **Choices come as options you play side by side** (two versions of a scene, two music takes), and the Mix panel
   sets the levels by ear.
-- **Both shapes in one round.** When the vertical and widescreen cuts are both rendered, a switch puts either one on
-  screen at the same moment, and each gets its own notes and approval.
+- **Both shapes in one round.** Once the first shape is approved, the other one is made from it and joins the same
+  page: a Vertical | Widescreen switch at the top puts either one on screen at the same moment, and each gets its own
+  notes and approval. One video, one page, one address.
 - **When you approve, the page says Done** and hands you the files.
 
 ### Why a review page, not a chat
@@ -142,7 +143,12 @@ One request, then a few stops, and each one waits for you:
    Studio. You point.
 4. **The sound.** Music takes and effects pinned to the same words, mixed without re-rendering the picture. You switch
    takes and set the levels by ear.
-5. **Done.** Both shapes, vertical and widescreen, from the same plan.
+5. **The other shape.** You start in vertical or widescreen. Once you approve it, the other shape is built from the same
+   plan and shown beside it in the same Review Studio.
+6. **Done.** Approving both files them: every version you called done in `finals/<video>/`, the newest in
+   `latest/<video>/`.
+7. **Later, a change.** `vs reopen <video>` puts the script and scenes back exactly as they made the last final, and
+   the next draft picks up from there. When it's done again, it replaces the old one in `latest/`.
 
 A reel works the same way, with a short grill first (what it's for, where it posts, what a viewer should get) and the
 music's beat grid setting every cut. Anything that costs money prints its price and waits for a yes.
@@ -178,9 +184,13 @@ The kit is read-only. Your studio is the folder that grows:
   every time.
 - `library/`: sounds, music that won, your logo and fonts, pictures and clips you reuse. The kit's 30 sound effects
   start you off.
-- `finals/` and `ledger.csv`: every approved video, and every paid call with what it cost.
+- `projects/<video>/`: one folder per video, both shapes, with every draft in `drafts/v1`, `v2` … and `video.json`
+  saying where it stands (`vs status` reads it and names the next step).
+- `finals/<video>/`: every version you called done, both shapes (`<video>-vertical-v8.mp4`).
+  `latest/<video>/`: only the newest, no version in the name (`<video>-vertical.mp4`). `ledger.csv`: every paid call
+  with what it cost.
 
-When you approve a video, `vs learn` keeps what you decided: the levels you set, the music take that won, the finals.
+When you approve a video, `vs finish` files it and keeps what you decided: the levels you set, the music take that won.
 Your second video asks fewer questions than your first.
 
 ## What's in the box
@@ -203,6 +213,22 @@ come from the words, never typed in. No render until `vs inspect` finds no error
 the voice and never competes. The picture is never re-rendered for sound. In widescreen, anything that leaves a
 vertical frame has to leave the wide one too. The full lists, with the fix for each, are in each skill's
 `references/scars.md`.
+
+## New in 3.0
+
+One path for every file, from the first draft to the final and back, held by the kit's own commands instead of by
+anyone remembering it (`vs protocol files`). A video is one project with both shapes in it; the kit names every file,
+in words (`<video>-widescreen-v8.mp4`, never `16x9`), and reads each file's real width and height before filing it.
+Four commands move a video along: `vs status` (where it stands, and the next step), `vs shape` (the other shape, once
+the first is approved), `vs finish` (files the finals, refreshes `latest/`, tells the Review Studio it's done) and
+`vs reopen` (a finished video drafts again from exactly its last final). Each refuses the wrong order and names the way
+around it for a real change of plan, and the way around is logged. `vs new` now takes the shape a video starts in.
+
+Upgrading a 2.x studio: `vs restructure --dry` shows every move first; then `vs restructure` (with `--merge <video>=<its
+-16x9 sibling>` for a reel whose widescreen cut lived in a second project). Nothing is deleted: superseded folders and
+byte-identical copies go to `archive/`.
+
+Also: an OpenAI key never appears on a command line while a narration take is checked.
 
 ## New in 2.2
 

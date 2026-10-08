@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """After the human approves a video: keep what was decided, so the next video starts there and asks less.
 
-    vs learn --final out/<name>-vN-take<N>.mp4 [out/<name>-16x9-vN-take<N>.mp4 …] [--dry]
+    vs learn --final <the final files> [--dry]      (vs finish runs it: files the finals, then this)
 
-  finals      the approved files (and their covers) are copied to the studio's finals/, and latest/ is refreshed
-              (vs latest: the newest version of every video under its plain name)
+  finals      named in the history line; filing them is vs finish's job (finals/<video>/, then latest/<video>/)
   mix         the levels saved in the mixer (mix.json) become the profile's "mix": the next video starts at them
   music       the winning take is kept in library/music (free to reuse), and its direction moves to the front of the
               profile's music → directions, so the next bed is made in the style that won
@@ -27,20 +26,13 @@ a = ap.parse_args()
 S = vslib.studio_root() or sys.exit("⛔ no studio (vs setup): learning needs somewhere to keep it")
 P_PATH = os.path.join(S, "profile.json")
 prof = vslib.read_json(P_PATH)
-plan, reel, mix = vslib.read_json("plan.json"), vslib.read_json("reel.json"), vslib.read_json("mix.json")
+plan, reel, mix = vslib.read_json("plan.json"), vslib.reel(), vslib.read_json("mix.json")
 proj, said = vslib.project_name(), []
 src = plan or reel
 
-# finals
-os.makedirs(os.path.join(S, "finals"), exist_ok=True)
+# the finals: vs finish filed them (finals/<video>/) before running this; learn only names them in the history
 for f in a.final:
     if not os.path.exists(f): sys.exit(f"⛔ {f} not found")
-    for g in [f, re.sub(r"(-take\d+)?\.mp4$", "-cover.jpg", f)]:
-        if os.path.exists(g) and not a.dry: shutil.copy2(g, os.path.join(S, "finals", os.path.basename(g)))
-    said.append(f"finals/{os.path.basename(f)}")
-if a.final and not a.dry:  # latest/ follows finals/ the moment a final is filed
-    import subprocess
-    subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "latest.py")])
 
 # mix levels
 if mix:

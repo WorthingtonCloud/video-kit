@@ -3,8 +3,8 @@
 // storyboard frames (Sep 29, 2026).
 import fs from "node:fs";
 import path from "node:path";
-import { ENGINE, studioRoot, hash, TIMELINE, SOURCES } from "../lib/paths.mjs";
-import { R, W, H, FPS, P, B, COMP, A, copy } from "./context.mjs";
+import { ENGINE, studioRoot, hash, TIMELINE, SOURCES, scenesFile } from "../lib/paths.mjs";
+import { R, W, H, FPS, P, B, COMP, A, copy, SHAPE } from "./context.mjs";
 import { SEGS, END, timeline } from "./timing.mjs";
 
 // The runtime: js/reel/*.js in name order (one closure), with the scenes inlined at /*__EXTRA_SCENES__*/. An explainer
@@ -16,7 +16,8 @@ const PH = "/*__EXTRA_SCENES__*/";
 function runtime() {
   const dir = path.join(ENGINE, "js/reel"),
     read = (f) => fs.readFileSync(f, "utf8");
-  const own = fs.existsSync("scenes.js") ? [{ file: "scenes.js", text: read("scenes.js") }] : [];
+  const sf = scenesFile(SHAPE),
+    own = fs.existsSync(sf) ? [{ file: sf, text: read(sf) }] : [];
   let scenes = own;
   if (R.scene_lib === "explainer") {
     const lib = (f) => ({ file: `engine:js/scenes/${f}`, text: read(path.join(ENGINE, "js/scenes", f)) }),

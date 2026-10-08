@@ -158,7 +158,7 @@ export function render() {
   if (cs) {
     const count = (c) => liveNotes().filter((n) => (n.cut || R.cut) === c && ["draft", "sent", "reopened"].includes(n.status)).length || "";
     sh.innerHTML = cs
-      .map((c) => `<button data-cut="${c.cut}" aria-pressed="${c.cut === app.cut}" title="Watch the ${shapeName(c.cut)} cut: notes you add are about it"><span class="ic ${c.cut === "16x9" ? "w" : "v"}"></span>${c.cut === "16x9" ? "Wide" : "Vertical"}<b>${count(c.cut)}</b></button>`)
+      .map((c) => `<button data-cut="${c.cut}" aria-pressed="${c.cut === app.cut}" title="Watch the ${shapeName(c.cut)} cut: notes you add are about it"><span class="ic ${c.cut === "16x9" ? "w" : "v"}"></span>${c.cut === "16x9" ? "Widescreen" : "Vertical"}<b>${count(c.cut)}</b></button>`)
       .join("");
   }
   if (C.round && app.video.dataset.src !== C.round.video) {

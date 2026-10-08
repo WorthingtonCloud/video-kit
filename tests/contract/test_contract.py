@@ -76,3 +76,37 @@ def test_hash(tmp_path, case):
     p = tmp_path / "f"
     p.write_text(case["text"])
     assert vslib().file_hash(str(p)) == case["expect"]
+
+
+@pytest.mark.parametrize("case", CASES["files"]["shape"], ids=lambda c: c["name"])
+def test_files_shape(tmp_path, monkeypatch, case):
+    monkeypatch.delenv("VS_SHAPE", raising=False)
+    run_in(tmp_path, monkeypatch, case)
+    assert vslib().active_shape() == case["expect"]
+
+
+@pytest.mark.parametrize("case", CASES["files"]["draft"], ids=lambda c: c["expect"]["file"])
+def test_files_draft(tmp_path, monkeypatch, case):
+    (tmp_path / case["cwd"]).mkdir()
+    monkeypatch.chdir(tmp_path / case["cwd"])
+    v, e = vslib(), case["expect"]
+    f = v.draft_file(*case["args"])
+    assert f == e["file"]
+    assert v.data_dir(f) == e["data"]
+    assert v.cover_of(f) == e["cover"]
+    assert v.parse_draft(f) == e["parsed"]
+
+
+@pytest.mark.parametrize("case", CASES["files"]["reel"], ids=lambda c: c["name"])
+def test_files_reel(tmp_path, monkeypatch, case):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "reel.json").write_text(json.dumps(case["reel"]))
+    R = vslib().reel(shape=case["shape"])
+    assert "shapes" not in R
+    for k, val in case["expect"].items():
+        assert R[k] == val, k
+
+
+@pytest.mark.parametrize("name", CASES["files"]["not_drafts"])
+def test_files_not_drafts(name):
+    assert vslib().parse_draft(name) is None

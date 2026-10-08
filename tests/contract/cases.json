@@ -57,5 +57,26 @@
  "hash": [
   {"text": "abc", "expect": "ba7816bf8f01cfea"},
   {"text": "", "expect": "e3b0c44298fc1c14"}
- ]
+ ],
+ "files": {
+  "_about": "A video's names (engine/protocol/files.md). cwd is the project folder: its name is the video's name. shape cases: what the build is making; draft cases: [shape, v, variant] \u2192 the file, its data folder, its cover, and the name read back.",
+  "shape": [
+   {"name": "VS_SHAPE wins", "tree": {"p/teaser/video.json": {"building": "vertical"}, "p/teaser/reel.json": {"size": [1920, 1080]}}, "cwd": "p/teaser", "env": {"VS_SHAPE": "widescreen"}, "expect": "widescreen"},
+   {"name": "video.json's building beats reel.json's size", "tree": {"p/teaser/video.json": {"building": "vertical"}, "p/teaser/reel.json": {"size": [1920, 1080]}}, "cwd": "p/teaser", "expect": "vertical"},
+   {"name": "no video.json: reel.json's size", "tree": {"p/teaser/reel.json": {"size": [1920, 1080]}}, "cwd": "p/teaser", "expect": "widescreen"},
+   {"name": "no reel: plan.json's size", "tree": {"p/teaser/plan.json": {"size": [1080, 1920]}}, "cwd": "p/teaser", "expect": "vertical"},
+   {"name": "nothing says: vertical", "tree": {"p/teaser/x.txt": "x"}, "cwd": "p/teaser", "expect": "vertical"}
+  ],
+  "draft": [
+   {"cwd": "launch-teaser", "args": ["vertical", 8, null], "expect": {"file": "drafts/v8/launch-teaser-vertical-v8.mp4", "data": "drafts/v8/data/vertical", "cover": "drafts/v8/launch-teaser-vertical-v8-cover.jpg", "parsed": {"video": "launch-teaser", "shape": "vertical", "v": 8, "variant": null}}},
+   {"cwd": "launch-teaser", "args": ["widescreen", 12, "take2"], "expect": {"file": "drafts/v12/launch-teaser-widescreen-v12-take2.mp4", "data": "drafts/v12/data/widescreen", "cover": "drafts/v12/launch-teaser-widescreen-v12-cover.jpg", "parsed": {"video": "launch-teaser", "shape": "widescreen", "v": 12, "variant": "take2"}}},
+   {"cwd": "a-vertical-story", "args": ["vertical", 1, "sfx"], "expect": {"file": "drafts/v1/a-vertical-story-vertical-v1-sfx.mp4", "data": "drafts/v1/data/vertical", "cover": "drafts/v1/a-vertical-story-vertical-v1-cover.jpg", "parsed": {"video": "a-vertical-story", "shape": "vertical", "v": 1, "variant": "sfx"}}}
+  ],
+  "reel": [
+   {"name": "the shape's block replaces what it names", "reel": {"size": [1920, 1080], "version": 3, "segments": ["w"], "shapes": {"vertical": {"segments": ["v"]}}}, "shape": "vertical", "expect": {"size": [1080, 1920], "version": 3, "segments": ["v"]}},
+   {"name": "the reel's own shape: untouched", "reel": {"size": [1920, 1080], "segments": ["w"], "shapes": {"vertical": {"segments": ["v"]}}}, "shape": "widescreen", "expect": {"size": [1920, 1080], "segments": ["w"]}},
+   {"name": "a block can set its own size", "reel": {"size": [1080, 1920], "shapes": {"widescreen": {"size": [1280, 720]}}}, "shape": "widescreen", "expect": {"size": [1280, 720]}}
+  ],
+  "not_drafts": ["launch-teaser-v8.mp4", "launch-teaser-16x9-v8-take1.mp4", "launch-teaser-vertical.mp4", "launch-teaser-vertical-v8-cover.jpg"]
+ }
 }

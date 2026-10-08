@@ -5,14 +5,16 @@ the project's cues.py, so a re-recorded voice re-times the effects too. Every wh
 its motion peaks in the render being mixed (motion.py, kept in motion-sync.json; --no_sync leaves them on their cues,
 --resync measures again).
 
-    vs mix --video out/<name>-vN.mp4 --tag vN [--takes 1 2 3] [--music_db -16] [--duck_db 6] [--sfx_db 0] [--no_sfx]
-      [--no_sync] [--resync]
-      → out/<name>-vN-sfx.mp4 (voice + effects), out/<name>-vN-take<N>.mp4 (voice + music + effects) for every take,
+    vs mix [--video drafts/vN/<video>-<shape>-vN.mp4] [--takes 1 2 3] [--music_db -16] [--duck_db 6] [--sfx_db 0]
+      [--no_sfx] [--no_sync] [--resync]          (default video: the newest render of the shape being built)
+      → beside the render, in its drafts/vN/: …-vN-sfx.mp4 (voice + effects), …-vN-take<N>.mp4 (voice + music +
+        effects) for every take,
         stems in build/mix/, and the Mix panel's data in build/mixer/ (vs mixer opens it: pick a take, set levels, Save):
         the music un-ducked + duck.json (the envelope: the panel ducks live, so the ducking slider plays as it moves),
         and each effect once, alone, at a fixed level (cues.json says each cue's file and gain: a click plays it)
-    vs mix --video out/<name>-vN.mp4 --tag vN --final
-      → only what the mixer saved (mix.json: the take and the levels), as out/<name>-vN-take<N>.mp4
+    vs mix [--video drafts/vN/<video>-<shape>-vN.mp4] --final
+      → only what the mixer saved (mix.json: the take and the levels), as …-vN-take<N>.mp4 beside the render. The same
+        saved mix fits the other shape's render of the same version (same voice, same times): run it on that one too.
 
 Levels are relative to the voice, which is mastered to -16 LUFS (ElevenLabs delivered -24.6: quiet on a phone). Defaults,
 in order: the flags, the project's mix.json (what the human saved in the mixer), the studio profile's "mix" (what they
@@ -28,7 +30,7 @@ SR = 48000
 saved = vslib.read_json("mix.json")
 house = vslib.profile().get("mix", {})
 ap = argparse.ArgumentParser()
-ap.add_argument("--video", required=True); ap.add_argument("--tag", required=True)
+ap.add_argument("--video"); ap.add_argument("--tag", help="(older projects; the version comes from the video's name)")
 ap.add_argument("--takes", nargs="*", type=int, default=None, help="music takes to mix (default: every music/take*.mp3)")
 ap.add_argument("--music_db", type=float, default=None, help="music bed vs the voice, in pauses (LU)")
 ap.add_argument("--duck_db", type=float, default=None, help="extra dip under speech")
@@ -38,6 +40,13 @@ ap.add_argument("--no_sync", action="store_true", help="leave every whoosh on it
 ap.add_argument("--resync", action="store_true", help="measure every whoosh's motion again (motion-sync.json)")
 ap.add_argument("--final", action="store_true", help="mix only what the mixer saved in mix.json")
 a = ap.parse_args()
+if not a.video:  # the newest render of the shape being built
+    renders = [p for p, d in vslib.drafts(vslib.active_shape()) if not d["variant"]]
+    if not renders: raise SystemExit("⛔ nothing rendered yet: vs build renders a version")
+    a.video = renders[-1]
+if not vslib.parse_draft(a.video): raise SystemExit(f"⛔ {a.video}: not a draft (drafts/vN/<video>-<shape>-vN.mp4)")
+a.video = vslib.render_of(a.video)  # always mixed onto the render, never onto another mix
+a.tag = f"v{vslib.parse_draft(a.video)['v']}"
 pick = lambda k, d: getattr(a, k) if getattr(a, k) is not None else saved.get(k, house.get(k, d))
 MUSIC_DB, DUCK_DB, SFX_DB = pick("music_db", -16), pick("duck_db", 6), pick("sfx_db", 0)
 if a.final:
@@ -46,7 +55,7 @@ if a.final:
     # Save could never be baked.)
     a.takes, a.no_sfx = [saved["take"]] if saved["take"] else [], not saved.get("fx_on", True)
 
-R = json.load(open("reel.json"))
+R = vslib.reel()
 T, TT, END, C = vslib.timing()  # the build's own timing (build/timeline.json): "secs" and "beats" alike
 END_T = list(T.values())[-1]  # the end card is always the last segment
 NARRATED = os.path.exists("plan.json")
@@ -169,8 +178,8 @@ def mux(mix, out):
     print(out)
 
 
-base = re.sub(r"-v\d+$", "", os.path.splitext(os.path.basename(a.video))[0])
-if not a.final or (NARRATED and not saved.get("take")): mux(voice + sfx, f"out/{base}-{a.tag}-sfx.mp4")
+variant = lambda v: re.sub(r"\.mp4$", f"-{v}.mp4", a.video)  # beside the render: drafts/vN/<video>-<shape>-vN-<v>.mp4
+if not a.final or (NARRATED and not saved.get("take")): mux(voice + sfx, variant("sfx"))
 cfg = {"end": END, "narrated": NARRATED, "music_db": MUSIC_DB, "duck_db": DUCK_DB, "sfx_db": SFX_DB, "takes": [],
        "video": a.video, "tag": a.tag}  # which render these stems were mixed against (the Mix panel says so if it differs)
 
@@ -202,8 +211,8 @@ for n in takes:
     under = round(dbf(m[spk].mean(1)) - dbf(voice[spk].mean(1)), 1)  # what the mixer shows as "N dB under the voice"
     cfg["takes"].append({"n": n, "label": (names.get(f"take{n}") or {}).get("label", f"take {n}"), "under": under})
     print(f"take{n}: music {under:+.1f} dB vs the voice under speech")
-    mux(voice + m + sfx, f"out/{base}-{a.tag}-take{n}.mp4")
-if not NARRATED: mux(voice + sfx, f"out/{base}-{a.tag}-mixed.mp4")
+    mux(voice + m + sfx, variant(f"take{n}"))
+if not NARRATED: mux(voice + sfx, variant("mixed"))
 if a.final:
     print(f"final: take {saved['take']}, music {MUSIC_DB:g}, effects {SFX_DB:+g} dB" + ("" if saved.get("fx_on", True) else " (off)"))
     raise SystemExit
@@ -237,8 +246,7 @@ vid = f"{MIXER}/media/video.mp4"
 if os.path.lexists(vid): os.remove(vid)
 os.symlink(os.path.relpath(os.path.abspath(a.video), f"{MIXER}/media"), vid)
 json.dump(cfg, open(f"{MIXER}/config.json", "w"), indent=1)
-vbase = re.match(r"(.*-v\d+)", os.path.splitext(a.video)[0])
-if vbase and os.path.exists(f"{MIX}/cues.json"):  # the version keeps the cues it was mixed with (its timeline's Sound row)
-    os.makedirs(f"{vbase.group(1)}.review", exist_ok=True)
-    shutil.copy(f"{MIX}/cues.json", f"{vbase.group(1)}.review/cues.json")
-print(f"mixer: vs mixer opens the Mix panel (Save writes mix.json, then: vs mix --video {a.video} --tag {a.tag} --final)")
+if os.path.exists(f"{MIX}/cues.json"):  # the version keeps the cues it was mixed with (its timeline's Sound row)
+    os.makedirs(vslib.data_dir(a.video), exist_ok=True)
+    shutil.copy(f"{MIX}/cues.json", os.path.join(vslib.data_dir(a.video), "cues.json"))
+print(f"mixer: vs mixer opens the Mix panel (Save writes mix.json, then: vs mix --video {a.video} --final)")

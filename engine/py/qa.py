@@ -2,7 +2,7 @@
 """Check a cut (or a generated clip) before a human sees it. Writes images you should LOOK at, then prints
 what it measured.
 
-    vs qa out/myreel-v3.mp4               a finished cut: preview frame, contact sheet, phone safe zone,
+    vs qa drafts/v3/myreel-vertical-v3.mp4               a finished cut: preview frame, contact sheet, phone safe zone,
                                              every transition as a frame strip, blacks per segment, audio
     vs qa media/hero_480p.mp4 --clip     a generated clip: frames every half second, to catch warped
                                              faces, melted objects, and garbled text before anyone pays for a final
@@ -11,6 +11,7 @@ Outputs land in build/qa/. Open every image it writes; a number can't tell you a
 """
 import glob, json, os, re, subprocess, sys
 from fractions import Fraction
+import vslib
 
 if len(sys.argv) < 2:
     sys.exit(__doc__)
@@ -53,11 +54,11 @@ if CLIP:
           " camera shake · anything the prompt asked for that isn't there. Reject in the ledger with the reason.")
     sys.exit(0)
 
-# The timing this version was rendered with (vs build keeps out/<name>-vN.timeline.json beside the video; a mixed take,
-# out/<name>-vN-take2.mp4, uses its version's). Older renders kept only a .cuts.json.
-ver = re.match(r"(.*-v\d+)", os.path.splitext(src)[0])
-tl_file = (ver.group(1) if ver else os.path.splitext(src)[0]) + ".timeline.json"
-VT = json.load(open(tl_file)) if os.path.exists(tl_file) else None
+# The timing this version was rendered with (vs build keeps it in drafts/vN/data/<shape>/timeline.json; a mixed take,
+# …-vN-take2.mp4, uses its render's). A file that isn't one of the project's drafts has none.
+ARCH = vslib.data_dir(src) if vslib.parse_draft(src) else None
+tl_file = ARCH and os.path.join(ARCH, "timeline.json")
+VT = json.load(open(tl_file)) if tl_file and os.path.exists(tl_file) else None
 
 # Names for what the frame scan finds: vs inspect's element map, if it was made from the composition this cut was
 # rendered from (same fingerprint). → "1.2–3.4s (s02_cage/~ex-k:the-challenger)"
@@ -66,7 +67,7 @@ if EL and not (VT and EL.get("fingerprint") == VT.get("fingerprint")):
     EL = None
 
 
-# What this run finds goes to the review page too, by element name, as warnings: out/<name>-vN.review/qa.json (vs
+# What this run finds goes to the review page too, by element name, as warnings: drafts/vN/data/<shape>/qa.json (vs
 # review shows each one at its moment for the human to confirm or dismiss). Same shape as vs inspect's findings.json.
 FINDINGS = []
 
@@ -262,7 +263,6 @@ else:
     finding("no-audio", 0, dur, "the cut has no sound")
 
 # The thresholds a reviewer can tune (engine/contracts.json → checks; profile.json → checks)
-import vslib  # noqa: E402
 CK = vslib.checks()
 
 # Flash: the whole frame's brightness jumping from one frame to the next (a white flash, a hard cut from the dark ground
@@ -333,7 +333,7 @@ elif I:
                 hint="it can clip once a platform re-encodes it: lower the limiter's ceiling (vs mix)")
 
 # Sound effects per ten seconds, from the cues this version was mixed with (vs mix keeps them beside the version)
-cue_file = next((f for f in ([ver.group(1) + ".review/cues.json"] if ver else []) + ["build/mix/cues.json"] if os.path.exists(f)), None)
+cue_file = next((f for f in ([os.path.join(ARCH, "cues.json")] if ARCH else []) + ["build/mix/cues.json"] if os.path.exists(f)), None)
 cue_list = json.load(open(cue_file)) if cue_file else []
 if cue_list:
     ts = sorted(c["t"] for c in cue_list)
@@ -358,8 +358,8 @@ if cue_list:
     if not dense:
         print(f"  cues    {len(ts)} sound effects, never more than {CK['cues_per_10s']} in ten seconds")
 
-if ver:
-    arch = ver.group(1) + ".review"
+if ARCH:
+    arch = ARCH
     os.makedirs(arch, exist_ok=True)
     json.dump({"findings": 1, "source": "qa", "video": src, "fingerprint": VT and VT.get("fingerprint"),
                "items": FINDINGS}, open(f"{arch}/qa.json", "w"), indent=1)

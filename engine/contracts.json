@@ -1,12 +1,16 @@
 {
  "_about": "Numbers the Python and JavaScript halves of the engine share. Typed here once; both read this file (vslib.CONTRACTS, lib/paths.mjs CONTRACTS). A studio's profile.json → checks may tighten the reading numbers for its own videos.",
  "sizes": {
-  "_about": "The two shapes the kit lays out: [width, height] in pixels.",
+  "_about": "The two shapes the kit lays out: [width, height] in pixels, by the shape's word (vertical, widescreen; wide is the older name).",
   "vertical": [
    1080,
    1920
   ],
   "wide": [
+   1920,
+   1080
+  ],
+  "widescreen": [
    1920,
    1080
   ]

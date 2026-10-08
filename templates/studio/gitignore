@@ -2,6 +2,7 @@
 # the indexes and the ledger. Media regenerates or is yours to back up some other way.
 .env
 projects/*/build/
+projects/*/drafts/
 projects/*/out/
 projects/*/inputs/
 projects/*/media/
@@ -18,3 +19,13 @@ library/**/*.png
 library/**/*.woff2
 library/originals/
 finals/
+latest/
+# project folders a restructure retired: their text stays, their media is ignored like a project's
+archive/*/build/
+archive/*/drafts/
+archive/*/out/
+archive/*/inputs/
+archive/*/media/
+archive/*/voice/*.mp3
+archive/*/voice/*.wav
+archive/*/music/*.mp3

@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
 """Narration → reel.json. The voice is the clock: every segment starts just before its act's first word, every scene
 cue and title is pinned to a word the narrator says. Re-record the narration, re-run this, and the whole cut re-times itself.
-Usage: vs plan [--wide]   (reads plan.json + the words file it names; writes reel.json)
-  --wide = the widescreen cut of the same plan: 1920×1080, name + "-16x9". Same voice, same times, so the vertical
-  cut's final audio fits it exactly. Scenes that need a different layout read LAND (true when W > H).
+Usage: vs plan [--shape vertical|widescreen]   (reads plan.json + the words file it names; writes reel.json)
+  The reel is written for the shape being built (vs status says which; --shape, or the older --wide, picks one for this
+  run). Both shapes share one voice and one set of times, so the first shape's approved sound fits the other exactly.
+  Scenes that need a different layout read LAND (true when W > H); plan.json → "shapes" → <shape> overrides any key.
 
 In plan.json a word spec is "word" (first match in the segment's acts, case and punctuation ignored), "word#2" (second
 match), or "act:word" to reach into another act; add "+0.3" / "-0.2" to shift. Titles: [id, from, to] with "end".
 A long act can carry two scenes: give the second segment the same act and "start": "<word spec>" (it begins `lead` seconds
 before that word; the segment before it ends there)."""
 import json, os, re, subprocess, sys
+import vslib
 from vslib import CONTRACTS, word_at
 
-P = json.load(open("plan.json"))
-if "--wide" in sys.argv[1:]: P["size"], P["name"] = CONTRACTS["sizes"]["wide"], P["name"] + "-16x9"
+if "--wide" in sys.argv[1:]: os.environ["VS_SHAPE"] = "widescreen"  # the older flag
+SHAPE = vslib.active_shape()
+P = vslib.reel("plan.json", SHAPE)  # plan.json for this shape: its "shapes" block applied, the size the shape's
+P["name"] = vslib.video_name()  # the video's name is its folder's name (engine/protocol/files.md)
 WORDS = json.load(open(P["words"]))
 
 def at(spec, acts):
@@ -67,7 +71,7 @@ reel["punches"] = [at(p, list(range(1, 20))) for p in P.get("punches", [])]
 reel["scene_lib"] = "explainer"  # build inlines the engine's scene library around scenes.js
 reel["scenes"], reel["segments"] = scenes, out_segments
 json.dump(reel, open("reel.json", "w"), indent=1)
-print(f"end {out_segments and sum(s['secs'] for s in out_segments):.2f}s → reel.json")
+print(f"end {out_segments and sum(s['secs'] for s in out_segments):.2f}s → reel.json ({SHAPE}, v{reel.get('version', 1)})")
 # the contracts, before anything is built from it (vs check: plan.json, reel.json and the files beside them)
 sys.stdout.flush()
 sys.exit(subprocess.run(["node", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "js/check.mjs")]).returncode)

@@ -56,7 +56,7 @@ at -55 and -49 dBFS: layer the quiet one over a thud rather than normalizing noi
 
 ## The Mix panel (Review Studio)
 
-`vs mix --video out/<name>-vN.mp4 --tag vN` writes every take mixed (`out/<name>-vN-take<N>.mp4`), an effects-only cut,
+`vs mix` (the newest render, or `--video drafts/vN/<video>-<shape>-vN.mp4`) writes every take mixed beside the render (`…-vN-take<N>.mp4`), an effects-only cut,
 the stems, and the Mix panel's data: the music un-ducked with its ducking envelope, and every effect once, alone.
 The **Mix** panel opens itself on the video's one review address when `vs mix` makes it (`vs mixer` serves the same
 page when no review server runs; never hand the human a second link). The human plays the picture with every stem in sync (the picture follows the sound), switches

@@ -158,12 +158,60 @@ export function withBrand(R) {
 
 // reel.json is the single source of truth for every script (plan.py writes it for an explainer).
 // "lib:media/headshot.jpg" anywhere in a reel names a file in the studio's library (vs ingest --to library puts it there).
-export function loadReel(file = "reel.json") {
+// The reel is read for one shape (activeShape: the one being built): its "shapes" → <shape> block replaces the top-level
+// keys it names, and the size follows the shape unless that block sets one. (Python: vslib.reel.)
+export function loadReel(file = "reel.json", shape = activeShape()) {
   if (!fs.existsSync(file)) throw new Error(`${file} not found — run from the project folder (vs build does)`);
   const S = studioRoot();
   const lib = (k, v) => (typeof v === "string" && v.startsWith("lib:") && S ? path.join(S, "library", v.slice(4)) : v);
-  return withBrand(JSON.parse(fs.readFileSync(file, "utf8"), lib));
+  return withBrand(forShape(JSON.parse(fs.readFileSync(file, "utf8"), lib), shape));
 }
+
+// ── files: the one place a video's file and folder names are made (engine/protocol/files.md). Python: vslib, the same
+// rules; tests/contract/cases.json → "files" holds both to the same answers. Nobody types a file name. ──
+export const SHAPES = { vertical: "9x16", widescreen: "16x9" }; // the shape's word (every file name) → the review diary's cut
+export const shapeOf = (W, H) => (W > H ? "widescreen" : "vertical");
+export const videoName = () => path.basename(process.cwd()); // the project folder's name IS the video's name
+const readIf = (f) => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {});
+export function activeShape(dir = ".") {
+  if (SHAPES[process.env.VS_SHAPE]) return process.env.VS_SHAPE;
+  const V = readIf(path.join(dir, "video.json"));
+  if (SHAPES[V.building]) return V.building;
+  for (const f of ["reel.json", "plan.json"]) {
+    const size = readIf(path.join(dir, f)).size;
+    if (size) return shapeOf(...size);
+  }
+  return "vertical";
+}
+export function forShape(R, shape) {
+  const { shapes, ...base } = R,
+    over = shapes?.[shape] || {},
+    out = { ...base, ...over };
+  if (!over.size && out.size && shapeOf(...out.size) !== shape) out.size = CONTRACTS.sizes[shape];
+  return out;
+}
+// a shape's own scenes: scenes.<shape>.js when the shape needs different code (a merged older pair kept both), else scenes.js
+export const scenesFile = (shape = activeShape(), dir = ".") =>
+  fs.existsSync(path.join(dir, `scenes.${shape}.js`)) ? `scenes.${shape}.js` : "scenes.js";
+export const draftDir = (v) => `drafts/v${v}`;
+// drafts/vN/<video>-<shape>-vN[-variant].mp4: a render (no variant) or a mix of it (take2, sfx, mixed, web)
+export const draftFile = (shape, v, variant = null, video = videoName()) =>
+  `${draftDir(v)}/${video}-${shape}-v${v}${variant ? "-" + variant : ""}.mp4`;
+export const DRAFT_RE = /^(?<video>.+)-(?<shape>vertical|widescreen)-v(?<v>\d+)(?:-(?<variant>take\d+|sfx|mixed|web))?\.mp4$/;
+export function parseDraft(p) {
+  const m = DRAFT_RE.exec(path.basename(p));
+  return m ? { ...m.groups, v: +m.groups.v, variant: m.groups.variant ?? null } : null;
+}
+// the kit's own files for a render and its mixes: drafts/vN/data/<shape>/
+export function dataDir(p) {
+  const d = parseDraft(p);
+  if (!d) throw new Error(`${p}: not a draft (drafts/vN/<video>-<shape>-vN….mp4)`);
+  return path.join(path.dirname(p), "data", d.shape);
+}
+export const coverOf = (p) => {
+  const d = parseDraft(p);
+  return d ? path.join(path.dirname(p), `${d.video}-${d.shape}-v${d.v}-cover.jpg`) : p.replace(/\.mp4$/, "-cover.jpg");
+};
 
 // A page recording's frames: older projects keep them in rec/<shot>; new ones in build/rec/<shot>.
 export const recDir = (name) => (fs.existsSync(path.join("rec", name)) ? path.join("rec", name) : path.join(REC, name));

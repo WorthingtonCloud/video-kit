@@ -71,7 +71,7 @@ const CSS = `${face(R.font)}${face(R.mono)}
     const src = t.cover || t.image,
       n = `tile ${i + 1}`;
     if (!src || !fs.existsSync(src)) return bad.push(`${n}: ${src} not found`);
-    if (/^(out|build|comp|qa|rec)\//.test(path.relative(".", src).replace(/\\/g, "/")))
+    if (/^(drafts|out|build|comp|qa|rec)\//.test(path.relative(".", src).replace(/\\/g, "/")))
       bad.push(`${n}: ${src} is this reel's own output — the wall shows the thing's work, not the reel`);
     const h = crypto.createHash("sha1").update(fs.readFileSync(src)).digest("hex");
     if (pics.has(h)) bad.push(`${n}: the same picture as tile ${pics.get(h)}`);

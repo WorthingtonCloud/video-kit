@@ -32,14 +32,20 @@ render) → render → Review Studio → `cues.py` (sounds pinned to the same wo
    user's settled taste: the look, the narrator, the register, the music that won, the levels, the caps. Don't re-ask
    what they answer. A project's `plan.json` overrides the profile for one video.
 3. `vs doctor`. No studio yet? `vs setup` (asks nothing, makes the studio, installs the engine once: about 190 MB).
-4. **Two shared protocols** govern every stage below. Read them when you first need them, and follow them as written:
-   `vs protocol review` (every REVIEW stage, learning, finishing) and `vs protocol studio` (where every piece of
-   information goes, and the gates every step shares). This file only adds what is particular to explainers.
+4. **An existing video? `vs status` first** (`vs -p <video> status` from anywhere). It says where the video stands and the one next step. A
+   finished one the human wants changed: `vs reopen <video>` (never edit a finished video's files first: reopen puts its
+   sources back exactly as they made the final, and the next draft is the last version + 1).
+5. **Three shared protocols** govern every stage below. Read them when you first need them, and follow them as written:
+   `vs protocol files` (every name and folder, and the path from first draft to final and back), `vs protocol review`
+   (every REVIEW stage, learning, finishing) and `vs protocol studio` (where every piece of information goes, and the
+   gates every step shares). This file only adds what is particular to explainers.
 
-A project is `studio/projects/<slug>/` from `vs new <slug> --kind explainer`. Your files: `SCRIPT.md` (the arc),
-`narration.txt`, `plan.json`, `scenes.js`, `cues.py`, `music.json`, `sfx.json`, `NEXT.md`. Its media: `inputs/`
-(untouched originals), `media/`, `voice/`, `music/`. `out/` keeps every version. The kit's worked example:
-`examples/meeting-explainer/` (ten scenes, 95 cues).
+A video is ONE project, both shapes: `studio/projects/<video>/` from `vs new <video> --kind explainer --shape vertical`
+(the shape it starts in; the other comes once that one is approved). The kit names every file: never type one. Your
+files: `SCRIPT.md` (the arc), `narration.txt`, `plan.json`, `scenes.js`, `cues.py`, `music.json`, `sfx.json`,
+`NEXT.md`. Its media: `inputs/` (untouched originals), `media/`, `voice/`, `music/`. Every render lands in
+`drafts/vN/` as `<video>-<shape>-vN.mp4`; finals and the latest copies are filed by `vs finish`. The kit's worked
+example: `examples/meeting-explainer/` (ten scenes, 95 cues).
 
 ## The stages
 
@@ -70,32 +76,36 @@ LOOK once yourself at one sheet of the whole video (`vs snap` with one moment pe
 flicker). It runs `vs qa` on the new cut itself and prints nothing until both are done, so don't check on it: you're
 woken with the QA report (safe zone, blacks, cuts sheet, flash, shimmer: any word in the red gets moved; shimmer means
 a slow tilt is making thin lines flicker, so hold that stretch still).
-- Gate: the checker (or inspect) says no errors, you LOOKED at the whole-video sheet, qa is clean. Produces: `out/<name>-vN.mp4` + its `.review/` archive.
+- Gate: the checker (or inspect) says no errors, you LOOKED at the whole-video sheet, qa is clean. Produces: `drafts/vN/<video>-vertical-vN.mp4` + its `data/vertical/` (timing, maps, the sources that made it).
 
 **4 · REVIEW (picture).** Enter REVIEW and follow `vs protocol review` exactly: open the round (`--stage picture`),
 advise the findings, `vs review wait` in the background, read, resolve, measure, repeat.
-- Explainer context: once `out/<name>-16x9-vN…` is rendered at the same version, the round shows both shapes. A changed
-  line is re-recorded act by act (`references/voice.md`), never the whole read.
+- Explainer context: while the first shape is drafted, a round shows only it. A changed line is re-recorded act by act
+  (`references/voice.md`), never the whole read.
 - Gate: `vs review status --ready` (the human approved this version). Notes → fix → back to 3 for the next version.
 
 **5 · SOUND (v2, once the picture is approved).** Music, cheapest first: the library's beds, theirs (`vs ingest <file>
 --as music`), or `vs music` (prints the cost; their yes; `--yes`). Effects: `cues.py` (`vs sfx list` shows what's free;
-missing ones via `sfx.json` + `vs sfx`, priced first). `vs mix --video out/<name>-vN.mp4 --tag vN` → every take mixed +
+missing ones via `sfx.json` + `vs sfx`, priced first). `vs mix` (the newest render) → every take mixed beside it +
 the Mix panel. Then REVIEW with `--stage sound` (the protocol): they switch takes and set the levels by ear, answer any
 single sound from the timeline, and Save. Details: `references/sound.md`.
-- Gate: `vs review status --ready` and a saved mix → `vs mix --video … --tag vN --final`. The picture is never
-  re-rendered for sound.
+- Gate: `vs review status --ready` and a saved mix → `vs mix --final`. The picture is never re-rendered for sound.
 
-**6 · THE OTHER SHAPE.** `vs plan --wide` → the build loop again, and LOOK at every scene (an exit sized for a vertical
-frame stops in plain sight on a wide one: exits × `EXIT`) → mux the approved sound:
-`ffmpeg -i out/<name>-16x9-vN.mp4 -i out/<name>-vN-take<N>.mp4 -map 0:v -map 1:a -c copy out/<name>-16x9-vN-take<N>.mp4`
-→ `vs plan` (back to vertical).
+**6 · THE OTHER SHAPE.** `vs shape widescreen` (refused until the vertical is approved; it re-plans for the new shape)
+→ the build loop again, and LOOK at every scene (an exit sized for a vertical frame stops in plain sight on a wide one:
+exits × `EXIT`; what differs goes in plan.json → `"shapes"` → `"widescreen"`) → `vs build` → `vs mix --final` on the
+widescreen render (the saved mix fits it: same voice, same times) → REVIEW in the SAME page: the round shows both
+shapes with the Vertical | Widescreen switch at the top. Never a second server or port.
 - Gate: both shapes approved in one round (`vs review status --ready` checks each).
 
-**7 · FINISH.** The protocol's Finish: `vs review finish --final out/<name>-vN-takeK.mp4 out/<name>-16x9-…` → `vs review
-wait` → send both files in chat too → `vs learn --final <the same files>` → promote only the lessons the human decided
-(`vs learn` lists them) → any scene helper another video could use into `library/scenes/` → `vs review report` →
-update `NEXT.md`.
+**7 · FINISH.** `vs finish`: it files the approved mix of each shape into `finals/<video>/`, replaces
+`latest/<video>/`, marks the video done, tells the page (Done, with the downloads) and keeps what was learned. Then
+`vs review wait` → send both files from `latest/<video>/` in chat too → promote only the lessons the human decided (the
+finish lists them) → any scene helper another video could use into `library/scenes/` → `vs review report` → update
+`NEXT.md`.
+
+**Later: a change to a finished video.** `vs reopen <video>` → back to 3 (or 5, for sound only) on the vertical, the
+next version; then 6 and 7 again. The new final replaces the old one in `latest/`; `finals/` keeps both.
 
 ## Bring your own
 
@@ -116,7 +126,7 @@ in a floating panel (`{"shot": "x"}` with `shots.x.video`); a clip's own sound o
 
 ## References (read the one you need)
 
-- `vs protocol review` · `vs protocol studio`: the shared protocols (above).
+- `vs protocol files` · `vs protocol review` · `vs protocol studio`: the shared protocols (above).
 - `references/voice.md`: narration, takes, fitting, their own recording, re-recording an act.
 - `references/scenes.md`: the scene library, the design space, the overlap rules, widescreen.
 - `references/sound.md`: cues, starting levels, the bundled sounds, the Mix panel, music.

@@ -157,10 +157,8 @@ def voice(p, name, note):
     os.makedirs("voice", exist_ok=True)
     mp3 = f"voice/narration-{name}.mp3"
     sh("ffmpeg", "-v", "error", "-y", "-i", p, "-vn", "-ar", "44100", "-c:a", "libmp3lame", "-b:a", "192k", mp3)
-    key = vslib.key("OPENAI_API_KEY")
     row = vslib.log("openai", f"voice timings {name}", usd=cost, note="whisper-1 word timestamps")
-    raw = sh("curl", "-s", "https://api.openai.com/v1/audio/transcriptions", "-H", f"Authorization: Bearer {key}", "-F", f"file=@{mp3}",
-             "-F", "model=whisper-1", "-F", "response_format=verbose_json", "-F", "timestamp_granularities[]=word")
+    raw = vslib.transcribe(mp3, ["model=whisper-1", "response_format=verbose_json", "timestamp_granularities[]=word"], row)
     heard = json.loads(raw).get("words") or (vslib.failed(row), sys.exit(f"no word timings came back: {raw[:300]}"))
     vslib.done(row)
     # acts: match the heard words to narration.txt (one paragraph per act); without a script, it's all act 1

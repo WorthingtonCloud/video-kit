@@ -1,0 +1,130 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "video-kit/video.schema.json",
+ "title": "video.json",
+ "description": "Where one video stands (engine/protocol/files.md). Written by vs new, vs shape, vs finish and vs reopen; never by hand.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "schema_version",
+  "video",
+  "first",
+  "building",
+  "status"
+ ],
+ "properties": {
+  "schema_version": {
+   "const": 1
+  },
+  "video": {
+   "type": "string",
+   "pattern": "^[a-z0-9][a-z0-9-]*$",
+   "description": "the video's name: its project folder's name"
+  },
+  "first": {
+   "enum": [
+    "vertical",
+    "widescreen"
+   ],
+   "description": "the shape the video started in"
+  },
+  "building": {
+   "enum": [
+    "vertical",
+    "widescreen"
+   ],
+   "description": "the shape being built now"
+  },
+  "status": {
+   "enum": [
+    "first",
+    "second",
+    "done"
+   ],
+   "description": "first: drafting the first shape · second: the other shape, after the first was approved · done: filed in finals/"
+  },
+  "one_shape": {
+   "type": "boolean",
+   "description": "made in one shape only (vs finish --one-shape)"
+  },
+  "finals": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "n",
+     "at",
+     "files"
+    ],
+    "properties": {
+     "n": {
+      "type": "integer",
+      "minimum": 1
+     },
+     "at": {
+      "type": "string"
+     },
+     "files": {
+      "type": "object",
+      "propertyNames": {
+       "enum": [
+        "vertical",
+        "widescreen"
+       ]
+      },
+      "additionalProperties": {
+       "type": "object",
+       "required": [
+        "version",
+        "final"
+       ],
+       "properties": {
+        "version": {
+         "type": "integer"
+        },
+        "draft": {
+         "type": [
+          "string",
+          "null"
+         ],
+         "description": "the draft it was filed from (null: filed before drafts kept their names)"
+        },
+        "final": {
+         "type": "string"
+        },
+        "latest": {
+         "type": "string"
+        }
+       }
+      }
+     },
+     "imported": {
+      "type": "boolean",
+      "description": "recorded by vs restructure from an older studio's finals/"
+     }
+    }
+   }
+  },
+  "log": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "at",
+     "event"
+    ],
+    "properties": {
+     "at": {
+      "type": "string"
+     },
+     "event": {
+      "type": "string"
+     },
+     "why": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ }
+}
