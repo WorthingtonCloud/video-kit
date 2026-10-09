@@ -41,7 +41,9 @@ function loadComp(url, size) {
     try {
       await doc.fonts?.ready;
       const s = doc.createElement("style");
-      s.textContent = "*{pointer-events:auto !important}"; // as vs inspect does: hit-test everything that paints
+      // as vs inspect does, hit-test everything that paints; but an <svg> only on its lines and fills, never its empty
+      // canvas (a footage overlay's arrow is a frame-sized <svg>: its canvas took every click, a footage-first video, Oct 9, 2026)
+      s.textContent = "*{pointer-events:auto !important} svg{pointer-events:none !important} svg *{pointer-events:auto !important}";
       doc.head.appendChild(s);
       doc.querySelectorAll("video,audio").forEach((m) => ((m.muted = true), m.pause()));
       const tl = win.__timelines?.main;
@@ -65,14 +67,71 @@ function seekComp(t) {
 // ── what's under a point: the smallest named thing on screen, and what holds it ──
 const real = (a) => a && a.includes("/") && !a.startsWith("frame/");
 const shown = (a, t) => !element(a) || onAt(element(a), t);
+// does this node paint anything itself (words, a fill, a border, a picture, a shape)? A clear sheet doesn't, so a click
+// passes through it to what's drawn below. The page's own copy of js/reel/55-names.js paints(): older compositions lack it.
+const SHAPES = new Set(["circle", "ellipse", "rect", "line", "polyline", "polygon", "path", "text", "image", "use"]);
+const seenColor = (c) => {
+  const m = c && c.match(/rgba?\(([^)]+)\)/);
+  if (!m) return false;
+  const v = m[1].split(",").map(Number);
+  return v.length < 4 || v[3] > 0;
+};
+function paints(n) {
+  if (n.namespaceURI === "http://www.w3.org/2000/svg") return SHAPES.has(n.tagName);
+  if (/^(IMG|VIDEO|CANVAS)$/.test(n.tagName)) return true;
+  for (const c of n.childNodes) if (c.nodeType === 3 && c.textContent.trim()) return true;
+  const cs = comp.win.getComputedStyle(n);
+  if (seenColor(cs.backgroundColor) || cs.backgroundImage !== "none" || cs.boxShadow !== "none") return true;
+  return ["Top", "Right", "Bottom", "Left"].some((k) => parseFloat(cs[`border${k}Width`]) > 0 && seenColor(cs[`border${k}Color`]));
+}
+// where an element shows: its own box if it paints, else what its contents paint when that's much smaller (an arrow on a
+// frame-sized sheet is the arrow). The same rule as js/reel/55-names.js box(), which makes the element map's boxes.
+function tightBox(el) {
+  const r = el.getBoundingClientRect();
+  if (paints(el)) return r;
+  let l = Infinity, t = Infinity, rt = -Infinity, b = -Infinity;
+  for (const d of el.querySelectorAll("*")) {
+    if (!paints(d)) continue;
+    const cs = comp.win.getComputedStyle(d);
+    if (cs.display === "none" || cs.visibility === "hidden") continue;
+    const q = d.getBoundingClientRect();
+    if (!q.width && !q.height) continue;
+    [l, t, rt, b] = [Math.min(l, q.left), Math.min(t, q.top), Math.max(rt, q.right), Math.max(b, q.bottom)];
+  }
+  if (!(rt > l || b > t) || (rt - l) * (b - t) >= 0.5 * r.width * r.height) return r;
+  return { left: l, top: t, right: rt, bottom: b, width: rt - l, height: b - t };
+}
+const area = (b) => (b ? (b[2] - b[0]) * (b[3] - b[1]) : 1);
+// does it draw anything at all, itself or inside (an empty stage waiting for its scene doesn't)
+const draws = (id) => {
+  const el = comp.elOf.get(id);
+  return !!el && (paints(el) || [...el.querySelectorAll("*")].some(paints));
+};
 export function hit([x, y], t = player.t()) {
   const seg = segmentAt(t)?.name;
   if (comp) {
     seekComp(t);
     const stack = [];
     for (const n of comp.doc.elementsFromPoint(x * comp.W, y * comp.H)) {
+      if (!paints(n)) continue; // a clear sheet or a wrapper: what's drawn below it is what was clicked
       const a = comp.names.addr(n);
       if (real(a) && !stack.includes(a) && shown(a, t)) stack.push(a);
+    }
+    // something that fills the frame (the footage, a scrim, a wash) gives way to anything smaller under the click, as the
+    // element map's answer does below
+    const big = stack.length > 1 && area(boxOf(stack[0], t)) >= 0.6 && stack.findIndex((a) => area(boxOf(a, t)) < 0.6);
+    if (big > 0) stack.unshift(...stack.splice(big, 1));
+    // a click that would land on the footage but falls inside a drawing's outline means the drawing: an arrow's line is a
+    // few pixels wide on the page, and nobody hits it exactly (a footage-first video's arrow, Oct 9, 2026). Only a thing
+    // with nothing named inside it: a layer holding the arrow and a caption outlines both, and isn't a drawing
+    if (!stack.length || area(boxOf(stack[0], t)) >= 0.6) {
+      const on = visibleAt(t),
+        holds = new Set(on.map((e) => e.up).filter(Boolean));
+      const near = on
+        .map((e) => [e.id, boxOf(e.id, t)])
+        .filter(([id, b]) => real(id) && !holds.has(id) && b && area(b) < 0.6 && x >= b[0] - 0.01 && x <= b[2] + 0.01 && y >= b[1] - 0.01 && y <= b[3] + 0.01 && draws(id))
+        .sort((p, q) => area(p[1]) - area(q[1]))[0]?.[0];
+      if (near) stack.unshift(...(stack.includes(near) ? stack.splice(stack.indexOf(near), 1) : [near]));
     }
     const top = stack[0] || null,
       chain = [];
@@ -92,14 +151,17 @@ export function hit([x, y], t = player.t()) {
   });
   return { stack, top, crumbs: top ? [seg, ...up.reverse(), top] : [] };
 }
-// an element's box at a moment: the map's (what vs inspect measured), else the composition's own
+// an element's box at a moment: the map's (what vs inspect measured), else the composition's own. A map made before
+// boxes were tight (Oct 9, 2026) says a drawing on a clear sheet fills the frame: the composition knows better then.
 export function boxOf(id, t = player.t()) {
   const b = boxAt(element(id), t);
-  if (b || !comp) return b;
+  if (b && (!comp || area(b) < 0.6)) return b;
+  if (!comp) return null;
   seekComp(t);
   const el = comp.elOf.get(id);
-  const r = el?.getBoundingClientRect();
-  return r && r.width ? [r.left / comp.W, r.top / comp.H, r.right / comp.W, r.bottom / comp.H].map((v) => +v.toFixed(4)) : null;
+  const r = el && tightBox(el);
+  const c = r && (r.width || r.height) ? [r.left / comp.W, r.top / comp.H, r.right / comp.W, r.bottom / comp.H].map((v) => +v.toFixed(4)) : null;
+  return b && (!c || area(c) >= area(b)) ? b : c || b;
 }
 const r4 = (v) => +v.toFixed(4);
 const overlapping = (b, t) =>

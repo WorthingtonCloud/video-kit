@@ -206,6 +206,29 @@ const SCENARIOS = {
     return r;
   },
   // card 3: point at it. A click asks the composition; arrow and keep-clear marks; a range; the note carries it all.
+  // graphics pinned to footage, each on a clear frame-sized sheet (the overlay-reel fixture): a click finds the arrow, the
+  // caption or the footage, outlined where each one is drawn, never the sheets (a footage-first video, Oct 9, 2026)
+  async overlay() {
+    await seek(1.5);
+    await p.waitForFunction(() => !!document.querySelector("#comp")?.contentWindow.__names, { timeout: 15000 });
+    const st = await p.$eval("#stage", (e) => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.width, b.height]; });
+    const r = { notice: await p.$eval("#notice", (e) => (e.hidden ? "" : e.textContent)) };
+    // a spot as a fraction of the frame → what the page names, and its red outline as a fraction of the frame
+    const at = async (fx, fy) => {
+      await p.mouse.click(st[0] + st[2] * fx, st[1] + st[3] * fy);
+      await new Promise((ok) => setTimeout(ok, 120));
+      const tag = await p.$eval("#tag", (e) => (e.hidden ? null : e.textContent));
+      const box = await p.$eval('#overlay g[data-layer="draft"] rect.tgt', (e) => ["x", "y", "width", "height"].map((k) => +(+e.getAttribute(k)).toFixed(3))).catch(() => null);
+      await p.keyboard.press("Escape");
+      return { tag, box };
+    };
+    r.arrow = await at(1417.75 / 1920, 227.4 / 1080); // halfway along the arrow's curve
+    r.beside = await at(1330 / 1920, 280 / 1080); // inside the arrow's outline but off its line: still the arrow
+    r.caption = await at(0.15, 0.8);
+    r.footage = await at(0.4, 0.5); // bare picture: the arrow's sheet and the layer cover it, and must let it through
+    r.corner = await at(0.95, 0.95);
+    return r;
+  },
   async point() {
     await p.waitForFunction(() => document.querySelectorAll("#tl-rows .row").length > 5);
     await seek(13.0);

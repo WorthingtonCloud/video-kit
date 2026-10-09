@@ -465,7 +465,7 @@ for (let t = Math.max(0.05, FROM); t < Math.min(END, TO); t += STEP) {
         clips = {}; // i → the part of its box a clipping ancestor (overflow hidden) lets show, where that's less
       window.__inspectEls.forEach((el, i) => {
         if (eff(el) < 0.02) return;
-        const r = el.getBoundingClientRect();
+        const r = window.__names.box(el); // what it paints: a clear frame-sized sheet is the size of what's drawn on it
         if (r.width * r.height < 4 || r.right < 0 || r.bottom < 0 || r.left > W || r.top > H) return;
         out.push([i, q(r.left / W), q(r.top / H), q(r.right / W), q(r.bottom / H)]);
         let [l, tp, rt, bt] = [r.left, r.top, r.right, r.bottom];

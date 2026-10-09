@@ -136,8 +136,32 @@
       }
       return null;
     };
+    // where an element shows on screen: its own box if it paints, else the part its contents paint when that's much smaller.
+    // A footage overlay draws on clear sheets the size of the frame (a layer, an <svg> holding one small arrow): the
+    // sheet's box is the whole frame, so the map outlined the whole picture and a "move the arrow" note could never be
+    // measured (a footage-first video, Oct 9, 2026). The review page does the same for a click (review/js/point.js tightBox).
+    const box = (el) => {
+      const r = el.getBoundingClientRect();
+      if (paints(el)) return r;
+      let l = Infinity,
+        t = Infinity,
+        rt = -Infinity,
+        b = -Infinity;
+      for (const d of el.querySelectorAll("*")) {
+        if (!paints(d)) continue;
+        const cs = getComputedStyle(d);
+        if (cs.display === "none" || cs.visibility === "hidden") continue;
+        const q = d.getBoundingClientRect();
+        if (!q.width && !q.height) continue;
+        [l, t, rt, b] = [Math.min(l, q.left), Math.min(t, q.top), Math.max(rt, q.right), Math.max(b, q.bottom)];
+      }
+      if (!(rt > l || b > t) || (rt - l) * (b - t) >= 0.5 * r.width * r.height) return r;
+      return { left: l, top: t, right: rt, bottom: b, width: rt - l, height: b - t };
+    };
     window.__names = {
       addr,
+      paints,
+      box,
       all: () => [...document.querySelectorAll("#root [data-el]")].map((el) => ({ addr: addr(el), el })),
       text: allText,
       repeats,

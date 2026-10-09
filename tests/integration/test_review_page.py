@@ -91,6 +91,46 @@ def reel(tmp_path, font_studio):
     log.close()
 
 
+@pytest.fixture
+def overlay(tmp_path, font_studio):
+    """The overlay-reel fixture built and inspected: one still with an arrow and a caption, each on a clear frame-sized
+    sheet, the way a footage-first video draws them."""
+    import shutil
+    from conftest import tone
+    d = tmp_path / "overlay-reel"
+    shutil.copytree(os.path.join(os.path.dirname(HERE), "fixtures/overlay-reel"), d)
+    os.makedirs(d / "media")
+    os.makedirs(d / "music")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=s=1920x1080", "-frames:v", "1",
+                    str(d / "media/shot.jpg")], check=True)
+    tone(d / "music/take1.mp3", 4, freq=110, db=-12)
+    run = lambda *a: subprocess.run([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), *a],
+                                    capture_output=True, text=True)
+    for step in (("build", "--no-render"), ("inspect",)):
+        r = run(*step)
+        assert r.returncode == 0, f"vs {' '.join(step)} failed:\n{r.stdout[-3000:]}\n{r.stderr[-6000:]}"
+    os.makedirs(d / "drafts/v1/data/widescreen", exist_ok=True)
+    tl = json.load(open(d / "build/timeline.json"))
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s=384x216:d={tl['end']}:r=30", "-c:v",
+                    "libx264", "-preset", "ultrafast", "-pix_fmt", "yuv420p", str(d / "drafts/v1/overlay-reel-widescreen-v1.mp4")], check=True)
+    shutil.copy(d / "build/timeline.json", d / "drafts/v1/data/widescreen/timeline.json")
+    r = run("review", "open")
+    assert r.returncode == 0, r.stdout + r.stderr
+    port = free_port()
+    log = open(d / "server.log", "w")
+    srv = subprocess.Popen([sys.executable, os.path.join(ENGINE, "studio.py"), "-p", str(d), "review", "--port", str(port)],
+                           stdout=log, stderr=subprocess.STDOUT, text=True)
+    for _ in range(50):
+        with socket.socket() as s:
+            if not s.connect_ex(("127.0.0.1", port)):
+                break
+        time.sleep(0.1)
+    yield d, f"http://localhost:{port}/review/", run
+    srv.terminate()
+    srv.wait()
+    log.close()
+
+
 def drive(url, scenario):
     r = subprocess.run(["node", os.path.join(HERE, "page.mjs"), url, scenario], capture_output=True, text=True, timeout=90)
     assert r.returncode == 0, r.stderr[-2000:]
@@ -527,3 +567,21 @@ def test_the_end_of_the_flow_says_done_with_the_files_and_a_way_back(served):
     assert out["parts"] == ["the words", "the voice", "the picture", "the sound"]
     assert out["sheetHidden"] and out["note"] == "About the sound: " and out["focus"] == "c-text"
     assert out["againOnReload"] is False and out["reopens"] is True
+
+
+def test_a_click_on_footage_graphics_finds_the_graphic_not_its_clear_sheet(overlay):
+    """A footage-first video (Oct 9, 2026): every overlay sat on a clear sheet the size of the frame, so every click picked the
+    whole picture and none of 30 notes carried a target. A click goes through what doesn't paint; the outline is what's
+    drawn; and the element map agrees, so a note on the arrow can be measured."""
+    d, url, run = overlay
+    out = drive(url, "overlay")
+    assert out["notice"] == ""  # the composition is this version's own
+    assert out["arrow"]["tag"] == "marks-arrow"
+    x, y, w, h = out["arrow"]["box"]
+    assert 0.65 < x < 0.7 and 0.15 < y < 0.2 and w < 0.15 and h < 0.15  # the arrow, not the frame
+    assert out["beside"]["tag"] == "marks-arrow"  # a line a few pixels wide: near it counts
+    assert out["caption"]["tag"] == "marks-caption" and out["caption"]["box"][2] < 0.3
+    assert out["footage"]["tag"] == "still" and out["corner"]["tag"] == "still"
+    E = {e["id"]: e for e in json.load(open(d / "build/elements.json"))["items"]}
+    b = E["s01_shot/marks-arrow"]["boxes"][-1]
+    assert b[3] - b[1] < 0.15 and b[4] - b[2] < 0.15  # the map's box is the arrow too
