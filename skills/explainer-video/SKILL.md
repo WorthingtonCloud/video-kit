@@ -1,16 +1,6 @@
 ---
 name: explainer-video
-description: >
-  Make a narrated motion-graphics explainer (2–3 minutes, vertical first, widescreen too) that explains a piece's
-  concepts and the data behind them, end to end: the act-by-act arc, the narration, an ElevenLabs voice with word timings
-  (or the user's own recording), scenes drawn in code and pinned to the words, the inspection of every element, review
-  rounds in Review Studio (the user points at the frame; every answer is measured), a faint music bed and subtle sound
-  effects dialed in by the user, and the user's logo at the end. It keeps a studio that learns:
-  the settled look, voice, music and levels in profile.json, the user's notes as rules in lessons.md, and a library of
-  sounds, music and media reused across videos. Use when the user says "/explainer-video", "make an explainer", "an
-  explainer for <piece>", "a TL;DR video", "a narrated video for <post/report/note>", "explain <concept> in a video", or
-  asks to revise, re-voice, re-mix or re-cut an explainer, or to bring their own footage, screenshots, audio or
-  narration into one.
+description: "Make or revise a narrated 2–3 minute motion-graphics explainer (vertical and widescreen) on the video kit: arc, narration, ElevenLabs voice, code-drawn scenes, review rounds, music and sound. Use on \"/explainer-video\", \"make an explainer\", \"a TL;DR video\", \"explain <concept> in a video\", or to re-voice, re-mix or re-cut one."
 ---
 
 # explainer-video

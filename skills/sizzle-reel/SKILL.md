@@ -1,13 +1,6 @@
 ---
 name: sizzle-reel
-description: >
-  Make a short promo / sizzle reel (30–60 seconds, vertical first, widescreen too) end to end: the brief, the
-  narrative, the music and its beat grid, scenes drawn in code and rendered by HyperFrames, real page recordings, the
-  user's own footage and screenshots, a few paid mood shots, the beat-synced edit, the agent's own frame-by-frame QA,
-  the cover. It keeps a studio that learns: the settled look, music style and spending caps in profile.json, the user's
-  notes as rules in lessons.md, and a library reused across videos. Use when the user says "/sizzle-reel", "make a
-  sizzle reel", "make a promo video", "make a reel for <thing>", "a trailer for <thing>", "a LinkedIn video for
-  <thing>", or asks to revise, re-cut, or make a widescreen version of a reel, or to bring their own footage into one.
+description: "Make or revise a 30–60 second promo or sizzle reel (vertical and widescreen): brief, beat-synced music, code-drawn scenes, page recordings, the user's footage, frame-by-frame QA, cover. Use on \"/sizzle-reel\", \"make a promo video\", \"a trailer for <thing>\", \"a LinkedIn video\", or to re-cut one."
 ---
 
 # sizzle-reel
