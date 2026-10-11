@@ -125,3 +125,49 @@ def test_kie_still_is_still_behind_the_spend_gate(run, monkeypatch):
     v = run("gen.py", ["still", "--engine", "kie", "--prompt", "a quiet field", "--out", "stills/x.png"],
             lambda url, body, n: {"data": 100})
     assert not any("createTask" in c["url"] for c in v.calls)
+
+
+def _fake_tools(tmp_path, monkeypatch):
+    """curl writes the link's last path part into the file; ffprobe says 172.5 s for 'whole' and 3.0 for 'short'."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir(exist_ok=True)
+    (bin_ / "curl").write_text('#!/bin/sh\nwhile [ "$1" != "-o" ]; do shift; done\nout="$2"; url="$3"\n'
+                               'echo "${url##*/}" > "$out"\n')
+    (bin_ / "ffprobe").write_text('#!/bin/sh\nfor a in "$@"; do f="$a"; done\n'
+                                  'case "$(cat "$f")" in whole*) echo 172.5;; short*) echo 3.0;; esac\n')
+    for f in ("curl", "ffprobe"):
+        (bin_ / f).chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_}:{os.environ['PATH']}")
+
+
+def test_extend_sends_the_words_and_keeps_the_whole_take(run, tmp_path, monkeypatch):
+    _fake_tools(tmp_path, monkeypatch)
+
+    def kie(url, body, n):
+        if "createTask" in url:
+            return {"data": {"taskId": "T1"}}
+        take = {"id": "A1", "duration": 172.5, "audio_url": "https://x/short", "stream_audio_url": "https://y/whole"}
+        return {"data": {"state": "success", "resultJson": json.dumps({"data": [take]})}}
+    neg = ", ".join(f"thing number {i}" for i in range(30))   # well over 200 characters
+    v = run("gen.py", ["extend", "--audio-id", "SRC", "--at", "56.7", "--lyrics", "words.txt", "--style", "funk",
+                       "--negative", neg, "--out", "music/x", "--yes"], kie, files={"words.txt": "A BRAND NEW LINE!"})
+    task = next(c["body"] for c in v.calls if "createTask" in c["url"])
+    assert task["model"] == "ai-music-api/extend" and task["input"]["model"] == "V6"
+    assert task["input"]["lyrics"] == "A BRAND NEW LINE!" and task["input"]["continue_at"] == 56.7
+    # extend refused negative tags over 200 characters (422): trimmed at a comma
+    assert len(task["input"]["negative_tags"]) <= 200 and not task["input"]["negative_tags"].endswith(",")
+    # the plain link came back short, so the stream link's whole copy is kept
+    assert open("music/x-take1.mp3").read().strip() == "whole"
+    assert [r["status"] for r in v.ledger] == ["done"] and v.ledger[0]["credits"] == "12"
+
+
+def test_extend_refuses_the_music_default_that_bans_vocals(run):
+    v = run("gen.py", ["extend", "--audio-id", "SRC", "--at", "5", "--lyrics", "w.txt", "--style", "funk", "--yes"],
+            lambda url, body, n: pytest.fail(f"a vendor was called: {url}"), files={"w.txt": "la"})
+    assert "--negative is required" in str(v.exit)
+
+
+def test_stems_stop_at_the_cap_before_spending(run):
+    v = run("gen.py", ["stems", "--task-id", "T", "--audio-id", "A", "--out", "stems/x", "--cap", "10", "--yes"],
+            lambda url, body, n: pytest.fail(f"a vendor was called: {url}"))
+    assert "cap" in str(v.exit) and not v.ledger

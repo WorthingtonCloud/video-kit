@@ -2,6 +2,11 @@
 """Paid generation: music, stills, and short video clips. Every call is gated and logged.
 
     vs gen music --style "…" [--negative "…"] [--title "…"] [--duration 45]
+    vs gen extend --audio-id <id> --at <s> --lyrics <file> --style "…" [--negative "…"] [--title "…"] [--out music/x]
+                                                   Suno continues an existing song from <s> seconds with new words
+                                                   (same singer, tempo and key): a changed lyric, a radio edit
+    vs gen stems  --task-id <id> --audio-id <id> --out stems/<name>
+                                                   a Suno take split into 12 stems (vocals, backing vocals, drums …)
     vs gen still --prompt "…" --out stills/x.png [--ar 9:16] [--ref stills/y.png] [--engine codex|kie]
     vs gen clip  --image stills/x.png --prompt "…" --out clips/x_480p.mp4 [--res 480p|720p] [--dur 5] [--via higgsfield|kie]
     vs gen spent                                   total spend so far, from ledger.csv
@@ -42,6 +47,23 @@ def fetch(url, out):
     os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
     req = urllib.request.Request(url, headers={"User-Agent": UA})
     open(out, "wb").write(urllib.request.urlopen(req, timeout=300).read())
+
+
+def fetch_song(t, out):
+    """A Suno take, whole. Either of its two links can come back short: audio_url served a truncated file (Sep 2026),
+    stream_audio_url an empty one (Oct 11, 2026), and Python's urlopen stalls or returns 0 bytes on them. So: curl
+    each link, keep the first whose decoded length is within a second of the take's own duration."""
+    import subprocess
+    want = float(t.get("duration") or 0)
+    os.makedirs(os.path.dirname(out) or ".", exist_ok=True)
+    for url in [u for u in (t.get("audio_url"), t.get("stream_audio_url")) if u]:
+        subprocess.run(["curl", "-sL", "--max-time", "300", "-o", out, url])
+        got = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", out],
+                             capture_output=True, text=True).stdout.strip()
+        if got and (not want or abs(float(got) - want) < 1.0):
+            return out
+        print(f"  {os.path.basename(out)}: {url.split('/')[2]} gave {got or 'no audio'} (want {want:.1f}s), trying the other link")
+    sys.exit(f"{out}: no whole copy from either link; the take is still on kie.ai for 14 days")
 
 
 def host(path):
@@ -146,11 +168,13 @@ def amend(row, shot=None, why=None):
 
 
 def gate(vendor, what, a, **cost):
-    vslib.gate(vendor, what, yes=a.yes, over=a.over, **cost)
+    vslib.gate(vendor, what, yes=a.yes, over=a.over, **({"cap": a.cap} if a.cap is not None else {}), **cost)
 
 
 ap = argparse.ArgumentParser()
-ap.add_argument("cmd", choices=["music", "still", "clip", "spent"])
+ap.add_argument("cmd", choices=["music", "extend", "stems", "still", "clip", "spent"])
+ap.add_argument("--audio-id"); ap.add_argument("--task-id"); ap.add_argument("--at", type=float); ap.add_argument("--lyrics")
+ap.add_argument("--vocal-gender", choices=["m", "f"])
 ap.add_argument("--style"); ap.add_argument("--negative", default="vocals, singing, lyrics, horror, ominous, eerie")
 ap.add_argument("--title", default="reel bed"); ap.add_argument("--duration", type=int, default=45)
 ap.add_argument("--prompt"); ap.add_argument("--out"); ap.add_argument("--ar", default="9:16"); ap.add_argument("--ref")
@@ -158,6 +182,7 @@ ap.add_argument("--image"); ap.add_argument("--res", default="480p"); ap.add_arg
 ap.add_argument("--via", default="higgsfield", choices=["higgsfield", "kie"])
 ap.add_argument("--engine", default="codex", choices=["codex", "kie"], help="stills only: codex ($0, ChatGPT plan) or kie (paid)")
 ap.add_argument("--yes", action="store_true"); ap.add_argument("--over", action="store_true")
+ap.add_argument("--cap", type=float, help="lift this video's credit cap for the step's kind of spend; only on the human's say-so")
 a = ap.parse_args()
 
 if a.cmd == "spent":
@@ -181,6 +206,59 @@ elif a.cmd == "music":
     # Keep each take's audio id: extending a take later (Suno "extend") needs it, and kie.ai forgets it after 14 days.
     ids = " ".join(f"take{i}={t.get('id', '?')}" for i, t in enumerate(res.get("data", []), have + 1))
     amend(row, shot=f"music takes {have + 1}-{have + len(res.get('data', []))}", why=f"{ids} · {a.style[:120]}")
+    vslib.done(row)
+
+elif a.cmd == "extend":
+    # Suno "extend": the take is kept up to --at, then continues with these words, conditioned on what came before,
+    # so the singer, tempo and key carry over. The fix for a changed lyric: replace-section ignored new words twice
+    # (Oct 10, 2026). Audio ids expire 14 days after the take was made.
+    if not (a.audio_id and a.at and a.lyrics and a.style):
+        sys.exit("--audio-id, --at, --lyrics (a file) and --style are required")
+    words = open(a.lyrics, encoding="utf-8").read().strip()
+    if a.negative == ap.get_default("negative"):
+        sys.exit("--negative is required for extend: pass the source take's own negative tags (the music default bans vocals)")
+    gate("kie.ai", "Two takes continuing the song with new words (Suno V6 extend)", a, credits=12,
+         cap_key="kie_credits_per_video", scope="music")
+    inp = {"audio_id": a.audio_id, "model": "V6", "continue_at": a.at, "lyrics": words, "style": a.style[:1000],
+           "title": a.title, "negative_tags": a.negative[:201].rsplit(",", 1)[0] if len(a.negative) > 200 else a.negative,
+           "instrumental": False}   # extend refuses negative tags over 200 characters (422, unbilled)
+    if a.vocal_gender:
+        inp["vocal_gender"] = a.vocal_gender
+    tid = kie_task("ai-music-api/extend", inp)
+    row = log(shot="music extend (submitted)", tool="kie.ai", model="suno V6 extend", resolution="n/a", seconds=0,
+              credits=12, why=f"task {tid} · from {a.audio_id} at {a.at}s")
+    res = kie_wait(tid, "extend")
+    takes = res.get("data") or (res.get("resultObject") or {}).get("lyricsData") or []
+    base = a.out or "music/extend"
+    ids = []
+    for i, t in enumerate(takes, 1):
+        fetch_song(t, f"{base}-take{i}.mp3")
+        ids.append(f"take{i}={t.get('id', '?')}")
+        print(f"{base}-take{i}.mp3  audio id {t.get('id')}")
+    json.dump({"task_id": tid, "takes": takes}, open(f"{base}.json", "w"), indent=1)
+    amend(row, shot=f"music extend {os.path.basename(base)}", why=f"task {tid} · {' '.join(ids)} · from {a.audio_id} at {a.at}s")
+    vslib.done(row)
+
+elif a.cmd == "stems":
+    # 50 credits for 12 stems. They lag Suno's own mix by 19 ms (839 samples at 44.1 kHz) and sum ~3 dB hotter:
+    # shift and scale before mixing stems against the mix.
+    if not (a.task_id and a.audio_id and a.out):
+        sys.exit("--task-id, --audio-id and --out (a folder) are required")
+    gate("kie.ai", "One take split into 12 stems (Suno split_stem)", a, credits=50, cap_key="kie_credits_per_video", scope="music")
+    tid = kie_task("ai-music-api/separate-vocals", {"task_id": a.task_id, "audio_id": a.audio_id, "type": "split_stem"})
+    row = log(shot="music stems (submitted)", tool="kie.ai", model="suno split_stem", resolution="n/a", seconds=0,
+              credits=50, why=f"task {tid} · {a.audio_id}")
+    res = kie_wait(tid, "stems")
+    urls = res.get("resultUrls") or []
+    if not urls:
+        info = res.get("vocal_removal_info") or res.get("resultObject") or {}
+        urls = [v for v in info.values() if isinstance(v, str) and v.startswith("http")]
+    os.makedirs(a.out, exist_ok=True)
+    for u in urls:
+        name = u.split("?")[0].rsplit("/", 1)[-1]
+        fetch(u, os.path.join(a.out, name))
+        print(os.path.join(a.out, name))
+    amend(row, shot=f"music stems {os.path.basename(a.out.rstrip('/'))}", why=f"task {tid} · {a.audio_id} · {len(urls)} stems")
     vslib.done(row)
 
 elif a.cmd == "still":
