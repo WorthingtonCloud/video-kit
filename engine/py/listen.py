@@ -13,7 +13,8 @@ def act_html(b):
     head = next((l[1:].strip() for l in reversed(b.splitlines()) if l.startswith("#")), "")
     body = " ".join(l for l in b.splitlines() if l.strip() and not l.startswith("#"))
     body = re.sub(r"\[([^\]]+)\]", lambda m: f'<span class="tag">{html.escape(m.group(1))}</span>', html.escape(body, quote=False).replace("&#x27;", "'"))
-    return f'<div class="act"><div class="at">{html.escape(head)}</div><p>{body}</p></div>'
+    n = re.match(r"(\d+)", head)
+    return f'<div class="act" data-act="{n.group(1) if n else ""}"><div class="at">{html.escape(head)}</div><p>{body}</p></div>'
 # a take may carry a label: voice/narration-v1a.mp3="A · tighter pauses"
 takes = [(t.split("=", 1) + [""])[:2] for t in args]
 cards = "".join(f'<div class="card{" hero" if i == 0 else ""}"><div class="name">{html.escape(lab or os.path.basename(t))}</div>{f"<div class=sub>{html.escape(os.path.basename(t))}</div>" if lab else ""}<audio controls preload="none" src="../../{t}"></audio></div>' for i, (t, lab) in enumerate(takes))
@@ -23,7 +24,8 @@ body{{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 -apple-system
 h1{{font-size:26px;margin:0 0 18px}}h2{{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin:28px 0 10px}}
 .card{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px}}.card.hero{{border-color:var(--accent)}}
 .name{{font-weight:700;margin-bottom:2px}}.sub{{font:12px ui-monospace,monospace;color:var(--dim);margin-bottom:8px}}audio{{width:100%}}.act{{border-left:3px solid var(--line);padding:2px 0 2px 14px;margin:0 0 14px}}
-.at{{font:700 13px ui-monospace,monospace;color:var(--accent)}}.act p{{margin:4px 0 0}}.tag{{font:600 12px ui-monospace,monospace;color:var(--dim);background:#232327;border-radius:6px;padding:1px 6px;margin-right:4px}}
-</style></head><body><div class="wrap"><h1>{html.escape(title)}</h1>{cards}<h2>The script (gray tags direct the voice; they aren't spoken)</h2>{"".join(act_html(b) for b in acts)}</div></body></html>"""
+.at{{font:700 13px ui-monospace,monospace;color:var(--accent)}}
+.embed .card,.embed h1{{display:none}}.hint-embed{{display:none}}.embed .hint-embed{{display:inline}}.embed .act{{cursor:pointer;opacity:.55;transition:opacity .2s}}.embed .act:hover,.embed .act.now{{opacity:1}}.embed .act.now{{border-left-color:var(--accent)}}.act p{{margin:4px 0 0}}.tag{{font:600 12px ui-monospace,monospace;color:var(--dim);background:#232327;border-radius:6px;padding:1px 6px;margin-right:4px}}
+</style></head><body><script>if(/[?&]embed=1/.test(location.search))document.body.classList.add("embed")</script><div class="wrap"><h1>{html.escape(title)}</h1>{cards}<h2>The script (gray tags direct the voice; they aren't spoken)<span class="hint-embed"> · click a part to play it</span></h2>{"".join(act_html(b) for b in acts)}</div></body></html>"""
 open("build/listen/index.html", "w").write(page)
 print("build/listen/index.html")

@@ -60,7 +60,7 @@ AGENT WORK         resolve every note, the next version … until the exit crite
    --why "…"`. A warning they answered in an earlier round carries over (same check, same place, within 3 s). Never
    ask twice.
 4. **Tell them in one line per change** (and the spend so far, if anything was paid). Then **run `vs review wait` in
-   the background** right away. It exits the moment they send and prints what they sent, which wakes you. While it
+   the background** right away. It exits the moment they send and prints what they sent, which wakes you: so start it with your own background-task tool, whose exit notifies you. A shell `&` (or `nohup`) watcher reads the send, the page says "Claude has it", and nothing ever wakes you. While it
    runs, the page tells them Claude picks it up, so they never come back to type "sent". (No wait running: the page
    asks them to tell you.) One watcher per project: a second `vs review wait` refuses while one runs (`--replace` stops
    it and takes over), so a send is never read by a watcher nobody is listening to. `vs review open` and `vs review

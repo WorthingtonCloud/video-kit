@@ -25,7 +25,7 @@ const REACH = { here: "Just here", project: "All through this video", studio: "I
 function sceneLine() {
   const R = round(),
     seg = R && segmentAt(player.t());
-  if (!seg) return "";
+  if (!seg || R.audio) return ""; // a take's acts aren't scenes: nothing to call done yet
   const d = app.state.done?.[seg.name],
     held = app.state.steps.find((s) => s.pending && s.kind.startsWith("scene.") && s.segment === seg.name);
   if (held)
@@ -47,6 +47,10 @@ function compose() {
   const when = fmt(draft.range ? draft.range[0] : player.t());
   box.placeholder = !open
     ? "No round open: Claude opens one on a rendered version."
+    : R.audio
+      ? draft.range
+        ? `About ${fmt(draft.range[0])} → ${fmt(draft.range[1])} in the voice: what should change?`
+        : `Leave a note at ${when} about the voice${R?.status === "sent" ? " (it goes straight to Claude: the round is sent)" : ""} · pause where you heard it`
     : draft.sound
       ? `About this sound (${fmt(draft.sound.t)}): what should change? Or answer it with a button above.`
       : draft.target
@@ -137,7 +141,7 @@ function question(n) {
     <q>${esc(n.comment) || "(a mark, no words)"}</q>
     <p class="claude"><b>Claude asks:</b> ${esc(q?.text || "")}</p>${body}</div>`;
 }
-const asksChoice = (n) => n.thread.at(-1)?.type === "choice" || Object.values(app.state.choices).some((c) => c.for === n.id && !c.picked);
+const asksChoice = (n) => n.thread.at(-1)?.type === "choice" || Object.values(app.state.choices).some((c) => c.for === n.id && !c.picked && !c.replaced_by);
 
 export const notes = {
   render() {

@@ -157,11 +157,16 @@ const follow = {
       R = app.state?.rounds.at(-1),
       tag = C.mixer ? `${C.mixer.tag}|${C.mixer.video}` : null;
     $("#sec-mix").hidden = !C.mixer;
+    // a round on a voice take plays the take through the player (transport, timeline, notes) beside the script; with no
+    // round the listening page carries its own players
     const lf = $("#listen"),
-      listening = !!C.listen && !R;
+      take = !!(R?.audio && C.round?.audio),
+      listening = !!C.listen && (!R || take),
+      src = C.listen && (take ? `${C.listen}&embed=1` : C.listen);
     lf.hidden = !listening;
     $("#stage").hidden = listening;
-    if (listening && lf.dataset.src !== C.listen) lf.src = lf.dataset.src = C.listen;
+    document.body.classList.toggle("take", take);
+    if (listening && lf.dataset.src !== src) lf.src = lf.dataset.src = src;
     if (tag && seenMix !== null && tag !== seenMix) {
       document.dispatchEvent(new CustomEvent("panel:open", { detail: "sec-mix" }));
       toast("A new mix is ready: it's open in this round's panel.");
@@ -214,6 +219,35 @@ const goHash = () => {
   if (at && (at !== "sec-mix" || app.ctx.mixer)) document.dispatchEvent(new CustomEvent("panel:open", { detail: at }));
 };
 addEventListener("hashchange", goHash);
+
+// a take round: the script follows the voice (the act being spoken lights up), and a click on an act plays it from its start
+let litAct = null;
+// the act being spoken, or in a pause the one about to start (a click on an act seeks just before its first word)
+const actAt = (t) => {
+  const W = app.maps?.words || [];
+  return (W.find((w) => w.t1 >= t) || W.at(-1))?.act ?? null;
+};
+player.on((t) => {
+  if (!document.body.classList.contains("take")) return;
+  const doc = $("#listen").contentDocument,
+    a = actAt(t);
+  if (!doc || a === litAct) return;
+  litAct = a;
+  doc.querySelectorAll(".act").forEach((x) => x.classList.toggle("now", +x.dataset.act === a));
+  doc.querySelector(".act.now")?.scrollIntoView({ block: "center", behavior: "smooth" });
+});
+$("#listen").addEventListener("load", () => {
+  litAct = null;
+  $("#listen").contentDocument?.addEventListener("click", (e) => {
+    const a = +e.target.closest?.(".act")?.dataset.act,
+      W = app.maps?.words || [],
+      i = a ? W.findIndex((x) => x.act === a) : -1;
+    if (i < 0 || !document.body.classList.contains("take")) return;
+    // into the pause before its first word, past the last word of the act before (the player snaps to a frame)
+    const prev = W[i - 1]?.t1 ?? 0;
+    player.seek(Math.min(W[i].t0, Math.max(prev + 0.05, W[i].t0 - 0.15)));
+  });
+});
 
 app.parts.push(notes, findingsPanel, decide, rounds, timeline, point, mix, rules, scrub, loop, steps, panel, follow, finished, { maps: () => setup(app.maps.timeline) });
 await load();

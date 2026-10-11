@@ -246,7 +246,7 @@ def _picked_unapplied(S):
 
 def _asks_of_human(S):
     q = [i for i, n in S["notes"].items() if n["status"] == "question"]
-    c = [c["id"] for c in S["choices"].values() if not c.get("picked") and not c.get("covered")]  # covered: their note answered it
+    c = [c["id"] for c in S["choices"].values() if not c.get("picked") and not c.get("covered") and not c.get("replaced_by")]  # covered: their note answered it; replaced: a newer choice asks it
     lz = [l["id"] for l in S["lessons"].values() if l.get("decision") is None]
     return q, c, lz
 

@@ -101,3 +101,27 @@ def test_higgsfield_gets_curls_user_agent(run, tmp_path):
     # Higgsfield's firewall rejected Python's default user agent (error 1010) before any job existed
     assert hf["headers"].get("User-agent") == "curl/8.7.1"
     assert [r["status"] for r in v.ledger] == ["done"] and float(v.ledger[0]["usd"]) == pytest.approx(1.03, abs=0.01)
+
+
+def test_still_defaults_to_codex_free_and_never_calls_a_vendor(run, tmp_path, monkeypatch):
+    # a fake codex: proves stdin is closed (a backgrounded `codex exec` otherwise waits forever), that `--` ends the
+    # -i list before the prompt, and drops an image in its working directory the way the real one does
+    fake = tmp_path / "codex"
+    fake.write_text("#!/bin/sh\nif read -t 1 line; then echo 'stdin was open' >&2; exit 3; fi\n"
+                    "for a in \"$@\"; do last=\"$a\"; done\n"
+                    "case \" $* \" in *' -- '*) ;; *) echo 'no -- before the prompt' >&2; exit 4;; esac\n"
+                    "printf PNG > image.png\n")
+    fake.chmod(0o755)
+    monkeypatch.setenv("CODEX_BIN", str(fake))
+    v = run("gen.py", ["still", "--prompt", "a quiet field", "--out", "stills/x.png", "--ref", "r.png"],
+            lambda url, body, n: pytest.fail(f"a vendor was called: {url}"), files={"r.png": "ref"})
+    assert v.exit in (0, None)
+    assert open("stills/x.png").read() == "PNG"
+    assert [(r["vendor"], r["status"], float(r["usd"])) for r in v.ledger] == [("codex", "done", 0.0)]
+
+
+def test_kie_still_is_still_behind_the_spend_gate(run, monkeypatch):
+    monkeypatch.setenv("VIDEO_KIT_NO_SPEND", "1")
+    v = run("gen.py", ["still", "--engine", "kie", "--prompt", "a quiet field", "--out", "stills/x.png"],
+            lambda url, body, n: {"data": 100})
+    assert not any("createTask" in c["url"] for c in v.calls)

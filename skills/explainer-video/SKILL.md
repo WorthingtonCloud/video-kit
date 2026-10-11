@@ -49,7 +49,8 @@ source? What must the reader's organization PROVIDE (it gets its own act)? Which
 
 **2 · VOICE.** `narration.txt` → a take → checked → fitted → listened to (`references/voice.md`: the format, every
 command, their own recording, re-recording one act).
-- Gate: the human picks a take on the review page's listening view. Paid: say the number and wait for the yes.
+- Gate: the human approves a take in a round opened on it (`vs review open --video voice/narration-<tag>.mp3`): notes
+  pinned to moments in the audio, sent like any round. Paid: say the number and wait for the yes.
 - Produces: `voice/narration-<tag>.mp3` + its word timings → `vs voicebed`.
 
 **3 · PICTURE (v1, voice only).** `plan.json`: segments per act, `cues` (word specs `"word"`, `"word#2"`, `"act:word"`,

@@ -2,7 +2,7 @@
 """Paid generation: music, stills, and short video clips. Every call is gated and logged.
 
     vs gen music --style "…" [--negative "…"] [--title "…"] [--duration 45]
-    vs gen still --prompt "…" --out stills/x.png [--ar 9:16] [--ref stills/y.png]
+    vs gen still --prompt "…" --out stills/x.png [--ar 9:16] [--ref stills/y.png] [--engine codex|kie]
     vs gen clip  --image stills/x.png --prompt "…" --out clips/x_480p.mp4 [--res 480p|720p] [--dur 5] [--via higgsfield|kie]
     vs gen spent                                   total spend so far, from ledger.csv
 
@@ -11,6 +11,12 @@ spend so far, and exits: that is the moment to ask the human. It refuses past re
 usd_per_video, every vendor together) unless you add --over, and music past the video's music credit cap (vs music's
 too). With --yes it spends; each job is a ledger row from the moment it's submitted (kept = "pending" until someone
 decides; status submitted → done).
+
+Stills default to --engine codex: the Codex CLI's built-in image tool, signed in with a ChatGPT plan, so a still
+costs nothing per image (it draws on the plan's usage limit instead). No key and no spend gate; the ledger row says $0.
+Codex is found at $CODEX_BIN, then `codex` on PATH, then the copy bundled in ChatGPT.app. --engine kie is the paid
+Seedream path and goes through the spend gate as before. If Codex reports a usage limit, stop and ask the human;
+never fall back to the paid engine on your own.
 
 Keys, from the environment, a .env in this folder or any folder above it, or the studio's .env:
     KIE_AI_API_KEY       kie.ai  — music (Suno), stills (Seedream), clips (Kling), and hosting for input images
@@ -88,6 +94,44 @@ def kie_wait(tid, label):
     return poll(label, fn)
 
 
+def codex_bin():
+    import shutil
+    for c in (os.environ.get("CODEX_BIN"), shutil.which("codex"), "/Applications/ChatGPT.app/Contents/Resources/codex"):
+        if c and os.path.exists(c):
+            return c
+    sys.exit("Codex not found: install the Codex CLI or ChatGPT.app and sign in with a ChatGPT plan, or set CODEX_BIN. "
+             "(--engine kie is the paid alternative; ask the human first.)")
+
+
+def codex_still(prompt, out, ar, ref=None):
+    """One image from Codex's built-in image tool. stdin must be closed or `codex exec` waits for input forever,
+    and -i takes several files, so `--` ends the list before the prompt."""
+    import subprocess, tempfile, shutil
+    work = tempfile.mkdtemp(prefix="vs-codex-")
+    if ref:
+        ask = (f"The attached image is a reference. Use your image generation tool to create exactly one image in a {ar} "
+               f"aspect ratio from this prompt, keeping the reference's subject and look where the prompt implies it: "
+               f'"{prompt}" Save it as image.png in the current directory and print its pixel dimensions.')
+    else:
+        ask = (f"Use your image generation tool to create exactly one image in a {ar} aspect ratio, using this prompt "
+               f'verbatim and adding nothing to it: "{prompt}" Save it as image.png in the current directory and print its pixel dimensions.')
+    cmd = [codex_bin(), "exec", "--skip-git-repo-check", "--sandbox", "workspace-write"]
+    if ref:
+        cmd += ["-i", os.path.abspath(ref)]
+    cmd += ["--", ask]
+    try:
+        r = subprocess.run(cmd, cwd=work, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=360)
+    except subprocess.TimeoutExpired:
+        sys.exit(f"codex timed out after 6 min (work dir kept: {work})")
+    pngs = [f for f in os.listdir(work) if f.endswith(".png")]
+    if not pngs:
+        tail = "\n".join((r.stdout + r.stderr).strip().splitlines()[-6:])
+        sys.exit(f"codex returned no image (work dir kept: {work}):\n{tail}")
+    os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
+    shutil.copyfile(os.path.join(work, pngs[0]), out)
+    shutil.rmtree(work, ignore_errors=True)
+
+
 def spent():
     return vslib.spent_usd(project=vslib.project_name())
 
@@ -112,6 +156,7 @@ ap.add_argument("--title", default="reel bed"); ap.add_argument("--duration", ty
 ap.add_argument("--prompt"); ap.add_argument("--out"); ap.add_argument("--ar", default="9:16"); ap.add_argument("--ref")
 ap.add_argument("--image"); ap.add_argument("--res", default="480p"); ap.add_argument("--dur", type=int, default=5)
 ap.add_argument("--via", default="higgsfield", choices=["higgsfield", "kie"])
+ap.add_argument("--engine", default="codex", choices=["codex", "kie"], help="stills only: codex ($0, ChatGPT plan) or kie (paid)")
 ap.add_argument("--yes", action="store_true"); ap.add_argument("--over", action="store_true")
 a = ap.parse_args()
 
@@ -141,6 +186,14 @@ elif a.cmd == "music":
 elif a.cmd == "still":
     if not (a.prompt and a.out):
         sys.exit("--prompt and --out are required")
+    if a.engine == "codex":
+        print(f"  codex still ({a.ar}) on the ChatGPT plan: $0, about a minute", flush=True)
+        row = log(shot=os.path.basename(a.out), tool="codex", model="codex image_gen", resolution=a.ar, seconds=0,
+                  cost_usd=0, why=a.prompt[:120])
+        codex_still(a.prompt, a.out, a.ar, a.ref)
+        vslib.done(row)
+        print(a.out)
+        sys.exit(0)
     gate("kie.ai", f"One still ({a.ar}, Seedream 5 Pro)", a, credits=28)
     inp = {"prompt": a.prompt, "aspect_ratio": a.ar, "quality": "high", "output_format": "png", "nsfw_checker": False}
     model = "seedream/5-pro-text-to-image"

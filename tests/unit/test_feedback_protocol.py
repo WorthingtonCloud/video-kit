@@ -494,3 +494,26 @@ def test_the_new_fields_meet_the_review_schema(proj, studio):
                                                                           "changes": {"size": -0.3}, "from": 1, "to": 2}}], A)
     r = vs(proj, "check")
     assert "review/state.json" not in r.stdout, r.stdout
+
+
+# ── a round on a voice take: notes pinned to moments in the audio, before there's a picture (Oct 9, 2026) ──
+def test_a_voice_take_opens_a_round_and_its_notes_carry_the_words_heard(proj):
+    open("plan.json", "w").write("{}")  # an explainer: its stages start with the voice
+    os.makedirs("voice", exist_ok=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=220:d=3", "voice/narration-e1.mp3"], check=True)
+    words = [{"w": "Every", "t0": 0.2, "t1": 0.5, "act": 1}, {"w": "business", "t0": 0.6, "t1": 0.9, "act": 1},
+             {"w": "Just", "t0": 2.0, "t1": 2.3, "act": 2}, {"w": "odds.", "t0": 2.4, "t1": 2.8, "act": 2}]
+    open("voice/narration-e1.words.json", "w").write(json.dumps(words))
+    r = cmd("open", "--video", "voice/narration-e1.mp3")
+    assert r.returncode == 0, r.stderr
+    R = review.current(review.state())
+    assert R["audio"] and R["take"] == "e1" and R["stage"] == "voice" and R["version"] == 0
+    review.append([{**note(t=2.5, comment="too fast here"), "held": True}], H)
+    review.append([{"type": "round.sent"}], H)
+    out = cmd("show").stdout
+    assert "take e1 (the voice)" in out and "heard: …act 2: Just odds.…" in out and "too fast here" in out
+    assert not os.path.exists(f"{review.FRAMES}/n-0001.jpg")  # no picture, so no still
+    # the picture's first round, later, opens over it once the note is answered; a take's note is never measured in pixels
+    review.append([{"type": "note.resolved", "id": "n-0001", "said": "re-recorded act 2 slower", "outcome": "resolved"}], A)
+    assert cmd("open", "--video", "drafts/v1/p-vertical-v1.mp4").returncode == 0
+    assert not review.state()["notes"]["n-0001"].get("measured")

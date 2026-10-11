@@ -101,7 +101,10 @@ function tick(force) {
   requestAnimationFrame(loop);
 })();
 v.addEventListener("seeked", () => tick(true));
-v.addEventListener("loadedmetadata", () => tick(true));
+v.addEventListener("loadedmetadata", () => {
+  $("#t-end").textContent = fmt(player.end()); // a take round has no timeline: its length is only known once it loads
+  tick(true);
+});
 v.addEventListener("timeupdate", () => tick()); // when the tab is hidden, animation frames stop but this still fires
 // the button shows what a click will do, from the video's own state: a new source (the other shape, a new version) stops
 // the video without a pause event, so the button is set on those too

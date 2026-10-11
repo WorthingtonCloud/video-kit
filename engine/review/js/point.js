@@ -336,7 +336,9 @@ function notice(msg) {
     n = $("#notice");
   const text =
     msg ??
-    (!R?.elements
+    (R?.audio
+      ? "" // a voice take: nothing to point at
+      : !R?.elements
       ? `No element map for v${R?.version}: box, arrow and keep-clear still work; clicks find nothing (vs inspect makes the map).`
       : comp
         ? ""

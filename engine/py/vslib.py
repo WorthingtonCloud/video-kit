@@ -280,11 +280,16 @@ def splice_plan(base, new, tail=0.2, lead=0.3, x=0.03, cut_at=None, start2_at=No
     → dict of cuts and the new words."""
     first_act, last_act = min(w["act"] for w in new), max(w["act"] for w in new)
     prev, after = [w for w in base if w["act"] < first_act], [w for w in base if w["act"] > last_act]
-    if not prev:
-        raise ValueError(f"the base has no acts before act {first_act}")
-    end_prev, first_new = max(w["t1"] for w in prev), min(w["t0"] for w in new)
-    cut, start = round(cut_at if cut_at is not None else end_prev + tail, 3), round(max(0, first_new - lead), 3)
-    off = round(cut - start - x, 3)
+    if not prev and not after:
+        raise ValueError(f"acts {first_act}-{last_act} are the whole take: use it as a full take (vs voicebed --take, no --base)")
+    first_new = min(w["t0"] for w in new)
+    start = round(max(0, first_new - lead), 3)
+    if prev:
+        end_prev = max(w["t1"] for w in prev)
+        cut = round(cut_at if cut_at is not None else end_prev + tail, 3)
+        off = round(cut - start - x, 3)
+    else:  # a run from the top (--acts 1-2: a calmer open, Oct 9, 2026): the new run opens the take, the base resumes after it
+        end_prev, cut, off = 0.0, 0.0, round(-start, 3)
     W = prev + [{**w, "t0": round(w["t0"] + off, 3), "t1": round(w["t1"] + off, 3)} for w in new]
     out = {"first_act": first_act, "end_prev": end_prev, "first_new": first_new, "cut": cut, "start": start, "off": off}
     if after:

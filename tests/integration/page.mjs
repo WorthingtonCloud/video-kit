@@ -463,6 +463,33 @@ const SCENARIOS = {
     r.sent = await sendAll();
     return r;
   },
+  // clip options (a cut with its own soundtrack each): both run on the player's clock all the time, so switching while
+  // it plays is instant, and the one on screen is the one heard
+  async "decide-clips"() {
+    await p.goto(url + "#decide", { waitUntil: "networkidle0" });
+    await p.reload({ waitUntil: "networkidle0" });
+    await p.waitForFunction(() => !!document.querySelector("#tab-decide .res.choice"));
+    const state = () =>
+      p.evaluate(() => {
+        const v = document.querySelector("#video");
+        return { t: v.currentTime, muted: v.muted, paused: v.paused,
+          clips: Object.fromEntries([...document.querySelectorAll(".preview video")].map((m) => [m.src.split("/").pop(), { hidden: m.hidden, paused: m.paused, muted: m.muted, t: m.currentTime }])) };
+      });
+    const r = { cards: await p.$$eval("#tab-decide .res.choice", (x) => x.map((e) => e.dataset.choice)) };
+    await p.click('#tab-decide [data-c="see"][data-o="a"]');
+    await p.waitForFunction(() => [...document.querySelectorAll(".preview video")].length === 2 && [...document.querySelectorAll(".preview video")].every((m) => m.readyState >= 3));
+    await new Promise((res) => setTimeout(res, 1500));
+    r.a = await state();
+    await key("2");
+    r.flip = await state(); // the moment after the switch: no load, no seek
+    await new Promise((res) => setTimeout(res, 1200));
+    r.b = await state();
+    await p.click("#t-play");
+    await p.waitForFunction(() => document.querySelector("#video").paused);
+    await new Promise((res) => setTimeout(res, 300));
+    r.paused = await state();
+    return r;
+  },
   // Phase 3, ducking: the music comes un-ducked and the Mix panel ducks it live; the slider moves it while it plays
   async duck() {
     await p.goto(url + "#mix", { waitUntil: "networkidle0" });

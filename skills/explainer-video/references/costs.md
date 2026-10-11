@@ -7,6 +7,7 @@
 | Take check | OpenAI `gpt-4o-mini-transcribe` | ~1¢ |
 | Word timings for your own narration | OpenAI `whisper-1` | ~$0.006 a minute |
 | Music: one direction, 2 takes of ~3 min | kie.ai Suno V6 | 12 kie credits ($0.06) |
+| A still (photo backdrop) | Codex on a ChatGPT plan (`vs gen still`, default since Oct 11, 2026) | free |
 | A new sound effect | ElevenLabs text-to-sound | 11 credits a second (a 2 s sound = 22) |
 | The 30 bundled sounds, the library's music, anything you bring | the studio | free |
 | Render, inspect, mix, Review Studio (variants play live: no render) | the laptop | free |

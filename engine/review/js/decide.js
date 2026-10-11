@@ -3,7 +3,10 @@
 //   · a variant is a built composition (vs review variant): it loads over the picture and follows the player's clock,
 //     with the round's sound under it, so a motion or timing choice costs no render
 //   · a music take plays through the Mix panel's stems (the levels as set there)
-//   · a picture, clip or sound is shown (or played) as it is
+//   · a picture, clip or sound is shown (or played) as it is, on the player's clock from the choice's moment (--t). Every
+//     clip and sound of the choice on the stage runs in step all the time, shown or not, so switching (a click, or 0–9
+//     while it plays) is instant: only what's visible and audible changes. A clip that brings its own soundtrack is
+//     heard (the round's sound steps aside); a silent one plays over the round's sound
 //   · a paid option isn't made yet: its card says what it would cost, and picking it is the yes to that number
 // "See option A" only shows it (the banner on the picture says so: not picked); 0–9 switch while it plays (0 = the render
 // as it is). Picking is its own row: Pick A, Pick B, or Neither (with words), and the pick waits, with Undo, for your
@@ -27,7 +30,7 @@ stage.insertBefore(layer, $("#overlay"));
 const banner = $("#banner");
 
 const choices = () => Object.values(app.state?.choices || {});
-const waiting = () => choices().filter((c) => !c.picked && !c.covered); // covered: your note already answered it
+const waiting = () => choices().filter((c) => !c.picked && !c.covered && !c.replaced_by); // covered: your note already answered it
 const optOf = (c, id) => c?.options.find((o) => o.id === id);
 const t0Of = (c) => (c?.time ? ("t" in c.time ? c.time.t : c.time.t0) : null);
 const when = (c) => (!c.time ? "" : "t" in c.time ? fmt(c.time.t) : `${fmt(c.time.t0)} → ${fmt(c.time.t1)}`);
@@ -92,31 +95,50 @@ function fit() {
 new ResizeObserver(fit).observe(stage);
 
 // the option on the stage follows the player's clock: its timeline seeks, its clips and sounds keep up
+const clip = (o) => o.kind === "video" || o.kind === "audio";
+const heard = (o) => o.kind === "audio" || (o.kind === "video" && o.sound === true); // its own sound, not the round's
 function seek(t, force) {
   const c = choices().find((x) => x.id === cur),
     o = optOf(c, showing);
-  if (!open || !o) return;
-  const v = view(o),
-    playing = player.playing();
-  if (v.kind === "variant" && v.ready && v.tl) {
-    v.tl.seek(t, false);
-    v.doc.querySelectorAll("video[data-start]").forEach((m) => keepUp(m, t - +m.dataset.start, +m.dataset.duration, playing));
-  } else if (v.kind === "video" || v.kind === "audio") keepUp(v.node, t - (t0Of(c) ?? 0), v.node.duration || 1e9, playing);
+  if (!open || !c) return;
+  const playing = player.playing(),
+    rate = app.video.playbackRate || 1;
+  if (o?.kind === "variant") {
+    const v = view(o);
+    if (v.ready && v.tl) {
+      v.tl.seek(t, false);
+      v.doc.querySelectorAll("video[data-start]").forEach((m) => keepUp(m, t - +m.dataset.start, +m.dataset.duration, playing, rate));
+    }
+  }
+  const t0 = t0Of(c) ?? 0;
+  for (const x of c.options)
+    if (clip(x)) {
+      const m = view(x).node;
+      m.muted = !(x.id === showing && heard(x));
+      keepUp(m, t - t0, x.dur || m.duration || 1e9, playing, rate);
+    }
   if (stopAt != null && playing && t >= stopAt) {
     stopAt = null;
     player.pause();
   }
 }
-function keepUp(m, local, dur, playing) {
+// a clip follows the player: a big gap (or a start) is a seek, a small drift is eased out with the speed, never a jump
+function keepUp(m, local, dur, playing, rate = 1) {
   if (local < 0 || local > dur) return m.paused || m.pause();
   if (playing) {
+    const d = m.currentTime - local;
     if (m.paused) {
-      m.currentTime = local;
+      if (Math.abs(d) > 0.02 && !m.seeking) m.currentTime = local;
+      m.playbackRate = rate;
       m.play().catch(() => {});
-    } else if (Math.abs(m.currentTime - local) > 0.2) m.currentTime = local;
+    } else if (Math.abs(d) > 0.3) {
+      if (!m.seeking) m.currentTime = local;
+      m.playbackRate = rate;
+    } else m.playbackRate = rate * Math.max(0.9, Math.min(1.1, 1 - d * 2));
   } else {
     if (!m.paused) m.pause();
-    if (Math.abs(m.currentTime - local) > 0.02) m.currentTime = local;
+    m.playbackRate = rate;
+    if (Math.abs(m.currentTime - local) > 0.01 && !m.seeking) m.currentTime = local;
   }
 }
 player.on((t) => seek(t));
@@ -127,10 +149,11 @@ async function show(id) {
     o = optOf(c, id);
   showing = o ? id : "";
   for (const v of views.values()) if (v.node) v.node.hidden = true;
-  views.forEach((v) => (v.kind === "video" || v.kind === "audio") && v.node.pause());
+  const mine = new Set((c?.options || []).filter(clip).map((x) => view(x)));
+  views.forEach((v) => (v.kind === "video" || v.kind === "audio") && !mine.has(v) && v.node.pause()); // the on-stage choice's keep running
   layer.hidden = !o || o.kind === "take" || o.kind === "audio";
   if (o && !layer.hidden) view(o).node.hidden = false;
-  const audio = o && (o.kind === "take" || o.kind === "audio");
+  const audio = o && (o.kind === "take" || heard(o));
   if (o?.kind === "take") {
     try {
       await stems.use(o.take);
@@ -140,7 +163,7 @@ async function show(id) {
   } else await stems.use(null);
   if (o?.kind === "audio") view(o); // a sound plays over the muted picture
   app.video.muted = !!audio || !!player.clock;
-  stage.dataset.preview = o && !audio ? o.id : "";
+  stage.dataset.preview = o && o.kind !== "take" && o.kind !== "audio" ? o.id : "";
   banner.hidden = !o;
   banner.innerHTML = o ? `<span>Showing <b>option ${esc(o.id.toUpperCase())}</b> · not picked${o.kind === "variant" ? " · played live, not rendered" : ""}</span><button data-c="back">Back to the render</button>` : "";
   seek(player.t(), true);
@@ -175,7 +198,7 @@ function card(c) {
 }
 
 function render() {
-  const C = choices().filter((c) => (!c.picked && !c.covered) || heldPick(c) || c.round === app.state.rounds.at(-1)?.n); // done ones: this round's only
+  const C = choices().filter((c) => !c.replaced_by && ((!c.picked && !c.covered) || heldPick(c) || c.round === app.state.rounds.at(-1)?.n)); // done ones: this round's only; a replaced one is gone
   if (cur && !choices().some((c) => c.id === cur)) cur = null;
   const a = document.activeElement,
     typing = a?.dataset?.say != null ? a.value : null;
@@ -284,6 +307,7 @@ export const decide = {
       stopAt = null;
       await show("");
       layer.hidden = true;
+      views.forEach((v) => (v.kind === "video" || v.kind === "audio") && v.node.pause());
     }
     render();
   },

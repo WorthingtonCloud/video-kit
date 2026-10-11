@@ -69,7 +69,8 @@ snap`, looks at the sheets and returns only the problems (must come back with **
 Then `vs build --storyboard` → LOOK at every frame of `build/qa/storyboard.jpg` yourself; fix.
 - Gate: no errors, and you LOOKED.
 
-**5 · PAID SHOTS** (only textless mood moments nothing on the laptop can make; their yes, per batch). `vs gen still|clip
+**5 · GENERATED SHOTS** (only textless mood moments nothing on the laptop can make). Stills: `vs gen still` runs on
+Codex with a ChatGPT plan, $0, no gate (`--engine kie` is the paid path and needs their yes). Clips: their yes, per batch; `vs gen clip
 …` prints the cost and stops → draft at 480p → `vs qa <clip> --clip` → LOOK → 720p only for the approved draft → QA
 again. Every generation gets a ledger row, kept or rejected, with why.
 

@@ -93,7 +93,7 @@ function draw() {
   }
   if (M().cues) out.push(row("Sound", M().cues.map((c) => pip(`dia${c.el === draft.sound?.el ? " sel" : ""}`, c.t, "", `data-t="${c.t}" data-cue="${esc(c.el)}" data-tip="${esc(c.el)} · ${fmt(c.t)}${c.db != null ? " · " + c.db + " dB" : ""} · click: hear it, answer it"`)).join(""), "grp"));
   out.push(row("QA", findings().map((f) => block(`qa ${f.severity} ${app.state?.findings[f.id]?.status || "open"}`, f.t0, Math.max(f.t1, f.t0 + 0.1), "⚠", `data-t="${f.at ?? f.t0}" data-finding="${esc(f.id)}" data-tip="${esc(f.check)}: ${esc(f.elements.join(" × ") || f.text)} · ${fmt(f.t0)}–${fmt(f.t1)}"`)).join(""), "grp"));
-  const CH = Object.values(app.state?.choices || {}).filter((c) => c.time);
+  const CH = Object.values(app.state?.choices || {}).filter((c) => c.time && !c.replaced_by);
   if (CH.length)
     out.push(row("Choices", CH.map((c) => {
       const a = "t" in c.time ? c.time.t : c.time.t0,

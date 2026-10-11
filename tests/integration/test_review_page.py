@@ -436,6 +436,62 @@ def test_decide_see_shows_an_option_and_pick_is_its_own_step(reel):
     r = run("review", "apply", "c-0001")
     assert "restored nothing" in r.stdout  # the project already is b (it was built last)
 
+def test_a_video_made_outside_the_kit_borrows_nothing_from_build(reel):
+    """A render with no timeline of its own (drawn by some other engine, dropped in as drafts/vN) must not wear the
+    project's last build: its findings, outlines and scenes are another composition's (a music video once opened with
+    33 findings from the project's old review card, and the wrong length on its timeline)."""
+    import shutil, urllib.request
+    d, url, run = reel
+    json.dump({"findings": 1, "fingerprint": "stale", "checked": "x", "range": [0, 9], "items": [
+        {"id": "f-fast-text-stale", "severity": "warning", "check": "fast-text", "elements": ["title/t_x"], "text": "stale",
+         "t0": 1.0, "t1": 2.0, "at": 1.5}]}, open(d / "build/findings.json", "w"))
+    os.makedirs(d / "drafts/v2")
+    shutil.copy(d / "drafts/v1/beat-reel-vertical-v1.mp4", d / "drafts/v2/beat-reel-vertical-v2.mp4")
+    r = run("review", "open", "--video", "drafts/v2/beat-reel-vertical-v2.mp4")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "finding(s) for the human" not in r.stdout
+    assert "stale" not in run("review", "show").stdout
+    ctx = json.loads(urllib.request.urlopen(url + "api/state").read())["context"]["round"]
+    assert ctx["version"] == 2 and ctx["timeline"] is None and ctx["elements"] is None and ctx["findings"] is None
+
+
+def test_decide_clips_run_in_step_and_switch_live(reel):
+    """Clip options (a cut each, with its own sound): a short one without --t is refused (it would play from 0:00,
+    against the wrong moment); both cuts run on the player's clock, shown or not, so a switch while playing is instant;
+    the cut on screen is the one heard; a better-made choice replaces an unpicked one."""
+    d, url, run = reel
+    tl = json.load(open(d / "build/timeline.json"))
+    os.makedirs(d / "media", exist_ok=True)
+    for name, freq, secs in (("a", 440, tl["end"]), ("b", 660, tl["end"]), ("short", 550, 2)):
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc2=s=216x384:d={secs}:r=30", "-f", "lavfi",
+                        "-i", f"sine=frequency={freq}:duration={secs}", "-shortest", "-c:v", "libx264", "-preset", "ultrafast",
+                        "-pix_fmt", "yuv420p", "-c:a", "aac", str(d / f"media/{name}.mp4")], check=True)
+    r = run("review", "offer", "Which cut?", "--option", "a=media/a.mp4", "--option", "s=media/short.mp4")
+    assert r.returncode != 0 and "would play from 0:00" in (r.stdout + r.stderr)
+    assert run("review", "offer", "Which cut?", "--option", "a=media/a.mp4", "--option", "b=media/b.mp4").returncode == 0
+    S = json.load(open(d / "review/state.json"))
+    assert [o["sound"] for o in S["choices"]["c-0001"]["options"]] == [True, True]
+    r = run("review", "offer", "Which cut, now with labels?", "--option", "a=media/a.mp4", "--option", "b=media/b.mp4",
+            "--label", "a=the first", "--replaces", "c-0001")
+    assert r.returncode == 0, r.stdout + r.stderr
+    S = json.load(open(d / "review/state.json"))
+    assert S["choices"]["c-0001"]["replaced_by"] == "c-0002"
+    assert "c-0001" not in run("review", "status").stdout and "c-0002" in run("review", "status").stdout
+    assert run("review", "offer", "Again?", "--option", "a=media/a.mp4", "--option", "b=media/b.mp4", "--replaces", "c-0001").returncode != 0
+    out = drive(url, "decide-clips")
+    assert out["cards"] == ["c-0002"]                                    # the replaced choice is gone from the page
+    a, flip, b, paused = out["a"], out["flip"], out["b"], out["paused"]
+    near = lambda s, k, tol: abs(s["clips"][k]["t"] - s["t"]) < tol
+    assert not a["paused"] and a["muted"]                                # a cut with its own sound: the round's steps aside
+    assert not a["clips"]["a.mp4"]["hidden"] and not a["clips"]["a.mp4"]["muted"] and not a["clips"]["a.mp4"]["paused"]
+    assert a["clips"]["b.mp4"]["hidden"] and a["clips"]["b.mp4"]["muted"] and not a["clips"]["b.mp4"]["paused"]  # in step, unseen
+    assert near(a, "a.mp4", 0.12) and near(a, "b.mp4", 0.12)
+    assert not flip["clips"]["b.mp4"]["hidden"] and not flip["clips"]["b.mp4"]["paused"] and near(flip, "b.mp4", 0.12)  # instant
+    assert not b["clips"]["b.mp4"]["muted"] and b["clips"]["a.mp4"]["muted"] and b["clips"]["a.mp4"]["hidden"]
+    assert near(b, "a.mp4", 0.1) and near(b, "b.mp4", 0.1)
+    assert paused["paused"] and all(c["paused"] for c in paused["clips"].values()) and near(paused, "b.mp4", 0.04)
+
+
 @pytest.fixture
 def explainer(tmp_path, font_studio):
     """The tiny explainer with a music take and two effects, mixed against a stand-in render: the Mix panel ducks live."""

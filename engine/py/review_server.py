@@ -48,6 +48,15 @@ def context(S):
     R = review.current(S)
     if not R:
         return ctx
+    if R.get("audio"):  # a round on a narration take: no picture and no maps, the take's words on the timeline
+        wj = re.sub(r"\.[a-z0-9]+$", ".words.json", R["video"])
+        tp = f"build/take/{R.get('take')}.timeline.json"
+        if not os.path.exists(tp):
+            review.take_timeline(R["video"])
+        ctx["round"] = {"video": url(R["video"]), "version": R["version"], "cut": R["cut"], "size": None, "audio": True,
+                        "take": R.get("take"), "timeline": url(tp), "elements": None, "findings": None, "cues": None, "qa": None,
+                        "comp": None, "words": url(wj) if os.path.exists(wj) else None, "exact": {}}
+        return ctx
     words = (vslib.read_json("plan.json") or {}).get("words")  # an explainer's clock: the narrator's words
 
     def shape(video, cut, size):
@@ -61,6 +70,8 @@ def context(S):
         def pick(name):
             if os.path.exists(f"{base}/{name}"):
                 return url(f"{base}/{name}"), True
+            if not vtl:
+                return None, False  # made outside the kit: the build's maps are another composition's
             F = vslib.read_json(f"build/{name}")
             if F:
                 return url(f"build/{name}"), bool(fp and F.get("fingerprint") == fp)
@@ -71,7 +82,7 @@ def context(S):
         comp = same and os.path.exists("build/comp/index.html")  # the composition that made this version, to hit-test
         return {
             "video": url(video), "version": n, "cut": cut, "size": size,
-            "timeline": url(f"{base}/timeline.json") if vtl else url("build/timeline.json") if btl else None,
+            "timeline": url(f"{base}/timeline.json") if vtl else None,   # never the build's: another composition's scenes and end
             "elements": els, "findings": fnd,
             "words": url(words) if words and os.path.exists(words) else None,
             "cues": url(f"{base}/cues.json") if os.path.exists(f"{base}/cues.json")

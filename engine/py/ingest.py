@@ -81,8 +81,11 @@ def ingest(p):
     to = a.to or ("library" if kind in ("sfx", "music", "logo") else "project")
     if to == "library" and not S: sys.exit("⛔ no studio yet (vs setup): the library lives in the studio")
     lib = lambda *x: os.path.join(S, "library", *x)
-    orig = keep_original(p, lib("originals") if to == "library" else "inputs")
-    note = {"note": a.note, "original": os.path.relpath(orig, S if to == "library" else "."), "source": "yours"}
+    # a bed already in the library becomes a take as it is: re-encoding it onto itself cut two winning beds to 1.4 s
+    # stubs and wiped their index entries (Oct 9, 2026)
+    reuse = kind == "music" and os.path.abspath(p) == os.path.abspath(lib("music", name + ".mp3"))
+    orig = None if reuse else keep_original(p, lib("originals") if to == "library" else "inputs")
+    note = {} if reuse else {"note": a.note, "original": os.path.relpath(orig, S if to == "library" else "."), "source": "yours"}
 
     if kind in ("image", "logo"):
         out_dir = lib("brand") if kind == "logo" else (lib("media") if to == "library" else "media")
@@ -127,14 +130,18 @@ def ingest(p):
     elif kind == "music":
         os.makedirs(lib("music"), exist_ok=True)
         out = lib("music", name + ".mp3")
-        sh("ffmpeg", "-v", "error", "-y", "-i", p, "-vn", "-c:a", "libmp3lame", "-b:a", "320k", out)
-        secs = probe(out)["secs"]
-        index_add(lib("music", "index.json"), name, {"kind": "music", "file": name + ".mp3", "secs": secs, "label": a.note or name, **note})
+        if reuse:
+            had = (vslib.read_json(lib("music", "index.json"), {}).get("items") or {}).get(name) or {}
+            secs, label = had.get("secs") or probe(out)["secs"], had.get("label") or name
+        else:
+            sh("ffmpeg", "-v", "error", "-y", "-i", p, "-vn", "-c:a", "libmp3lame", "-b:a", "320k", out)
+            secs, label = probe(out)["secs"], a.note or name
+            index_add(lib("music", "index.json"), name, {"kind": "music", "file": name + ".mp3", "secs": secs, "label": label, **note})
         if os.path.exists("reel.json") or os.path.exists("plan.json"):  # also this video's next take, for the mixer
             os.makedirs("music", exist_ok=True)
             n = 1 + max([int(f[4:-4]) for f in os.listdir("music") if re.fullmatch(r"take\d+\.mp3", f)] or [0])
             shutil.copy(out, f"music/take{n}.mp3")
-            t = vslib.read_json("music/takes.json"); t[f"take{n}"] = {"label": f"B yours · {name}", "secs": secs, "from": f"library/music/{name}.mp3"}
+            t = vslib.read_json("music/takes.json"); t[f"take{n}"] = {"label": label if reuse else f"B yours · {name}", "secs": secs, "from": f"library/music/{name}.mp3"}
             json.dump(t, open("music/takes.json", "w"), indent=1)
             print(f"music/take{n}.mp3 (the mixer's take {n})")
         print(out); return

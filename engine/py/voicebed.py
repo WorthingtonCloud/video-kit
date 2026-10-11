@@ -56,14 +56,20 @@ except ValueError as e: raise SystemExit(str(e))
 W, cut, start, off, first_act, end_prev, first_new = (sp[k] for k in ("words", "cut", "start", "off", "first_act", "end_prev", "first_new"))
 after = "cut2" in sp
 fc = f"[0]atrim=0:{cut},{fmt}[a];[1]atrim=start={start}{{END}},asetpts=PTS-STARTPTS,{fmt}[b];[a][b]acrossfade=d={X}"
-if after:   # a middle run: cut it after its last word, then the base picks up again before the next act
+if not prev:  # a run from the top: no base before it, so the take opens on the new run
+    fc = f"[1]atrim=start={start}{{END}},asetpts=PTS-STARTPTS,{fmt}"
+if after and not prev:
+    cut2, start2 = sp["cut2"], sp["start2"]
+    fc = fc.replace("{END}", f":end={cut2}") + f"[ab];[0]atrim=start={start2},asetpts=PTS-STARTPTS,{fmt}[c];[ab][c]acrossfade=d={X}"
+elif after:   # a middle run: cut it after its last word, then the base picks up again before the next act
     cut2, start2 = sp["cut2"], sp["start2"]
     fc = fc.replace("{END}", f":end={cut2}") + f"[ab];[0]atrim=start={start2},asetpts=PTS-STARTPTS,{fmt}[c];[ab][c]acrossfade=d={X}"
 fc = fc.replace("{END}", "") + ",apad=pad_dur=6[o]"
 json.dump(W, open(wout, "w"), indent=0)
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", a.base, "-i", a.take, "-filter_complex", fc, "-map", "[o]", "-c:a", "pcm_s16le", bed], check=True)
-print(f"act {first_act - 1} ends {end_prev:.2f}s · cut {cut:.2f}s · act {first_act} now starts {first_new + off:.2f}s · last word {W[-1]['t1']:.2f}s")
-joins = [end_prev] + ([max(w["t1"] for w in WN) + off] if after else [])
+print((f"act {first_act - 1} ends {end_prev:.2f}s · cut {cut:.2f}s · " if prev else "the new run opens the take · ")
+      + f"act {first_act} now starts {first_new + off:.2f}s · last word {W[-1]['t1']:.2f}s")
+joins = ([end_prev] if prev else []) + ([max(w["t1"] for w in WN) + off] if after else [])
 # the join, in 50 ms steps: the old word must fade out (to about -60 dB) BEFORE the cut, never be chopped mid-word
 for j in joins:
     raw = subprocess.run(["ffmpeg", "-v", "error", "-i", bed, "-ss", str(max(0, j - 0.5)), "-t", "1.4", "-ac", "1", "-f", "f32le", "-"], capture_output=True).stdout

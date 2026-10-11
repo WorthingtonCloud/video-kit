@@ -4,7 +4,8 @@
 |---|---|---|
 | Music, 2 takes ~45 s | kie.ai Suno V6 | $0.06 |
 | Music extend | kie.ai Suno | $0.06 |
-| Still | kie.ai Seedream 5 Pro | ~$0.07–0.14 |
+| Still | Codex on a ChatGPT plan (`vs gen still`, the default since Oct 11, 2026) | free (draws the plan's usage limit) |
+| Still, paid path | kie.ai Seedream 5 Pro (`--engine kie`) | ~$0.07–0.14 |
 | 5 s clip, 480p draft | Higgsfield Seedance 2.5 | ~$1.03 |
 | 5 s clip, 720p final | Higgsfield Seedance 2.5 | ~$2.31 |
 | Drawn scenes, page recordings, your own footage, the library, Review Studio | the laptop | free |

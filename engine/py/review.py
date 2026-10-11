@@ -44,10 +44,13 @@ source file (mix.json is the one exception, as in the mixer: a level set by ear 
                                         keep what's built now (inspected, no open errors) as build/variants/<id>/: an
                                         option the human plays live in Decide, with the sources that made it
   vs review offer "<question>" --option a --option b [--option c=take:2 | c=media/x.png] [--label a="…"]
-                  [--paid c='gen still --prompt "…" --out media/c.png'] [--t 21 25] [--for <note>]
+                  [--paid c='gen still --prompt "…" --out media/c.png'] [--t 21 25] [--for <note>] [--replaces <choice>]
                                         a choice to pick from (Decide). An option is a variant (its id), a music take, or a
                                         picture/clip/sound; --paid prices one through its step's spend gate (nothing spent
-                                        until it's picked). --for answers a note with it (the note waits for the pick)
+                                        until it's picked). --for answers a note with it (the note waits for the pick).
+                                        A clip or sound plays on the round's clock from --t's start (0:00 without it), so
+                                        one shorter than the round's video needs --t; a clip with its own soundtrack plays
+                                        its own sound. --replaces retires an unpicked choice this one supersedes
   vs review cover <card> --by <note> [--as fix|leave] [--pick <option>] [--why "…"]
                                         the person's note already speaks to a card still open in the inbox (an answer
                                         waiting to be accepted, a choice, a finding): the card closes with their words
@@ -320,7 +323,8 @@ def _step(S, e, seq, pending):
     t, R, at = e["type"], current(S), e.get("at")
     x = {}
     if t == "round.opened":
-        text = f"Round {R['n']} opened on v{R['version']}" + (" (widescreen)" if R.get("cut") == "16x9" else "")
+        text = (f"Round {R['n']} opened on take {R.get('take')} (the voice)" if R.get("audio")
+                else f"Round {R['n']} opened on v{R['version']}" + (" (widescreen)" if R.get("cut") == "16x9" else ""))
         x = {"version": R["version"]}
     elif t == "note.added":
         n = S["notes"][e["note"]["id"]]
@@ -498,6 +502,7 @@ def apply(S, e):
                             **({"cuts": e["cuts"]} if e.get("cuts") else {}), **({"kept": e["kept"]} if e.get("kept") else {}),
                             "size": e.get("size"), "status": "open", "opened": at, "sent": None, "notes": [],
                             "asked": e.get("asked", []), "stage": e.get("stage"), "sends": 0, "last_sent": None,
+                            **({"audio": True, "take": e.get("take")} if e.get("audio") else {}),
                             "read": None, "read_sends": 0})
         if e.get("stage"):
             S["_marks"].append((at, e["stage"]))
@@ -680,6 +685,11 @@ def apply(S, e):
             need(n, WAITING | {"question"}, "answered with a choice")
             n["status"] = "question"
             thread(n, f"{c['id']}: {c.get('question')}", "choice")
+        if c.get("replaces"):  # a better-made choice takes an unpicked one's place (it never asks twice)
+            old = found(S["choices"], {"id": c["replaces"]}, "choice")
+            if old.get("picked") or old.get("replaced_by"):
+                raise Refused(f"{old['id']} is already {'picked' if old.get('picked') else 'replaced'}: nothing to replace")
+            old["replaced_by"] = c["id"]
         c.update(picked=None, offered=at, round=R and R["n"], picks=[], applied=None)
         S["choices"][c["id"]] = c
     elif t == "choice.made":
@@ -1026,6 +1036,13 @@ def cut_video(R, cut):
 _probes = {}
 
 
+def _media_info(path):
+    """A clip or sound option: its length, and whether it has an audio stream."""
+    j = json.loads(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type:format=duration", "-of", "json", path],
+                                  capture_output=True, text=True, check=True).stdout)
+    return {"dur": round(float(j["format"]["duration"]), 3), "sound": any(s.get("codec_type") == "audio" for s in j.get("streams", []))}
+
+
 def probe(video):
     if video not in _probes:
         out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries",
@@ -1057,7 +1074,9 @@ def newest_video():
 def inspected(base, fingerprint):
     """The findings vs inspect wrote for this version: its archive (drafts/vN/data/<shape>/), else the build's own if it's
     the same composition. None when nobody can tell."""
-    for f in (f"{base}/findings.json", "build/findings.json"):
+    # a render with no timeline of its own (a video made outside the kit) borrows nothing from build/: those are some
+    # other composition's (Oct 11, 2026: a music video drew 33 findings from the project's old review card)
+    for f in (f"{base}/findings.json",) + (("build/findings.json",) if fingerprint else ()):
         F = vslib.read_json(f)
         if F and (not fingerprint or F.get("fingerprint") == fingerprint):
             return F
@@ -1067,7 +1086,7 @@ def inspected(base, fingerprint):
 def element_map(base, fingerprint):
     """The element map vs inspect made for this version: its archive, else the build's own if it's the same
     composition. None when there's none to trust."""
-    for f in (f"{base}/elements.json", "build/elements.json"):
+    for f in (f"{base}/elements.json",) + (("build/elements.json",) if fingerprint else ()):   # (as inspected())
         E = vslib.read_json(f)
         if E and (not fingerprint or E.get("fingerprint") == fingerprint):
             return E
@@ -1515,6 +1534,8 @@ def frames_for(S, events):
             continue
         n = S["notes"][nid]
         R = S["rounds"][n["round"] - 1]
+        if R.get("audio"):
+            continue  # a take has no picture: the words at the note's moment stand in (vs review show)
         try:
             made.append(make_frame(n, cut_video(R, n.get("cut") or R["cut"])))
         except Exception as x:
@@ -1635,7 +1656,9 @@ def show(args):
         notes = [n for n in S["notes"].values() if (n["round"] == R["n"] or n["status"] in WAITING | {"question", "resolved", "wontdo"}) and n["status"] not in ("withdrawn", "draft")]
         sends = R.get("sends") or 0
         both = " + ".join(f"{c['cut']} {c['video']}" for c in R["cuts"]) if R.get("cuts") else f"({R['cut']}) · {R['video']}"
-        print(f"Round {R['n']} · v{R['version']} {both} · {R['status']}"
+        if R.get("audio"):
+            both = f"take {R.get('take')} (the voice) · {R['video']}"
+        print(f"Round {R['n']} · {'' if R.get('audio') else 'v' + str(R['version']) + ' '}{both} · {R['status']}"
               + (f" {(R['last_sent'] or R['sent'])[:16].replace('T', ' ')}" if R["sent"] else "")
               + (f" ({sends} sends)" if sends > 1 else "") + f" · {len(notes)} note(s)" + (f" · stage: {R['stage']}" if R.get("stage") else ""))
         H = state("human")
@@ -1656,6 +1679,12 @@ def show(args):
             print(f"  mark: {' · '.join(mk)}")
         if n.get("step"):
             print(f"  about their step: {n['step'].get('text')}" + (f" ({n['step']['at'][:16].replace('T', ' ')})" if n["step"].get("at") else ""))
+        NR = S["rounds"][n["round"] - 1]
+        if NR.get("audio"):
+            tm = n["time"]
+            heard = _words_at(NR, tm.get("t", tm.get("t0", 0))) if "t" in tm else _words_at(NR, (tm["t0"] + tm["t1"]) / 2, (tm["t1"] - tm["t0"]) / 2 + 0.6)
+            if heard:
+                print(f"  heard: …{heard}…")
         if (n.get("comment") or "").strip():
             print(f"  “{n['comment'].strip()}”")
         if n.get("ask") or (n.get("scope") or "here") != "here":
@@ -1706,6 +1735,8 @@ def show(args):
                         "ignore": "→ ignored (never asked again)"}[lz["decision"]]
                 print(f"\nlesson {lz['id']} {lz['decision']}: {lz['tag']} \u201c{lz['text']}\u201d {todo}")
         for c in S["choices"].values():
+            if c.get("replaced_by"):
+                continue  # a newer choice asks it
             if c.get("applied") and c["applied"]["pick"] == c.get("picked"):
                 continue
             opts = " · ".join(f"{o['id']} {o.get('label') or o['kind']}" for o in c["options"])
@@ -1751,7 +1782,7 @@ def open_cards(S):
         if n["status"] in feedback.ANSWERED and feedback.acceptance(n, S["notes"]) == "pending" and not n.get("covered"):
             out.append((i, f"your answer to “{_q((n.get('comment') or '').strip(), 50)}”: {_q((n.get('resolution') or {}).get('said') or '', 70)}"))
     for c in S["choices"].values():
-        if not c.get("picked") and not c.get("covered"):
+        if not c.get("picked") and not c.get("covered") and not c.get("replaced_by"):
             out.append((c["id"], f"choice: {c['question']} ({' · '.join(o['id'] for o in c['options'])})"))
     for f in round_findings(S):
         if f["id"] not in S["findings"]:
@@ -1805,10 +1836,79 @@ def measure_note(n, old, new, E, size, cues):
     return m
 
 
+AUDIO = (".mp3", ".wav", ".m4a")
+
+
+def _take_of(path):
+    """voice/narration-<tag>.mp3 → <tag> (any other audio file: its name)."""
+    b = os.path.splitext(os.path.basename(path))[0]
+    return b[len("narration-"):] if b.startswith("narration-") else b
+
+
+def open_take(args, take):
+    """A round on a narration take, before there's a picture: the human listens on the same page, pins notes to moments
+    in the audio, and sends them like any round (a reviewer, Oct 9, 2026: "I should be able to pick a point in the audio
+    and provide feedback and send it to you like I do with video"). No picture, so no checks, maps or stills; the take's
+    word timings (voice/narration-<tag>.words.json) put the words on the timeline and beside each note."""
+    stage = args.stage or "voice"
+    kind = "explainer" if os.path.exists("plan.json") else "reel"
+    if stage not in STAGES[kind]:
+        raise Refused(f"no stage {stage!r} for a {kind}: {', '.join(STAGES[kind])}")
+    cut = vslib.SHAPES.get(vslib.active_shape(), "9x16")
+    take_timeline(take)
+    S, _ = append([{"type": "round.opened", "version": 0, "cut": cut, "video": take, "size": None, "audio": True,
+                    "take": _take_of(take), "asked": [], "stage": stage}], "agent")
+    R = current(S)
+    print(f"round {R['n']} open on take {R['take']} (the voice, no picture yet): {take} · stage: {stage}")
+    print(server_line())
+
+
+def take_timeline(take):
+    """build/take/<tag>.timeline.json: the take's acts as the timeline's scenes (named from narration.txt's "# N title"
+    lines) and its words as the voice row, so the page's timeline, the act at the playhead and each note's act work on a
+    take the way they do on a render. → its path."""
+    W = vslib.read_json(re.sub(r"\.[a-z0-9]+$", ".words.json", take)) or []
+    out = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", take],
+                         capture_output=True, text=True, check=True).stdout
+    end = float(json.loads(out)["format"]["duration"])
+    names = {}
+    if os.path.exists("narration.txt"):
+        for line in open("narration.txt"):
+            m = re.match(r"#\s*(\d+)\s+(.+)", line.strip())
+            if m:
+                names[int(m.group(1))] = m.group(2).strip()
+    acts = {}
+    for w in W:
+        a = acts.setdefault(w.get("act"), [w["t0"], w["t1"]])
+        a[1] = max(a[1], w["t1"])
+    order = sorted(acts, key=lambda a: acts[a][0])
+    segs = []
+    for i, a in enumerate(order):
+        t0 = 0.0 if i == 0 else acts[a][0]
+        t1 = acts[order[i + 1]][0] if i + 1 < len(order) else end
+        segs.append({"name": f"act {a}" + (f" · {names[a]}" if a in names else ""), "t0": round(t0, 3), "t1": round(t1, 3), "kind": "act"})
+    tl = {"timeline": 1, "take": _take_of(take), "fps": 30, "end": end, "segments": segs, "titles": [],
+          "voice": [{"act": a, "t0": acts[a][0], "t1": acts[a][1], "el": f"act {a}"} for a in order]}
+    path = f"build/take/{_take_of(take)}.timeline.json"
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(tl, f, indent=1)
+    return path
+
+
+def _words_at(R, t, span=1.2):
+    """A take round: the words spoken around a moment (from the take's word timings), so a note reads in the script's terms."""
+    W = vslib.read_json(re.sub(r"\.[a-z0-9]+$", ".words.json", R["video"])) or []
+    near = [w for w in W if w["t1"] >= t - span and w["t0"] <= t + span]
+    return (f"act {near[0].get('act')}: " if near and near[0].get("act") else "") + " ".join(w["w"] for w in near)
+
+
 def open_round(args):
     video = args.video or newest_video()
     if not os.path.exists(video):
         raise Refused(f"{video} doesn't exist")
+    if video.lower().endswith(AUDIO):
+        return open_take(args, video)
     version, base = version_of(video)
     W, H, _ = probe(video)
     cut = "16x9" if W > H else "9x16"
@@ -1851,6 +1951,8 @@ def open_round(args):
     measured = []
     for n in S0["notes"].values():
         if n["status"] in ("resolved", "wontdo") and not n.get("measured") and feedback.phase(n, S0["notes"])[0] != "closed":
+            if S0["rounds"][n["round"] - 1].get("audio"):
+                continue  # a note on a voice take: its fix is a new take, heard, not measured in a picture
             nc = n.get("cut") or cut
             if nc not in maps:
                 print(f"⚠️  {n['id']} is about the {'widescreen' if nc == '16x9' else 'vertical'} cut, not in this round: not measured")
@@ -2560,6 +2662,15 @@ def offer(args):
                 opt["timing"] = diff
         elif os.path.isfile(v) and os.path.splitext(v)[1].lower() in MEDIA:
             opt.update(kind=MEDIA[os.path.splitext(v)[1].lower()], preview=v)
+            if opt["kind"] in ("video", "audio"):
+                # how long it runs and whether it carries sound: a clip that brings its own soundtrack plays it (the
+                # human hears the option, not the round), and a short one has to say where it sits on the round's clock
+                m = _media_info(v)
+                opt.update(dur=m["dur"], sound=m["sound"])
+                rdur = probe(R["video"])[2] if R and R.get("video") and os.path.exists(R["video"]) and not R["video"].lower().endswith(AUDIO) else None
+                if not args.t and rdur and m["dur"] < rdur - 1.0:
+                    raise Refused(f"option {k}: {v} runs {m['dur']:.1f} s and the round's video {rdur:.1f} s: without --t it would "
+                                  "play from 0:00, against the wrong moment. Say where it starts: --t <start> [<end>]")
             sp = _spent_on(v)
             if sp:
                 opt["cost"] = sp
@@ -2579,6 +2690,8 @@ def offer(args):
         c["time"] = {"t0": args.t[0], "t1": args.t[1]} if len(args.t) > 1 else {"t": args.t[0]}
     if getattr(args, "for_", None):
         c["for"] = args.for_
+    if getattr(args, "replaces", None):
+        c["replaces"] = args.replaces
     S, new = append([{"type": "choice.offered", "choice": c}], "agent")
     print(f"{new[0]['choice']['id']}: offered ({len(opts)} options: "
           + ", ".join(f"{o['id']} {o['kind']}" + (f" ({o['label']})" if o.get("label") else "") for o in opts) + ")")
@@ -2653,7 +2766,7 @@ def main():
     p = sub.add_parser("propose"); p.add_argument("tag"); p.add_argument("text"); p.add_argument("--to", choices=list(DEST))
     f = sub.add_parser("offer"); f.add_argument("question"); f.add_argument("--option", action="append", required=True)
     f.add_argument("--t", nargs="+", type=float); f.add_argument("--label", action="append")
-    f.add_argument("--paid", action="append"); f.add_argument("--for", dest="for_")
+    f.add_argument("--paid", action="append"); f.add_argument("--for", dest="for_"); f.add_argument("--replaces")
     v = sub.add_parser("variant"); v.add_argument("id"); v.add_argument("label", nargs="?")
     v.add_argument("--anyway", action="store_true"); v.add_argument("--replace", action="store_true")
     ap_ = sub.add_parser("apply"); ap_.add_argument("choice")

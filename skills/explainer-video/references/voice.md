@@ -19,9 +19,12 @@ picture.
 4. Too long for its slot? `vs fit --take voice/narration-<tag>.mp3 --secs N --out <tag>`: shorter pauses first, then a
    faster read, with the word timings moved along. `--pause none` keeps comic timing; `--rush "act:first..last#n"`
    speeds a list alone.
-5. `vs listen take.mp3="a label" …` puts the takes on the review page: there's no round yet, so the listening view sits
-   where the video goes, on the same address the human will use for every round. You can't hear: say so, and let
-   them pick.
+5. `vs listen take.mp3="a label" …` puts the takes and the script on the review page, on the same address the human will
+   use for every round. Then **open a round on the take**: `vs review open --video voice/narration-<tag>.mp3` (stage
+   `voice`). The take plays through the page's own player: the script sits where the picture goes and lights up act by
+   act, the words are on the timeline, and the human pins notes to moments (or drag a range) and sends them like any
+   round. `vs review wait` → `vs review show` prints each note with the words heard at that moment. You can't hear: say
+   so, and let them judge. Two takes to compare: one round per take, or ask in chat which to open.
 6. The approved take: `vs voicebed --take voice/narration-<tag>.mp3 --out <tag>` → the voice bed and its word timings
    for `plan.json`.
 

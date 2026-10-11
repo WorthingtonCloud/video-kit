@@ -23,9 +23,18 @@ def test_a_splice_from_the_middle_keeps_the_later_acts():
     assert sp["cut2"] == 1.8 and sp["start2"] == 3.7
 
 
-def test_a_splice_needs_an_act_before_it():
+def test_a_splice_from_the_top_opens_the_take_and_keeps_the_rest():
+    # a calmer open re-recorded as acts 1-2 was refused: "the base has no acts before act 1" (Oct 9, 2026)
+    sp = vslib.splice_plan(BASE, W(1, (0.5, 0.9)) + W(2, (1.0, 1.6)))
+    assert sp["cut"] == 0 and sp["start"] == 0.2 and sp["off"] == -0.2
+    assert [w["act"] for w in sp["words"]] == [1, 2, 3] and sp["words"][0]["t0"] == pytest.approx(0.3)
+    assert sp["cut2"] == 1.8 and sp["start2"] == 3.7
+    assert sp["words"][-1]["t0"] == pytest.approx(4.0 + sp["off2"])
+
+
+def test_a_run_that_is_the_whole_take_is_not_a_splice():
     with pytest.raises(ValueError):
-        vslib.splice_plan(BASE, W(1, (0.1, 0.4)))
+        vslib.splice_plan(W(1, (0.2, 0.6)), W(1, (0.1, 0.4)))
 
 
 def test_every_effect_is_named_by_what_its_pinned_to():

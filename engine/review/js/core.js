@@ -151,7 +151,11 @@ export function render() {
     C = app.ctx;
   $("#proj").textContent = C.project;
   document.title = `${C.project} · Review Studio`;
-  $("#dsub").textContent = R ? `Round ${R.n} · v${R.version} · ${shapeName(R.cut)}${cuts() ? " (both shapes in this round)" : ""}` : "no round open";
+  $("#dsub").textContent = R
+    ? R.audio
+      ? `Round ${R.n} · take ${R.take} · the voice`
+      : `Round ${R.n} · v${R.version} · ${shapeName(R.cut)}${cuts() ? " (both shapes in this round)" : ""}`
+    : "no round open";
   const sh = $("#shapes"),
     cs = cuts();
   sh.hidden = !cs;
