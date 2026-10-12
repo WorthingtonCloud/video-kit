@@ -24,7 +24,19 @@
     "type": "number"
    },
    "from": {
-    "type": "string"
+    "type": "string",
+    "description": "reused from the studio's library/music (vs learn files a win on that item and copies nothing)"
+   },
+   "style": {
+    "type": [
+     "string",
+     "null"
+    ],
+    "description": "the direction it was made in, when known"
+   },
+   "extended_from": {
+    "type": "string",
+    "description": "vs music extend: the take (or library bed) this one was grown from"
    }
   }
  }

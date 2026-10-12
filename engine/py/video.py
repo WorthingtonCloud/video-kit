@@ -100,6 +100,11 @@ def next_step(V):
         if ap and vslib.parse_draft(ap)["v"] >= x["v"]:
             return f"vs shape {vslib.other_shape(first)} (the {first} is approved), or vs finish --one-shape"
         return f"review v{x['v']}: vs review open, then vs review wait (the human approves or sends notes)"
+    fa = approved(first)
+    if fa and vslib.parse_draft(fa)["v"] > x["v"]:
+        # the other shape's newest draft is an older version's (a reopened video keeps its old wide cut): the round
+        # still holds only the approved first shape, so "every shape is approved" would send it to finish one-legged
+        return f"vs build (the {building} of v{vslib.parse_draft(fa)['v']}: its newest is v{x['v']})"
     ready, checks, _ = review_mod().exit_state() if os.path.exists("review/log.jsonl") else (False, [], 0)
     if ready:
         return "vs finish (every shape in the round is approved)"
@@ -166,6 +171,9 @@ def file_into(src, dst, dry):
     return "filed"
 
 
+SOUND_SOURCES = ("cues.py", "mix.json", "music.json", "sfx.json")  # written in the sound stage, after the render
+
+
 def finish(a):
     V, S = state(), vslib.studio_root() or sys.exit("⛔ no studio (vs setup): finals live in one")
     if V["status"] == "done":
@@ -209,6 +217,16 @@ def finish(a):
         R.finish(argparse.Namespace(final=[have[s] for s in need]))
     except R.Refused as e:
         sys.exit(f"⛔ the finals are filed, but the review couldn't close: {e}. Fix that, then vs finish again")
+    # the sound is settled AFTER the picture's render (cues.py, the saved mix), so the render's source snapshot holds
+    # the picture-stage files only. Refresh the final's snapshot with what made the approved mix, or a later vs reopen
+    # "restores" a pre-sound cues.py and sets the saved mix aside: a reopened explainer lost its whole effects pass
+    # and the page went on showing a stale saved take.
+    for s_, f in have.items():
+        src = os.path.join(vslib.data_dir(f), "source")
+        if os.path.isdir(src):
+            for x in SOUND_SOURCES:
+                if os.path.exists(x):
+                    shutil.copy2(os.path.realpath(x), os.path.join(src, x))
     V["status"] = "done"
     if a.one_shape:
         V["one_shape"] = True

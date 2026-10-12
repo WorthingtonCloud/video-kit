@@ -11,6 +11,9 @@ overshoots it: -2 read -0.1 dBTP after encoding; -3 reads about -1.8). Every oth
   track (`vs ingest <file> --as music`: the next take), or `vs music` (Suno V6 on kie.ai, 12 credits = 2 takes of ~3
   minutes per direction; the directions come from the profile, `music.json` overrides). Never ominous; no vocals, no
   lead melody. Make sure the take is longer than the video (Suno honors `duration: 180`).
+- A take shorter than the video (a re-cut that grew): `vs music extend <take> --to <secs>` (free) plays one run of whole
+  bars from the middle twice, on downbeats, and writes the next take beside it; the intro and the outro stay put.
+  `--from <secs>` picks the run's start by ear. Listen to both joins before the mix.
 - ⚠️ A take's `audio_url` once served a truncated file twice; `music.py` decodes every download end to end and falls back
   to the `stream_audio_url`.
 - Generated music is for the user's own videos; whether it may be redistributed depends on the vendor's terms.

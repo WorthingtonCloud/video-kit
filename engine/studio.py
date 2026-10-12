@@ -70,8 +70,9 @@ SELF_HELP = {  # the steps studio.py runs itself
             "  every file it makes (lowercase words and hyphens). --shape is the one it starts in: the other is made once\n"
             "  that one is approved (vs shape). The studio's profile fills in the look, the narrator and the levels;\n"
             "  anything the project's plan.json or reel.json sets overrides it. vs protocol files: the whole path."),
-    "where": ("vs where\n"
-              "  The kit, the studio, this project, and what the profile has settled (brand, narrator, mix, videos)."),
+    "where": ("vs where [studio | lessons | profile]\n"
+              "  The kit, the studio, this project, and what the profile has settled (brand, narrator, mix, videos).\n"
+              "  With a word: that one path alone (vs where lessons → the studio's lessons.md)."),
     "spent": "vs spent [--all]\n  What this video (or every video) has cost, per vendor, from the studio's ledger.csv.",
     "protocol": ("vs protocol [review | studio | files]\n"
                  "  The rules every skill follows, printed from engine/protocol/: review = how a version is handed to the human\n"
@@ -313,8 +314,13 @@ def new(args):
           f"  the studio's profile fills in the look, the narrator and the levels; anything set in {os.path.basename(f)} overrides it")
 
 
-def where():
+def where(args=()):
     s, pr = vslib.studio_root(), vslib.profile()
+    # one path alone, for a script or a helper agent (the checker parsed the summary below and missed lessons.md)
+    if args[:1] in (["studio"], ["lessons"], ["profile"]):
+        if not s:
+            sys.exit("⛔ no studio yet (vs setup)")
+        return print({"studio": s, "lessons": os.path.join(s, "lessons.md"), "profile": os.path.join(s, "profile.json")}[args[0]])
     print(f"kit      {KIT}\nstudio   {s or '— none yet (vs setup)'}\nproject  {project_dir(None) or '— (not in one)'}")
     b = pr.get("brand", {})
     print(f"brand    accent {b.get('palette', {}).get('accent')} · {b.get('font', {}).get('family')} / {b.get('mono', {}).get('family')} · end card {b.get('endcard', {}).get('wordmark', '—')}")
@@ -380,7 +386,7 @@ def main():
             rest = rest[:i] + rest[i + 2:]
     if cmd == "setup": return setup(rest)
     if cmd == "new": return new(rest)
-    if cmd == "where": return where()
+    if cmd == "where": return where(rest)
     if cmd == "test": return run_tests(rest)
     if cmd == "protocol": return protocol(rest)
     if cmd not in CMD: sys.exit(f"⛔ unknown step {a[0]!r}{near(a[0])}: vs help lists them")

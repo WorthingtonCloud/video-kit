@@ -41,7 +41,7 @@ Call `vs` by its full path every time (shell variables don't carry between calls
    a line through words, a shape at the wrong size). On a vertical cut, phones hide the top status bar, the sides and
    the button rail on the right: words there are a problem.
 5. Before you start, read the human's Picture rules once: the `## Picture` section of the studio's `lessons.md`
-   (`<vs> where` prints the studio). A still that breaks one of those rules is a problem even if no check flags it.
+   (`<vs> where lessons` prints its path). A still that breaks one of those rules is a problem even if no check flags it.
 
 Never edit a source file (`scenes.js`, `plan.json`, `reel.json`, `cues.py`, anything outside `build/`), never run
 `vs build` without `--no-render`, never run a paid step (`narrate`, `music`, `sfx`, `gen`, `check-take`, `ingest`

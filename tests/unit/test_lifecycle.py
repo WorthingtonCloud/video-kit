@@ -76,6 +76,10 @@ def test_the_happy_path_and_back(studio, monkeypatch):
     review.append([{"type": "version.approved", "version": 1, "cut": "9x16", "video": w1}], H)
     assert "vs finish" in vs(d, "status").stdout
 
+    # the sound stage comes after the render: its files aren't in the render's snapshot yet
+    (d / "cues.py").write_text("# the effects pass\n")
+    (d / "mix.json").write_text(json.dumps({"take": 3, "music_db": -17}))
+
     # finish: finals/<video>/ and latest/<video>/, named by the kit
     r = vs(d, "finish")
     assert r.returncode == 0, r.stdout + r.stderr
@@ -100,6 +104,9 @@ def test_the_happy_path_and_back(studio, monkeypatch):
     r = vs(studio, "reopen", "demo")
     assert r.returncode == 0, r.stderr
     assert (d / "scenes.js").read_text() == "// the scenes\n"
+    # the sound that made the final comes back with it (a reopen used to restore the pre-sound cues.py and drop mix.json)
+    assert (d / "cues.py").read_text() == "# the effects pass\n"
+    assert json.load(open(d / "mix.json"))["take"] == 3
     aside = [x for x in os.listdir(d / "drafts") if x.startswith("reopened-")]
     assert len(aside) == 1 and (d / "drafts" / aside[0] / "scenes.js").read_text() == "// an experiment nobody approved\n"
     V = json.load(open(d / "video.json"))
@@ -110,7 +117,9 @@ def test_the_happy_path_and_back(studio, monkeypatch):
     # the next final replaces the one in latest/, and finals/ keeps both
     v2 = render(d, "vertical", 2)
     approve(v2, "9x16", 2)
-    assert vs(d, "shape", "widescreen").returncode == 0
+    r = vs(d, "shape", "widescreen")
+    assert r.returncode == 0
+    assert "vs build (the widescreen of v2" in r.stdout  # its v1 doesn't count: never "vs finish" one-legged
     w2 = render(d, "widescreen", 2)
     approve(w2, "16x9", 2)
     review.append([{"type": "version.approved", "version": 2, "cut": "9x16", "video": w2}], H)

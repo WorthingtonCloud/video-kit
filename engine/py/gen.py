@@ -2,13 +2,13 @@
 """Paid generation: music, stills, and short video clips. Every call is gated and logged.
 
     vs gen music --style "…" [--negative "…"] [--title "…"] [--duration 45]
-    vs gen extend --audio-id <id> --at <s> --lyrics <file> --style "…" [--negative "…"] [--title "…"] [--out music/x]
+    vs gen extend --audio-id <id> --at <s> (--lyrics <file> | --instrumental) --style "…" [--negative "…"] [--title "…"] [--out music/x]
                                                    Suno continues an existing song from <s> seconds with new words
                                                    (same singer, tempo and key): a changed lyric, a radio edit
     vs gen stems  --task-id <id> --audio-id <id> --out stems/<name>
                                                    a Suno take split into 12 stems (vocals, backing vocals, drums …)
     vs gen still --prompt "…" --out stills/x.png [--ar 9:16] [--ref stills/y.png] [--engine codex|kie]
-    vs gen clip  --image stills/x.png --prompt "…" --out clips/x_480p.mp4 [--res 480p|720p] [--dur 5] [--via higgsfield|kie]
+    vs gen clip  --image stills/x.png [--end stills/y.png] --prompt "…" --out clips/x_480p.mp4 [--res 480p|720p] [--dur 5] [--via higgsfield|kie]
     vs gen spent                                   total spend so far, from ledger.csv
 
 Every call goes through the spend gate (vslib.gate): without --yes it only prints the estimated cost and this video's
@@ -175,10 +175,11 @@ ap = argparse.ArgumentParser()
 ap.add_argument("cmd", choices=["music", "extend", "stems", "still", "clip", "spent"])
 ap.add_argument("--audio-id"); ap.add_argument("--task-id"); ap.add_argument("--at", type=float); ap.add_argument("--lyrics")
 ap.add_argument("--vocal-gender", choices=["m", "f"])
+ap.add_argument("--instrumental", action="store_true", help="extend: continue an instrumental take (no --lyrics)")
 ap.add_argument("--style"); ap.add_argument("--negative", default="vocals, singing, lyrics, horror, ominous, eerie")
 ap.add_argument("--title", default="reel bed"); ap.add_argument("--duration", type=int, default=45)
 ap.add_argument("--prompt"); ap.add_argument("--out"); ap.add_argument("--ar", default="9:16"); ap.add_argument("--ref")
-ap.add_argument("--image"); ap.add_argument("--res", default="480p"); ap.add_argument("--dur", type=int, default=5)
+ap.add_argument("--image"); ap.add_argument("--end", help="clip (higgsfield): the image the clip must END on"); ap.add_argument("--res", default="480p"); ap.add_argument("--dur", type=int, default=5)
 ap.add_argument("--via", default="higgsfield", choices=["higgsfield", "kie"])
 ap.add_argument("--engine", default="codex", choices=["codex", "kie"], help="stills only: codex ($0, ChatGPT plan) or kie (paid)")
 ap.add_argument("--yes", action="store_true"); ap.add_argument("--over", action="store_true")
@@ -212,16 +213,16 @@ elif a.cmd == "extend":
     # Suno "extend": the take is kept up to --at, then continues with these words, conditioned on what came before,
     # so the singer, tempo and key carry over. The fix for a changed lyric: replace-section ignored new words twice
     # (Oct 10, 2026). Audio ids expire 14 days after the take was made.
-    if not (a.audio_id and a.at and a.lyrics and a.style):
-        sys.exit("--audio-id, --at, --lyrics (a file) and --style are required")
-    words = open(a.lyrics, encoding="utf-8").read().strip()
-    if a.negative == ap.get_default("negative"):
+    if not (a.audio_id and a.at and a.style and (a.lyrics or a.instrumental)):
+        sys.exit("--audio-id, --at, --style and --lyrics (a file) or --instrumental are required")
+    words = "" if a.instrumental else open(a.lyrics, encoding="utf-8").read().strip()
+    if a.negative == ap.get_default("negative") and not a.instrumental:
         sys.exit("--negative is required for extend: pass the source take's own negative tags (the music default bans vocals)")
-    gate("kie.ai", "Two takes continuing the song with new words (Suno V6 extend)", a, credits=12,
+    gate("kie.ai", "Two takes continuing the " + ("instrumental" if a.instrumental else "song with new words") + " (Suno V6 extend)", a, credits=12,
          cap_key="kie_credits_per_video", scope="music")
     inp = {"audio_id": a.audio_id, "model": "V6", "continue_at": a.at, "lyrics": words, "style": a.style[:1000],
            "title": a.title, "negative_tags": a.negative[:201].rsplit(",", 1)[0] if len(a.negative) > 200 else a.negative,
-           "instrumental": False}   # extend refuses negative tags over 200 characters (422, unbilled)
+           "instrumental": bool(a.instrumental)}   # extend refuses negative tags over 200 characters (422, unbilled)
     if a.vocal_gender:
         inp["vocal_gender"] = a.vocal_gender
     tid = kie_task("ai-music-api/extend", inp)
@@ -295,6 +296,8 @@ elif a.cmd == "clip":
         est = h * round(h * 16 / 9) * a.dur * 24 / 1024 / 1000 * 0.0214
         gate("higgsfield", f"One {a.dur}s {a.res} clip (Seedance 2.5; the shape follows the input image)", a, usd=round(est, 2))
         body = {"image_url": host(a.image), "prompt": a.prompt, "duration": a.dur, "resolution": a.res, "generate_audio": False}
+        if a.end:   # Seedance 2.5 lands on this frame (first = last loops cleanly; Oct 7, 2026)
+            body["end_image_url"] = host(a.end)
         r = call(HF, body, {"Authorization": f"Key {key('HIGGSFIELD_API_KEY')}"})
         rid = r.get("request_id") or r.get("id")
         print(f"submitted {rid}", flush=True)

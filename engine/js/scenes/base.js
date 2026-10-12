@@ -155,6 +155,18 @@ function exRing(parent, t0, x, y, r1 = 160, dur = 0.7, col = P.accent, name = ""
   });
 }
 
+// register a mover you draw yourself (on a canvas, in a ticks callback) so vs inspect can check it: fn(t) → {x, y, r, o}
+// in FRAME pixels (center, radius, opacity), or null while it's absent. It may pass in front of words; resting on them a
+// quarter second or more is a rests-on-text error. fn must be a pure function of time: inspect calls it without playing
+// the video. Inspect maps elements only, so a drawn dot was invisible to it (Oct 12, 2026: a guide dot on one canvas
+// over every scene sat on a headline for 1.7 s, unseen). Placed in scene units? Map with the stage's fit (f.x + x·f.s,
+// f.y + y·f.s) and add any exRideLower offset. It shows up as <segment>/track:<name> in the map and the findings.
+function exTrack(name, fn) {
+  const T = (window.__tracks = window.__tracks || []);
+  T.push({ name: String(name), fn, stack: window.__INSPECT ? new Error().stack : null });
+  return fn;
+}
+
 // ── Overlap rules (a reviewer, Sep 30, 2026: "a graphic moves over top of text and you can't see it"). vs inspect enforces them.
 //   · Every tag, chip and label box is SOLID (no rgba backgrounds): a line or a notes page must never show through words.
 //   · A bar or a moving thing stops BESIDE its number or label, never under or over it (the email bar ran under "10.28 h").
@@ -165,11 +177,16 @@ function exRing(parent, t0, x, y, r1 = 160, dur = 0.7, col = P.accent, name = ""
 //   · Dim a whole scene with ONE scrim on top, never by fading each card (faded cards go see-through).
 //   · A scrolling page gets a solid header strip, so its lines scroll under the kicker.
 
+// ride the named scenes lower by dy on a vertical cut, and by dyWide on a widescreen one (0 leaves that cut as approved).
 // Vertical: a phone's full-screen player hides the top 10% under its status bar. A scene that opens on a panel with its
 // mono kicker near the top can ride lower on a vertical cut only, so the widescreen cut stays as approved. Call it at the
 // end of the project's scenes.js: exRideLower(["paradox", "lights"], 60). Found by qa.py's frame scan (Sep 30, 2026).
-function exRideLower(names, dy = 60) {
-  if (LAND) return;
+// dyWide moves the same scenes on a widescreen cut too (0, the default, leaves it as approved): a scene that reaches
+// above design y ≈ 50 is clipped at the top of the wide frame (Oct 12, 2026). A drawn overlay placed in scene units (an
+// exTrack mover) isn't inside the stage, so it must add the same offset itself.
+function exRideLower(names, dy = 60, dyWide = 0) {
+  if (LAND) dy = dyWide;
+  if (!dy) return;
   for (const k of names) {
     const draw = SCENES[k];
     if (!draw) continue;

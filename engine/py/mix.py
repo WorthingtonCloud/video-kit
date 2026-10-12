@@ -202,7 +202,7 @@ fades = np.clip(tt / 0.4, 0, 1) * np.clip((END - tt) / 1.4, 0, 1)
 raw = {}  # each take before the ducking (with its fades): the Mix panel ducks it live, from the envelope
 for n in takes:
     m = load(f"music/take{n}.mp3")
-    if len(m) < N: print(f"⚠️  take{n} is {len(m) / SR:.1f}s, shorter than the video ({END:.1f}s): extend it, or pick a longer take")
+    if len(m) < N: print(f"⚠️  take{n} is {len(m) / SR:.1f}s, shorter than the video ({END:.1f}s): free fix: vs music extend take{n} --to {END + 2:.0f}")
     m = fit(m) * db(-16 + MUSIC_DB - lufs(fit(m)))
     if not a.final:
         raw[n] = m * fades[:, None]

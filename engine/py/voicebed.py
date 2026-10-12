@@ -5,17 +5,21 @@
         a full take → voice/voice-bed-v4.wav + voice/narration-v4.words.json (a copy of the take's timings)
     vs voicebed --base voice/narration-v4.mp3 --take voice/narration-v5-end.mp3 --out v5
         a re-recorded run of acts (narrate.py <tag> --acts 9-10) spliced onto the approved take: the base is cut in the
-        quietest stretch between the act before the new run and the base's own take of it (measured in the audio: word
-        timings run up to 0.2 s late), the new run starts 0.3 s before its first word. A run from the middle (--acts 5)
-        keeps the base's later acts too: the run is cut 0.2 s after its last word, the base resumes in the quietest stretch
-        before the next act
+        quietest stretch between the act before the new run and the base's own take of it, the new run starts 0.3 s
+        before its first word. A run from the middle (--acts 5) keeps the base's later acts too: the run is cut 0.2 s
+        after its last word (padded with silence if the file ends sooner), the base resumes in the quietest stretch before
+        the next act. Both base points are found in the audio, with the base's word timings first checked against it
+        (timing_lag: they can run 0.2-0.6 s late)
 Then point plan.json → "words" and "voice" at the new files and re-run plan.py: every cue and title re-times itself.
 
 Why: re-recording only the changed acts keeps the performance the human already approved, and costs a fraction of a full
 take. The demo's first splice (Sep 30, 2026) cut at "new first word − its lead-in" and clipped the tail of "generously": the cut
-has to come AFTER the old act's last word, so this prints the level around the join to check it."""
+has to come AFTER the old act's last word, and BEFORE the old act's first one (Oct 12, 2026: a cut after the old "And" made
+"And ... And to be fair", because an earlier splice had left the base's timings 0.28 s late). So this warns when a cut
+lands on voice, checks the finished bed's timings against its audio after every join, prints the level around each
+join, and lists any isolated click in the bed."""
 import argparse, json, os, subprocess, sys
-from vslib import quietest, splice_plan
+from vslib import clicks, in_pause, quietest, splice_plan, timing_lag
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--take", required=True); ap.add_argument("--out", required=True); ap.add_argument("--base")
@@ -39,37 +43,85 @@ if not a.base:
 WB, WN = words(a.base), words(a.take)
 X = 0.03  # each join's crossfade
 # the two base points come from the audio: the quietest stretch between the act before the run and the base's own take
-# of the replaced act (word timings can run 0.2 s late: a cut 0.2 s after the last word kept "Pic-" of the old "Picture")
+# of the replaced act. The window is set by the word timings, so they're checked against the audio first: 0.2 s late on
+# jev-explainer (Oct 1, 2026: a cut 0.2 s after the last word kept "Pic-" of the old "Picture"), 0.28-0.37 s late after
+# an earlier splice's join on a bake-off explainer (Oct 12, 2026: the window held no silence, its quietest stretch was the dip
+# AFTER the old "And", and the bed said "And ... And to be fair"). Each side is measured from its own words: a base
+# spliced at this same join before can be late on one side only.
 fa, la = min(w["act"] for w in WN), max(w["act"] for w in WN)
 prev = [w for w in WB if w["act"] < fa]; rep = [w for w in WB if fa <= w["act"] <= la]; nxt = [w for w in WB if w["act"] > la]
 cut_at = start2_at = None
+warn = []
+
+
+def lag(ws, a_, b_, where):
+    L = timing_lag(a.base, ws, a_, b_)
+    if abs(L) >= 0.1:
+        print(f"(the base's word timings run {abs(L):.2f} s {'late' if L > 0 else 'early'} {where}: measured in its audio, allowed for)")
+    return L
+
+
+def voiced(t, what):
+    v = in_pause(a.base, t)
+    if v:
+        warn.append(f"{what} at {t:.2f}s lands on voice ({v[0]:.2f}-{v[1]:.2f}s in the base, no silence there): if that's the "
+                    f"start of an act the new take re-reads, the bed says it twice. Listen to the join")
+
+
 try:
-    if prev:
+    if prev:  # the window runs from 0.3 s before the end of the act before (or the run's start, if earlier) to the run's start
         ep = max(w["t1"] for w in prev)
-        cut_at = quietest(a.base, ep - 0.3, min(w["t0"] for w in rep) + 0.05 if rep else ep + a.tail, prefer="last")
-    if rep and nxt:
-        start2_at = quietest(a.base, max(w["t1"] for w in rep) - 0.3, min(w["t0"] for w in nxt) + 0.05, prefer="first")
+        Lp = lag(prev, ep - 20, ep, f"before act {fa}")
+        r0, Lr = (min(w["t0"] for w in rep), 0.0) if rep else (ep + a.tail, 0.0)
+        if rep:
+            Lr = lag(rep, r0, r0 + 20, f"in act {fa}")
+        lo = min(ep - Lp, r0 - Lr) - 0.3
+        cut_at = quietest(a.base, lo, max(r0 - Lr, lo + 0.35) + 0.05, prefer="last")
+        voiced(cut_at, "the cut")
+    if rep and nxt:  # and from 0.3 s before the end of the replaced acts to the next act's start
+        e2, n0 = max(w["t1"] for w in rep), min(w["t0"] for w in nxt)
+        L2, Ln = lag(rep, e2 - 20, e2, f"before act {la + 1}"), lag(nxt, n0, n0 + 20, f"in act {la + 1}")
+        lo = e2 - L2 - 0.3
+        start2_at = quietest(a.base, lo, max(n0 - Ln, lo + 0.35) + 0.05, prefer="first")
+        voiced(start2_at, f"the base's return before act {la + 1}")
 except Exception as e:  # no numpy here: the timing-based points, as before
     print(f"(the pause wasn't measured: {e}; cutting by the word timings)")
 try: sp = splice_plan(WB, WN, a.tail, a.lead, X, cut_at, start2_at)
 except ValueError as e: raise SystemExit(str(e))
 W, cut, start, off, first_act, end_prev, first_new = (sp[k] for k in ("words", "cut", "start", "off", "first_act", "end_prev", "first_new"))
 after = "cut2" in sp
-fc = f"[0]atrim=0:{cut},{fmt}[a];[1]atrim=start={start}{{END}},asetpts=PTS-STARTPTS,{fmt}[b];[a][b]acrossfade=d={X}"
+# {PAD}: a run that hands back to the base is trimmed at its last word's end + tail, which can be past the end of the file
+# (ElevenLabs times a sentence's last word to run on: e2a12's "Jev?" ended 36.8 s in a 36.72 s file). atrim then returns
+# less than asked, everything after the join lands that much early, and the timings run late by it (0.28 s on
+# a bake-off explainer's e2, Oct 9, 2026; twice over on another explainer). So the run is padded with silence first.
+fc = f"[0]atrim=0:{cut},{fmt}[a];[1]{{PAD}}atrim=start={start}{{END}},asetpts=PTS-STARTPTS,{fmt}[b];[a][b]acrossfade=d={X}"
 if not prev:  # a run from the top: no base before it, so the take opens on the new run
-    fc = f"[1]atrim=start={start}{{END}},asetpts=PTS-STARTPTS,{fmt}"
+    fc = f"[1]{{PAD}}atrim=start={start}{{END}},asetpts=PTS-STARTPTS,{fmt}"
 if after and not prev:
     cut2, start2 = sp["cut2"], sp["start2"]
     fc = fc.replace("{END}", f":end={cut2}") + f"[ab];[0]atrim=start={start2},asetpts=PTS-STARTPTS,{fmt}[c];[ab][c]acrossfade=d={X}"
 elif after:   # a middle run: cut it after its last word, then the base picks up again before the next act
     cut2, start2 = sp["cut2"], sp["start2"]
     fc = fc.replace("{END}", f":end={cut2}") + f"[ab];[0]atrim=start={start2},asetpts=PTS-STARTPTS,{fmt}[c];[ab][c]acrossfade=d={X}"
-fc = fc.replace("{END}", "") + ",apad=pad_dur=6[o]"
+fc = fc.replace("{END}", "").replace("{PAD}", "apad," if after else "") + ",apad=pad_dur=6[o]"
 json.dump(W, open(wout, "w"), indent=0)
 subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", a.base, "-i", a.take, "-filter_complex", fc, "-map", "[o]", "-c:a", "pcm_s16le", bed], check=True)
 print((f"act {first_act - 1} ends {end_prev:.2f}s · cut {cut:.2f}s · " if prev else "the new run opens the take · ")
       + f"act {first_act} now starts {first_new + off:.2f}s · last word {W[-1]['t1']:.2f}s")
-joins = ([end_prev] if prev else []) + ([max(w["t1"] for w in WN) + off] if after else [])
+joins = ([cut] if prev else []) + ([max(w["t1"] for w in WN) + off] if after else [])
+# the words after each join must still match the audio as well as they did in the file they came from: a drift a splice
+# adds is what made the Oct 12 stutter, one splice later
+src = ([(a.take, WN, first_new, fa, lambda w: fa <= w["act"] <= la)] if prev else []) \
+    + ([(a.base, nxt, min(w["t0"] for w in nxt), la + 1, lambda w: w["act"] > la)] if after else [])
+for j, (f, ws, t0, act, mine) in zip(joins, src):
+    try:  # each side's own words only: the acts after a run can carry the base's drift, which isn't this splice's doing
+        was, now = timing_lag(f, ws, t0, t0 + 20), timing_lag(bed, [w for w in W if mine(w)], j, j + 20)
+        if abs(now - was) >= 0.1:
+            warn.append(f"this splice moved the words of act {act} on {abs(now - was):.2f} s {'later' if now > was else 'earlier'} than "
+                        f"the audio (they ran {was:+.2f} s in {os.path.basename(f)}, {now:+.2f} s in the bed): the next splice "
+                        f"and every cue would trust them")
+    except ImportError:
+        pass
 # the join, in 50 ms steps: the old word must fade out (to about -60 dB) BEFORE the cut, never be chopped mid-word
 for j in joins:
     raw = subprocess.run(["ffmpeg", "-v", "error", "-i", bed, "-ss", str(max(0, j - 0.5)), "-t", "1.4", "-ac", "1", "-f", "f32le", "-"], capture_output=True).stdout
@@ -79,4 +131,11 @@ for j in joins:
         print(f"level per 50 ms from 0.5 s before the join at {j:.2f}s:", [round(float(20 * np.log10(np.sqrt(np.mean(x[i:i + n] ** 2)) + 1e-9))) for i in range(0, len(x) - n, n)])
     except ImportError:
         print("(run with a Python that has numpy to see the level around the join)"); break
+try:
+    warn += [f"a click at {c0:.2f}s ({(c1 - c0) * 1000:.0f} ms, silence on both sides): listen, and re-take or trim that act"
+             for c0, c1 in clicks(bed)]
+except ImportError:
+    pass
+for m in warn:
+    print(f"⚠️  {m}")
 print(f"{bed} + {wout}")

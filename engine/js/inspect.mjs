@@ -17,6 +17,8 @@
 //                     never moves (contextual-ui v1, Oct 2, 2026; 00-core.js checks every tween under inspect)
 //     never-seen      words the build made that never reach the screen: timed past their segment's end (the video-kit
 //                     reel's end card, Oct 4, 2026: its address was due after the card ended, v6–v8; mapchecks.mjs)
+//     rests-on-text   a drawn mover (exTrack: a dot painted on a canvas, which no element map sees) stops on words for
+//                     a quarter second or more; passing in front is fine (a guide dot sat on a headline, Oct 12, 2026)
 //   warnings (each can be by design: the human confirms or dismisses it in Review Studio):
 //     two-zones       a title is up while the scene shows words of its own: one reading zone at a time (the second
 //                     reel's v1, Sep 2026: "I'd read the top and miss the bottom")
@@ -515,6 +517,7 @@ const HINT = {
   "phone-safe": "a phone hides this: keep a vertical cut's words in design x 120–960, y 220 and below",
   "on-text": "two sets of words overlap: one moves, or waits for the other to leave",
   "two-zones": "a title and the scene's own words at once: the scene goes wordless while a title is up, or the title waits",
+  "rests-on-text": "a mover may cross words but not stop on them: park it beside the words (its exTrack path), or move the words",
 };
 const WARN = new Set(["two-zones", "fast-text", "cut-short", "offscreen-at-rest"]); // can be by design: the human confirms or dismisses
 const key = (a) => String(a).replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -639,6 +642,200 @@ seenAt.forEach(([t, els], k) => {
     } else last.set(i, [k, L[1]]);
   }
 });
+// drawn movers (exTrack, scenes/base.js): a dot painted on a canvas is no element, so neither the word checks nor the map
+// above can see it (Oct 12, 2026: a guide dot drawn on one canvas over every scene sat on a headline for 1.7 s). Each one
+// registered its path as a pure function of time: sample it finely, find the words it reaches in the map (the same boxes
+// the moments hold), then measure those words' own glyphs at that instant, because an element's box can be much wider
+// than its words (a centered line set left:0;right:0 is frame-wide). Passing in front of words is fine; a stretch of a
+// quarter second or more on words people are reading is an error. Each mover also joins the map, as
+// <segment>/track:<name>, so the review page and a note can point at it.
+{
+  const FINE = 0.05,
+    REST = 0.25, // a fly-past under a quarter second is a pass, not a rest
+    REACH = 1.5, // the dot's glow: its radius × 1.5 reaches the words before its solid edge does
+    t0 = Math.max(0.05, FROM),
+    t1 = Math.min(END, TO),
+    TS = [];
+  for (let t = t0; t < t1; t += FINE) TS.push(+t.toFixed(2));
+  const MT = seenAt.map((m) => m[0]);
+  const TRACKS = await step("inspect: sample the drawn movers", () =>
+    p.evaluate(
+      (TS, MT) =>
+        (window.__tracks || []).map(({ name, fn, stack }) => {
+          let err = null;
+          const at = (t) => {
+            if (err) return null;
+            try {
+              const d = fn(t);
+              if (!d) return null;
+              const v = [d.x, d.y, d.r ?? 0, d.o ?? 1];
+              return v.every(Number.isFinite) ? v : null;
+            } catch (e) {
+              err = String((e && e.message) || e);
+              return null;
+            }
+          };
+          return { name, stack, fine: TS.map(at), moments: MT.map(at), err };
+        }),
+      TS,
+      MT,
+    ),
+  );
+  const segAt = (t) => (TL.segments.find((s) => t >= s.t0 && t < s.t1) || TL.segments[TL.segments.length - 1]).name,
+    trackId = (tr, t) => `${segAt(t)}/track:${tr.name}`;
+  for (const tr of TRACKS) if (tr.err) console.log(`⚠️  the mover "${tr.name}" threw (${tr.err}): checked only up to there`);
+  // the words: leaf text (no other words named inside it) and titles, with the map's boxes
+  const wordy = (e) => (e.kind === "text" || e.kind === "title") && e.text,
+    holds = new Set(E.filter(wordy).map((e) => e.up).filter(Boolean)),
+    words = E.map((e, i) => [e, i]).filter(([e]) => wordy(e) && !holds.has(e.id));
+  const half = STEP / 2 + 1e-3,
+    pad = 40; // px: a moving line's box between two moments; the glyph measure below has the last word
+  const boxAt = (e, t) => {
+    if (!e.on.some(([a, b]) => t >= a - half && t <= b + half)) return null;
+    let k = -1;
+    for (let j = 0; j < e.boxes.length && e.boxes[j][0] <= t + half; j++) k = j;
+    return k < 0 ? null : e.boxes[k];
+  };
+  const near = (x, y, R, l, tp, r, bt) => {
+    const cx = Math.min(Math.max(x, l), r),
+      cy = Math.min(Math.max(y, tp), bt);
+    return (cx - x) ** 2 + (cy - y) ** 2 < R * R;
+  };
+  const jobs = new Map(); // t → [[track index, element index, x, y, R], …]
+  TRACKS.forEach((tr, ti) =>
+    tr.fine.forEach((d, k) => {
+      const t = TS[k];
+      if (!d || d[3] < 0.3 || nearCut(t)) return;
+      const [x, y, r] = d,
+        R = Math.max(r, 1) * REACH;
+      for (const [e, ei] of words) {
+        const b = boxAt(e, t);
+        if (!b || !near(x, y, R + pad, b[1] * W, b[2] * H, b[3] * W, b[4] * H)) continue;
+        if (!jobs.has(t)) jobs.set(t, []);
+        jobs.get(t).push([ti, ei, x, y, R]);
+      }
+    }),
+  );
+  // the words' own glyphs at that instant, readable (opacity 0.3 and up, as the word checks), cut to any clipping box
+  const confirmed = [],
+    J = [...jobs].sort((a, b) => a[0] - b[0]);
+  for (let c = 0; c < J.length; c += 150)
+    confirmed.push(
+      ...(await step(`inspect: measure the words under the movers at ${J[c][0].toFixed(2)}s`, () =>
+        p.evaluate((J) => {
+          const vis = (el) => {
+            let o = 1;
+            for (let e = el; e && e.nodeType === 1; e = e.parentElement) {
+              const cs = getComputedStyle(e);
+              if (cs.display === "none" || cs.visibility === "hidden") return 0;
+              o *= +cs.opacity;
+              const br = cs.filter && cs.filter !== "none" && cs.filter.match(/brightness\(([\d.]+)\)/);
+              if (br) o *= +br[1];
+              if (o < 0.2) return 0;
+            }
+            return o;
+          };
+          const out = [];
+          for (const [t, cands] of J) {
+            window.__timelines.main.seek(t, false);
+            for (const [ti, ei, x, y, R] of cands) {
+              const el = window.__inspectEls[ei];
+              if (!el) continue;
+              const rs = [],
+                tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+              for (let n; (n = tw.nextNode()); ) {
+                if (!n.textContent.trim() || !n.parentElement || vis(n.parentElement) < 0.3) continue;
+                const rg = document.createRange();
+                rg.selectNodeContents(n);
+                for (const q of rg.getClientRects()) {
+                  let [l, tp, r, b] = [q.left, q.top, q.right, q.bottom];
+                  for (let e = n.parentElement; e && e !== document.body; e = e.parentElement) {
+                    const cs = getComputedStyle(e);
+                    if (cs.overflowX === "visible" && cs.overflowY === "visible") continue;
+                    const k = e.getBoundingClientRect();
+                    [l, tp, r, b] = [Math.max(l, k.left), Math.max(tp, k.top), Math.min(r, k.right), Math.min(b, k.bottom)];
+                  }
+                  if (r - l >= 2 && b - tp >= 1) rs.push([l, tp, r, b]);
+                }
+              }
+              const hit = rs.find(([l, tp, r, b]) => {
+                const cx = Math.min(Math.max(x, l), r),
+                  cy = Math.min(Math.max(y, tp), b);
+                return (cx - x) ** 2 + (cy - y) ** 2 < R * R;
+              });
+              if (hit) out.push([t, ti, ei, ...hit]);
+            }
+          }
+          return out;
+        }, J.slice(c, c + 150)),
+      )),
+    );
+  // a stretch on the same words: samples no more than two steps apart
+  const runs = new Map();
+  for (const [t, ti, ei, ...bx] of confirmed) {
+    const k = `${ti}|${ei}`,
+      L = runs.get(k) || [];
+    const last = L[L.length - 1];
+    if (last && t - last.t1 <= FINE * 2.1) {
+      last.t1 = t;
+      last.at.push([t, bx]);
+    } else L.push({ ti, ei, t0: t, t1: t, at: [[t, bx]] });
+    runs.set(k, L);
+  }
+  for (const L of runs.values())
+    for (const s of L) {
+      if (s.t1 - s.t0 < REST) continue;
+      const tr = TRACKS[s.ti],
+        e = E[s.ei],
+        [at, bb] = s.at[Math.floor(s.at.length / 2)],
+        id0 = trackId(tr, at),
+        said = e.text.length > 32 ? e.text.slice(0, 30).trimEnd() + " …" : e.text;
+      let id = `f-rests-on-text-${key(id0)}-x-${key(e.id)}`;
+      ids.set(id, (ids.get(id) || 0) + 1);
+      if (ids.get(id) > 1) id += `-${ids.get(id)}`;
+      list.push({
+        id,
+        check: "rests-on-text",
+        severity: "error",
+        elements: [id0, e.id],
+        text: `the ${tr.name.replace(/[-_]+/g, " ")} rests on "${said}" for ${(s.t1 - s.t0).toFixed(1)}s (passing in front is fine; resting there hides words people are reading)`,
+        t0: s.t0,
+        t1: s.t1,
+        at,
+        box: bb.map(Math.round),
+        box_n: [bb[0] / W, bb[1] / H, bb[2] / W, bb[3] / H].map((v) => Math.round(v * 10000) / 10000),
+        hint: HINT["rests-on-text"],
+      });
+    }
+  // each mover in the map, at the map's own moments (a box holds until the next one, as for every element)
+  const q = (v) => Math.round(v * 10000) / 10000;
+  for (const tr of TRACKS) {
+    const by = new Map();
+    let prev = -2;
+    tr.moments.forEach((d, k) => {
+      const t = MT[k];
+      if (!d || d[3] < 0.02) return;
+      const [x, y, r] = d,
+        bx = [q((x - r) / W), q((y - r) / H), q((x + r) / W), q((y + r) / H)];
+      if (bx[2] < 0 || bx[3] < 0 || bx[0] > 1 || bx[1] > 1) return;
+      const id = trackId(tr, t),
+        seg = id.split("/")[0],
+        S = TL.segments.find((x) => x.name === seg);
+      let e = by.get(id);
+      if (!e) {
+        e = { id, segment: seg, scene: S ? S.scene || S.kind : null, kind: "mover", named: true, up: null, text: "",
+          src: srcOf({ addr: id, stack: tr.stack }), on: [], boxes: [] };
+        by.set(id, e);
+        E.push(e);
+      }
+      const L = e.boxes[e.boxes.length - 1];
+      if (prev === k - 1 && e.on.length) e.on[e.on.length - 1][1] = t;
+      else e.on.push([t, t]);
+      if (!L || prev !== k - 1 || bx.some((v, j) => Math.abs(v - L[j + 1]) > 0.002)) e.boxes.push([t, ...bx]);
+      prev = k;
+    });
+  }
+}
 // dead tweens (an error): one finding per element, naming the values and the line of scenes.js that made the tween
 {
   const by = new Map();

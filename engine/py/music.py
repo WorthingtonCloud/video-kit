@@ -10,11 +10,12 @@ too), past the video's dollar budget, and without --yes (the human's go, with th
     vs music                    print the cost and stop (the moment to ask)
     vs music --yes [--duration 180] [--cap 48]
     vs music spent
+    vs music extend take1 --to 220      free: a take that's shorter than the video grows by whole bars (below)
 
 Every take is downloaded, then decoded end to end: kie.ai's audio_url once served a truncated 458 KB file for a
 3-minute take; the stream_audio_url had it all. Raw results (with the audio ids Suno extend needs; kie.ai forgets them
 after 14 days) go to music/<task>.json."""
-import json, os, subprocess, sys, time, urllib.request
+import json, math, os, re, subprocess, sys, time, urllib.request
 import vslib
 from vslib import key as get_key
 
@@ -67,6 +68,60 @@ def fetch(urls, out, want):
 
 tracks = lambda res: res.get("data") or (res.get("resultObject") or {}).get("lyricsData") or []
 
+def extend(take, to, start=None):
+    """A take that's shorter than the video, made longer for free: one run of whole bars from its middle plays twice,
+    back to back, so both joins land on a downbeat inside the same steady section (the intro and the outro stay where
+    they are: a replayed intro reads as a repeat). The grid comes from vs beats; the run starts on a phrase (8 bars
+    from the first hit) about a third of the way in, unless --from <secs> names a downbeat heard by ear. Writes the
+    next free music/take<N>.mp3 and its takes.json entry; the original take is untouched.
+    Measured on an explainer (Oct 12, 2026): a 189 s bed, 30.6 s short, grew 12 bars from 1:04 with 20 ms crossfades,
+    and the seams matched the original's own downbeats in loudness."""
+    src = f"music/{take}.mp3" if not take.endswith(".mp3") else take
+    if not os.path.exists(src):
+        sys.exit(f"⛔ no {src}: vs music extend <take> --to <secs> (the take names are in music/takes.json)")
+    out = subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), "beats.py"), src],
+                         capture_output=True, text=True, check=True).stdout
+    grab = lambda k: float(re.search(rf"^{k}\s+([\d.]+)s", out, re.M).group(1))  # "beat  0.6385s (94 BPM)"
+    beat, hit, secs = grab("beat"), grab("first hit"), decoded_secs(src)
+    bar, need = 4 * beat, to - secs
+    if need <= 0:
+        return print(f"{src} is already {secs:.1f}s: nothing to extend")
+    n = math.ceil(need / bar)
+    if start is None:
+        k = max(0, math.floor((secs / 3 - hit) / (8 * bar)))  # the phrase just before the one-third mark
+        a0 = hit + k * 8 * bar
+    else:
+        a0 = hit + round((start - hit) / bar) * bar  # snapped to the nearest downbeat
+    b0 = a0 + n * bar
+    if b0 > secs - min(8 * bar, 0.2 * secs):  # keep the outro (8 bars, or the last fifth of a short take) whole
+        sys.exit(f"⛔ {n} bars from {a0:.1f}s run into the outro ({secs:.0f}s take): --from an earlier downbeat, or pick "
+                 "a longer take")
+    T = json.load(open("music/takes.json")) if os.path.exists("music/takes.json") else {}
+    m = 1
+    while f"take{m}" in T or os.path.exists(f"music/take{m}.mp3"):
+        m += 1
+    dst = f"music/take{m}.mp3"
+    fc = (f"[0]atrim=0:{b0:.4f},asetpts=PTS-STARTPTS[p1];[0]atrim={a0:.4f}:{b0:.4f},asetpts=PTS-STARTPTS[p2];"
+          f"[0]atrim=start={b0:.4f},asetpts=PTS-STARTPTS[p3];[p1][p2]acrossfade=d=0.02:c1=tri:c2=tri[q];"
+          "[q][p3]acrossfade=d=0.02:c1=tri:c2=tri[o]")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-filter_complex", fc, "-map", "[o]", "-c:a", "libmp3lame",
+                    "-b:a", "256k", dst], check=True)
+    got = decoded_secs(dst)
+    name = os.path.basename(src)[:-4]
+    # never "from": that key means "reused from the studio's library" (vs learn files a win on the library item then,
+    # and copies nothing): an extended take is a new file of this project's, made from one
+    base = T.get(name, {})
+    T[f"take{m}"] = {"label": f"{base.get('label', name)} · extended ({n} bars from {a0:.0f}s repeated)",
+                     "secs": round(got, 2), "style": base.get("style"), "extended_from": base.get("from") or src}
+    json.dump(T, open("music/takes.json", "w"), indent=1)
+    print(f"{dst}: {got:.1f}s ({n} bars of {bar:.3f}s from {a0:.2f}s played twice; joins at {b0:.2f}s and "
+          f"{b0 + n * bar:.2f}s). Listen to both joins; vs mix mixes it with the others.")
+
+
+if sys.argv[1:2] == ["extend"]:
+    if len(sys.argv) < 3 or "--to" not in sys.argv:
+        sys.exit("vs music extend <take> --to <secs> [--from <secs>]")
+    sys.exit(extend(sys.argv[2], float(arg("--to", 0)), float(arg("--from", 0)) or None))
 if sys.argv[1:2] == ["spent"]:
     sys.exit(print(f"{spent()} music credits logged"))
 cost = PER_CALL * len(DIRS)

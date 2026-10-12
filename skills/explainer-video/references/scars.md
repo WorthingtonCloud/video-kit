@@ -17,6 +17,14 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
 - 🚨 **…and BEFORE the replaced act's first word, measured in the audio**: ElevenLabs' word timings ran ~0.2 s late, so
   "0.2 s after the last word" kept "Pic-" of the old "Picture" and the new take said it again (a repeat the reviewer
   heard). `vs voicebed` now cuts at the end of the pause it finds in the base, and resumes at the start of the next one. ‹test: unit/test_voice_and_sound.py›
+- 🚨 **A splice must not shift the words after it**: a run that hands back to the base was trimmed at its last word's end
+  + 0.2 s, but ElevenLabs times a last word past the end of its file, so the trim came up short and every later word ran
+  0.28 s late (a bake-off explainer's e2; another explainer twice over, 0.65 s). The next splice trusted those timings and kept the
+  old act's first word: "And ... And to be fair", "now... now flip it", "one... one experiment". `vs voicebed` pads the
+  run with silence, measures each side's timings against the audio (`timing_lag`) before choosing a cut, warns when a cut
+  lands on voice, and checks the finished bed's timings after every join. ‹test: unit/test_voice_and_sound.py›
+- ⚠️ **A fresh take can carry a click**: 0.1 s at -14 dBFS in a silent pause (a bake-off explainer act 13). `vs voicebed` lists
+  every isolated click in the bed (`clicks`); a lone short word is level, a click is a spike. ‹test: unit/test_voice_and_sound.py›
 - 🔑 **Two library voices can share a name**: always the voice ID. ‹test: regression/voice-name-not-id›
 
 ## Plan and titles
@@ -62,6 +70,17 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
   centered-until-a-title glide. A photo's box shows its sides on a wide frame → fades. An exit sized for vertical stops
   in plain sight → `EXIT`. ‹partly: regression/offscreen-parked · human: the layout's balance›
 
+- 🚨 **A guide dot drawn on a canvas sat on a title people were reading** (Oct 12, 2026): a character dot that travels
+  across every scene was drawn on one `<canvas>` above them, so `vs inspect` never saw it, and an eyeball pass over a
+  few stills missed it. The rule a reviewer set: a mover may pass IN FRONT of words, never REST on them while they're
+  read. Register the mover with `exTrack(name, fn)` and inspect checks every moment (`rests-on-text`). ‹test:
+  integration/test_movers.py›
+- ⚠️ **When a guide dot carries the accent color, the data moves off it** (Oct 12, 2026): one color, one meaning. A
+  chart whose bars were the accent color had to change color once the dot arrived, or a tap on a bar read as data. ‹human›
+- ⚠️ **`exRideLower` was vertical-only**: scenes drawn up to y −90 for a ridden-lower vertical fell off the top of the
+  widescreen frame. `exRideLower(names, dy, dyWide)` now rides both; a drawn overlay in scene units adds the same
+  offset. ‹human: look at every scene of the other shape›
+
 ## Build and checks
 
 - 🚨 **A tween given an object or NaN where a number goes does nothing, silently**: `exPath()` returns `{x, y}`, used as
@@ -89,6 +108,18 @@ From the first two explainers (Sep 30 and Oct 1, 2026). Read the area before wor
   twice), three times by hand before the fix. ‹test: unit/test_learn_refile.py›
 
 ## Sound
+
+- 🚨 **A reopened video lost its whole effects pass** (Oct 12, 2026): a render's source snapshot is taken when it renders,
+  and the sound stage (cues.py, the saved mix) comes AFTER the render, so the final's snapshot held the starter
+  cues.py. `vs reopen` then "restored" it and set the saved mix aside; the page went on showing the old saved take, and
+  the next mix nearly shipped with no effects. `vs finish` now refreshes the final's snapshot with the sound files.
+  ‹test: unit/test_lifecycle.py›
+- ⚠️ **The video outgrew its music** (an added act made a 3:39 cut on a 3:09 bed): `vs mix` warns, and `vs music extend
+  <take> --to <secs>` grows it for free by playing one run of whole bars from the middle twice (downbeat to downbeat,
+  intro and outro untouched). Listen to both joins. ‹test: unit/test_voice_and_sound.py›
+- ⚠️ **A sound note can measure "unchanged" when the fix worked**: a 60 ms click muted in a pause, right after a cut
+  that shifted everything 0.3 s, read as "the sound around it is the same". Check the audio at that spot yourself and
+  say so. ‹human›
 
 - ⚠️ **ElevenLabs sound effects:** 11 credits a second; the "single click" came back as three; every file starts with a
   different amount of silence (`vs mix` aligns by the attack); loudness varies ~20 dB between files (it normalizes). ‹partly: unit/test_voice_and_sound.py · human: listen to every new sound›

@@ -536,26 +536,119 @@ def sound_index():
     return out
 
 
-def quietest(path, a, b, win=0.04, hop=0.01, prefer="min"):
-    """The middle of the quietest `win`-long stretch of a sound between a and b seconds: the pause to cut in. A splice
-    trusts the audio, not the word timings, which can run 0.2 s late (jev-explainer, Oct 1, 2026). prefer="last" takes the
-    last stretch within 10 dB of the quietest (the end of the pause: cutting there keeps the whole pause before it),
-    "first" the first (the start of a pause: what follows keeps it)."""
+def levels(path, a, b, win=0.04, hop=0.01):
+    """A sound's level between a and b seconds, `win`-long stretches every `hop`: (start times, dBFS). Decodes from 0.1 s
+    earlier and drops it: an mp3 decoder starts a seek with a few ms of digital silence, which would always win as "the
+    quietest"."""
     import numpy as np
     a = max(0.0, a)
-    # decode from 0.1 s earlier and drop it: an mp3 decoder starts a seek with a few ms of digital silence, which would
-    # always win as "the quietest"
     s0 = max(0.0, a - 0.1)
     raw = subprocess.run(["ffmpeg", "-v", "error", "-ss", f"{s0:.3f}", "-t", f"{max(0.05, b - s0):.3f}", "-i", path, "-ac", "1",
                           "-ar", "48000", "-f", "f32le", "-"], capture_output=True, check=True).stdout
     x = np.frombuffer(raw, np.float32)[int(round((a - s0) * 48000)):]
     n, h = int(48000 * win), int(48000 * hop)
     if len(x) < n:
-        return round((a + b) / 2, 3)
+        return np.array([]), np.array([])
     e = np.array([10 * np.log10(float(np.mean(x[i:i + n] ** 2)) + 1e-12) for i in range(0, len(x) - n + 1, h)])
+    return a + np.arange(len(e)) * hop, e
+
+
+def quietest(path, a, b, win=0.04, hop=0.01, prefer="min"):
+    """The middle of the quietest `win`-long stretch of a sound between a and b seconds: the pause to cut in. A splice
+    trusts the audio, not the word timings, which can run 0.2 s late (jev-explainer, Oct 1, 2026). prefer="last" takes the
+    last stretch within 10 dB of the quietest (the end of the pause: cutting there keeps the whole pause before it),
+    "first" the first (the start of a pause: what follows keeps it)."""
+    import numpy as np
+    t, e = levels(path, a, b, win, hop)
+    if not len(e):
+        return round((a + b) / 2, 3)
     quiet = np.where(e <= e.min() + 10)[0]
     i = int(quiet[-1] if prefer == "last" else quiet[0] if prefer == "first" else np.argmin(e))
-    return round(a + (i * h + n / 2) / 48000, 3)
+    return round(t[i] + win / 2, 3)
+
+
+def pauses(path, a, b, min_len=0.03, floor=None, win=0.02, hop=0.01):
+    """The pauses between a and b seconds: [(start, end)], each at least `min_len` long. A pause is a run of stretches at
+    or below `floor` dBFS; without one, 10 dB over the quietest or 35 dB under the loudest, whichever is higher (speech
+    peaks near -16 dBFS, so about -51: a breath counts as quiet, a soft consonant doesn't)."""
+    t, e = levels(path, a, b, win, hop)
+    if not len(e):
+        return []
+    thr = floor if floor is not None else max(float(e.min()) + 10, float(e.max()) - 35)
+    out, i = [], 0
+    while i < len(e):
+        if e[i] > thr:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(e) and e[j + 1] <= thr:
+            j += 1
+        s, f = float(t[i] + win / 2 - hop / 2), float(t[j] + win / 2 + hop / 2)
+        if f - s >= min_len - 1e-9:
+            out.append((round(s, 3), round(f, 3)))
+        i = j + 1
+    return out
+
+
+def timing_lag(path, words, a, b, most=1.0, sure=3):
+    """How late a take's word timings run against its own audio, from the words that start between a and b seconds
+    (negative: early; give it about 20 s: 8 s held too few pauses to be stable). Every shift up to `most` s either way is
+    scored by the take's pauses: up to +1 for each pause that ends where a word starts (1 at the same moment, 0 at 60 ms
+    off), -1 for each word that would start inside a pause. The best shift wins, the smallest on a tie; 0.0 unless it
+    beats no shift by `sure` points.
+    Fresh ElevenLabs takes measure about 0.05 s late.
+    Why: a splice bed's timings drifted 0.28 s late after its join (a bake-off explainer's e2, Oct 9, 2026: vs voicebed asked
+    for the new take up to its last word's end + 0.2 s, past the end of the file), and the next splice, trusting them,
+    cut after the old act's first word: "And ... And to be fair" (Oct 12). another explainer had the same drift twice over
+    (0.65 s by act 9) and the same stutters on Oct 5 ("now... now flip it", "one... one experiment")."""
+    import numpy as np
+    t0 = np.array([w["t0"] for w in words if a <= w["t0"] <= b])
+    if len(t0) < 4:
+        return 0.0
+    ps = pauses(path, max(0.0, a - most - 0.3), b + most + 0.3, min_len=0.1)
+    score = {}
+    for k in range(-int(round(most * 100)), int(round(most * 100)) + 1):
+        on = t0 - k / 100
+        score[k] = (sum(max(0.0, 1 - float(np.abs(on - p1).min()) / 0.06) for p0, p1 in ps)
+                    - sum(int(np.sum((on > p0 + 0.04) & (on < p1 - 0.04))) for p0, p1 in ps))
+    best = max(score.values())
+    k = min((j for j in score if score[j] == best), key=abs)
+    return round(k / 100, 2) if best - score[0] >= sure else 0.0
+
+
+def in_pause(path, t, around=1.0):
+    """None when the moment t sits in a pause; else (start, end) of the voice around it, measured against the level of the
+    surrounding `around` s each way (the same "quiet" as pauses())."""
+    lo, hi = max(0.0, t - around), t + around
+    ps = pauses(path, lo, hi)
+    if any(p0 - 0.005 <= t <= p1 + 0.005 for p0, p1 in ps):
+        return None
+    return (max([p1 for p0, p1 in ps if p1 <= t] or [round(lo, 3)]), min([p0 for p0, p1 in ps if p0 >= t] or [round(hi, 3)]))
+
+
+def clicks(path, max_len=0.12, quiet=-60, gap=0.1, loud=-30, sharp=0.03):
+    """Isolated clicks in a sound: [(start, end)] of every burst shorter than `max_len` that peaks over `loud` dBFS and
+    stays within 10 dB of that peak for at most `sharp` s, with silence below `quiet` for at least `gap` on both sides. A
+    fresh ElevenLabs take had one in act 13 of a bake-off explainer (Oct 12, 2026: 0.1 s, a 20 ms spike to -14 dBFS between two
+    stretches of -88, inside the word timing of "picture.", so the timings can't rule it out). What it must leave out,
+    from the studio's own beds: a lone "And" between two pauses (110 ms, but level for 80 ms: a word, not a spike), lip
+    smacks near -53 dBFS before breaths (too faint to hear under music), and the "t" of "yet." (70 ms at -38 dBFS after
+    an 80 ms stop)."""
+    t, e = levels(path, 0, 1e6, win=0.01, hop=0.01)
+    voiced, out, i, k = e > quiet, [], 0, int(round(gap / 0.01))
+    while i < len(e):
+        if not voiced[i]:
+            i += 1
+            continue
+        j = i
+        while j + 1 < len(e) and voiced[j + 1]:
+            j += 1
+        burst, before, after = e[i:j + 1], voiced[max(0, i - k):i], voiced[j + 1:j + 1 + k]
+        if (len(burst) * 0.01 <= max_len + 1e-9 and i >= k and len(after) == k and not before.any() and not after.any()
+                and burst.max() > loud and (burst >= burst.max() - 10).sum() * 0.01 <= sharp + 1e-9):
+            out.append((round(float(t[i]), 3), round(float(t[j]) + 0.01, 3)))
+        i = j + 1
+    return out
 
 
 def decode(path, sr=48000, ch=1):
