@@ -9,7 +9,8 @@ what it measured.
 
 Outputs land in build/qa/. Open every image it writes; a number can't tell you a frame looks wrong.
 """
-import glob, json, os, re, subprocess, sys
+import atexit, glob, json, os, re, shutil, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
 import vslib
 
@@ -39,13 +40,35 @@ W, H = int(v["width"]), int(v["height"])
 fps = float(Fraction(v.get("r_frame_rate", "30/1")))
 print(f"{src}: {W}x{H}, {dur:.2f}s, range={v.get('color_range', '?')}")
 
-# Contact sheet. Every cell is normalized to one pixel format first: tiling frames of mixed formats fails.
+# Contact sheet. Every cell is an exact seek (-ss t -i), the call the hit stills below and vs pack's strips make, so cell
+# k is the frame AT step·k seconds. The fps filter keeps the last frame that rounds to each slot: its cell k showed about
+# step·k + 0.47 s (Oct 15, 2026: on a 1080p60 final, its "30.0 s" frame was the 30.5 s seek's). The cells stay until qa
+# ends: the phone safe-zone sheet shades the same frames.
 step = 0.5 if CLIP else 1.0
 cols = 5 if CLIP else 8
-n = int(dur / step) + 1
-rows = -(-n // cols)
 cw = 216 if H > W else 320
-ff("-i", src, "-vf", f"fps=1/{step},scale={cw}:-2,format=yuvj420p,tile={cols}x{rows}:padding=4:color=white",
+CELLS = f"{Q}/_{base}-cells"
+shutil.rmtree(CELLS, ignore_errors=True)
+os.makedirs(CELLS)
+atexit.register(shutil.rmtree, CELLS, True)
+
+
+def cell(k):
+    """The frame at step·k seconds, cw wide, in one pixel format (tiling frames of mixed formats fails); None past the
+    last frame (a seek there writes nothing)."""
+    f = f"{CELLS}/{k:05d}.jpg"
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{k * step:.3f}", "-i", src,
+                    "-frames:v", "1", "-vf", f"scale={cw}:-2,format=yuvj420p", "-q:v", "2", f])
+    return f if os.path.exists(f) else None
+
+
+with ThreadPoolExecutor(8) as pool:
+    got = list(pool.map(cell, range(int(dur / step) + 1)))
+n = got.index(None) if None in got else len(got)
+for f in filter(None, got[n:]):
+    os.remove(f)  # cell k must stay the k-th tile: nothing after a gap
+rows = -(-n // cols)
+ff("-pattern_type", "glob", "-i", f"{CELLS}/*.jpg", "-vf", f"tile={cols}x{rows}:padding=4:color=white",
    "-frames:v", "1", "-q:v", "3", f"{Q}/{base}-sheet.jpg")
 print(f"  sheet   {Q}/{base}-sheet.jpg  ({n} frames, one every {step}s, left to right: cell k = {step}·k seconds) ← look at it")
 
@@ -99,19 +122,19 @@ def names_at(t, zone, most=3):
 ff("-i", src, "-frames:v", "1", "-q:v", "2", f"{Q}/{base}-first-frame.jpg")
 print(f"  preview {Q}/{base}-first-frame.jpg  ← this is what people see before they press play")
 
-# Phone safe zone (vertical only): one frame a second, with LinkedIn's covered areas shaded red.
-# Words in a red area get cropped or sit under a button on a phone. Numbers match pipeline/safezone.mjs.
+# Phone safe zone (vertical only): the contact sheet's frames (one a second, each at its second), with LinkedIn's covered
+# areas shaded red. Words in a red area get cropped or sit under a button on a phone. Numbers match pipeline/safezone.mjs.
 if H > W:
     from vslib import CONTRACTS  # engine/contracts.json → phone_safe: the same zones the build and vs inspect check
     Z = CONTRACTS["phone_safe"]
     top, cap, side, rx, ry = Z["status_bar"], Z["caption"], Z["side"], Z["rail"]["x"], Z["rail"]["y"]
 
-    def box(x0, y0, x1, y1):
-        return f"drawbox=x={round(W * x0)}:y={round(H * y0)}:w={round(W * (x1 - x0))}:h={round(H * (y1 - y0))}:color=red@0.35:t=fill"
+    def box(x0, y0, x1, y1):  # in fractions of the frame (iw, ih), so one set of zones fits a full frame or a sheet cell
+        return f"drawbox=x=iw*{x0:.4f}:y=ih*{y0:.4f}:w=iw*{x1 - x0:.4f}:h=ih*{y1 - y0:.4f}:color=red@0.35:t=fill"
     zones = ",".join([box(0, 0, 1, top), box(0, cap, 1, 1), box(0, 0, side, 1), box(1 - side, 0, 1, 1), box(rx, ry, 1, cap)])
-    ff("-i", src, "-vf", f"fps=1,{zones},scale=216:-2,format=yuvj420p,tile={cols}x{rows}:padding=4:color=white",
+    ff("-pattern_type", "glob", "-i", f"{CELLS}/*.jpg", "-vf", f"{zones},tile={cols}x{rows}:padding=4:color=white",
        "-frames:v", "1", "-q:v", "3", f"{Q}/{base}-safe.jpg")
-    print(f"  safe    {Q}/{base}-safe.jpg  ← no words in the red: phones crop the sides, buttons cover the rest")
+    print(f"  safe    {Q}/{base}-safe.jpg  (cell k = k seconds) ← no words in the red: phones crop the sides, buttons cover the rest")
 
     # ...and measured, four frames a second: anything bright (a word, a label, an icon) inside a covered area, as
     # time ranges. The build's safe-zone check only sees titles, and the one-a-second sheet is too small to read, so a
@@ -123,7 +146,9 @@ if H > W:
         np = None
         print("  ⚠️  safe-zone scan skipped: it needs numpy (on a Mac, run qa.py with /usr/bin/python3)")
     if np is not None:
-        # half size, not less: at quarter size a small mono label blurs below the threshold and the scan misses it
+        # half size, not less: at quarter size a small mono label blurs below the threshold and the scan misses it.
+        # round=up makes sample i the frame at i/rate s (the last one at or before it), the moment its hit still below
+        # seeks to; the default rounding sampled about 0.1 s later, so a one-sample hit's still could miss the word.
         sw, sh, rate = 540, 960, 4
         ZONES = {"top (status bar)": (0, 0, 1, top), "bottom (caption, scrubber)": (0, cap, 1, 1),
                  "left (cropped)": (0, top, side, cap), "right (cropped)": (1 - side, top, 1, cap),
@@ -131,7 +156,7 @@ if H > W:
         cuts_px = {n: (slice(int(y0 * sh), int(y1 * sh)), slice(int(x0 * sw), int(x1 * sw))) for n, (x0, y0, x1, y1) in ZONES.items()}
         lit = {n: [] for n in ZONES}
         p = subprocess.Popen(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", src, "-vf",
-                              f"fps={rate},scale={sw}:{sh},format=gray", "-f", "rawvideo", "-"], stdout=subprocess.PIPE)
+                              f"fps={rate}:round=up,scale={sw}:{sh},format=gray", "-f", "rawvideo", "-"], stdout=subprocess.PIPE)
         while (buf := p.stdout.read(sw * sh)) and len(buf) == sw * sh:  # one frame at a time: a whole cut won't fit
             fr = np.frombuffer(buf, np.uint8).reshape(sh, sw)
             for n, (ys, xs) in cuts_px.items():

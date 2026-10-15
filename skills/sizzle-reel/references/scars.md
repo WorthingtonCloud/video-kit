@@ -94,3 +94,8 @@ From two reels (a 58 s lab reel, v1→v22, and a product reel, Sep 27–29, 2026
   while rendering), so a floating recording sat black or on a stale frame, and the checker reported five false
   problems in them (video-kit-fusion v1, Oct 5, 2026). Snap now seeks each video to its time and waits for the frame;
   one it can't confirm is named in a ⚠ line (and on the sheet): judge that panel from a render. ‹test: regression/stale-shot-panel›
+- 🚨 **`vs qa`'s contact sheet showed each cell about 0.5 s after its label**: the fps filter keeps the last frame that
+  rounds to each slot, so "cell k = k seconds" was k + 0.47 s (Oct 15, 2026: on a 1080p60 final, its "30.0 s" cell was
+  the 30.5 s frame), and a moment picked off the sheet landed late. Every cell is an exact seek now (the call the hit
+  stills and `vs pack`'s strips make), the safe-zone sheet shades those same frames, and the four-a-second scan samples
+  each slot's own frame (`round=up`). ‹test: unit/test_qa_sheets.py›
