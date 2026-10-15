@@ -143,6 +143,27 @@ function keepUp(m, local, dur, playing, rate = 1) {
 }
 player.on((t) => seek(t));
 
+// a sung option lights its own lyrics on a take round: its words (vs lyrics wrote them beside it), on its own clock,
+// which starts at the choice's moment. Any other option, or none, gives the round's words back.
+const optWords = new Map(); // words url → [{w, t0, t1, act}] or null (no file)
+async function useWords(o, c) {
+  let W = null;
+  if (o?.kind === "audio") {
+    const wurl = url(o.preview).replace(/\.[a-z0-9]+$/i, ".words.json");
+    if (!optWords.has(wurl)) {
+      try {
+        const r = await fetch(wurl);
+        optWords.set(wurl, r.ok ? await r.json() : null);
+      } catch {
+        optWords.set(wurl, null);
+      }
+    }
+    W = optWords.get(wurl);
+  }
+  app.optionWords = W ? { W, t0: t0Of(c) ?? 0 } : null;
+  document.dispatchEvent(new CustomEvent("words:changed"));
+}
+
 // put an option on the stage ("" = the render as it is): the others hide, the sound goes where this one needs it
 async function show(id) {
   const c = choices().find((x) => x.id === cur),
@@ -162,6 +183,7 @@ async function show(id) {
     }
   } else await stems.use(null);
   if (o?.kind === "audio") view(o); // a sound plays over the muted picture
+  await useWords(o, c);
   app.video.muted = !!audio || !!player.clock;
   stage.dataset.preview = o && o.kind !== "take" && o.kind !== "audio" ? o.id : "";
   banner.hidden = !o;

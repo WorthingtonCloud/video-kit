@@ -46,6 +46,8 @@ const sj = S && fs.existsSync(path.join(S, "studio.json")) ? JSON.parse(fs.readF
 const pys = [process.env.PYTHON, sj.python, path.join(ENGINE, ".venv/bin/python"), "python3"].filter(Boolean);
 const py = pys.map((p) => [p, sh(p, ["-c", "import numpy, sys; print(sys.version.split()[0], numpy.__version__)"])]).find(([, v]) => v);
 add("required", "python + numpy", !!py, py ? `${py[0]} (${py[1].trim()})` : "no Python with numpy", "vs setup   (makes one for the engine)");
+const pil = py && sh(py[0], ["-c", "import PIL; print(PIL.__version__)"]);
+add("optional", "Pillow", !!pil, pil ? `${pil.trim()}: vs pack can draw` : "not in the engine's Python: vs pack can't draw its sheets", "vs setup   (adds it)");
 
 add("required", "studio", !!S, S || "none yet", "vs setup   (where your profile, library, projects and finals live)");
 const pr = profile(), b = pr.brand || {};

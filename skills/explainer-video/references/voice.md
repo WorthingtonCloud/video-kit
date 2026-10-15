@@ -12,7 +12,7 @@ picture.
 
 ## A take, step by step
 
-1. `vs narrate <tag>` prints the cost and stops (about 0.06 ElevenLabs credits a character: the spend gate). Say the
+1. `vs narrate <tag>` prints the cost and stops (about 0.22 ElevenLabs credits a character since Oct 14, 2026: the spend gate). Say the
    number, wait for the human's yes, then `vs narrate <tag> --yes`.
 2. `vs check-take <tag>` (or the path, `voice/narration-<tag>.mp3`): fix any word that changes the meaning.
 3. `vs pitch voice/narration-<tag>.mp3`: a flat read is the failure.

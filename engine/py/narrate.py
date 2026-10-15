@@ -18,8 +18,10 @@ acts = [" ".join(l for l in b.splitlines() if l.strip() and not l.startswith("#"
 acts = [a for a in acts if a][lo - 1:hi]
 v4 = MODEL.startswith("eleven_v3") or MODEL.startswith("eleven_v4")
 text = "\n\n".join(acts) if v4 else ' <break time="0.7s" /> '.join(acts)
-# about 0.06 credits a character (measured Oct 1, 2026: 2,866 → 173, 408 → 25)
-est, what = math.ceil(len(text) * 0.06), f"voice {tag} (acts {lo}-{lo + len(acts) - 1})"
+# about 0.22 credits a character since ElevenLabs repriced eleven_v4 between Oct 12 and Oct 14, 2026 (measured:
+# 130 → 29 on Oct 14, 3,156 → 694 on Oct 15). It was 0.06 through Oct 12 (2,866 → 173, 1,229 → 74); the stale rate
+# under-asked the Oct 15 take 3.7×.
+est, what = math.ceil(len(text) * 0.22), f"voice {tag} (acts {lo}-{lo + len(acts) - 1})"
 gate("elevenlabs", f"Narration {what}: {len(text)} characters, {MODEL}", credits=est, yes="--yes" in sys.argv,
      cap_key="elevenlabs_voice_credits_per_video", cap=float(arg("--cap", 0)) or None, scope="voice")
 KEY = key("ELEVENLABS_API_KEY")

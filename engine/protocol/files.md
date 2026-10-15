@@ -36,6 +36,9 @@ studio/
       watched/                            Review Studio's copies of what each round showed
     review/                               the review diary (log.jsonl), its snapshot, the note stills
     build/                                regenerated; safe to delete
+    pack/                                 vs pack: the video packed for a model that can't watch video (plan.json,
+                                          transcript.json, the survey sheets; <video>-for-review/ + its zip unless
+                                          the profile's pack.out puts them elsewhere)
   finals/<video>/                         every version called done, both shapes
     <video>-vertical-v8.mp4  <video>-vertical-v8-web.mp4  <video>-vertical-v8-cover.jpg
     <video>-widescreen-v8.mp4  <video>-widescreen-v8-web.mp4  <video>-widescreen-v8-cover.jpg

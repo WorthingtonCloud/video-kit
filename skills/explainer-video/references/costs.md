@@ -2,7 +2,7 @@
 
 | What | Where | Cost |
 |---|---|---|
-| Full narration (~2,800 characters) | ElevenLabs `eleven_v4` | ~170 credits (~0.06 a character) |
+| Full narration (~2,800 characters) | ElevenLabs `eleven_v4` | ~620 credits (~0.22 a character since Oct 14, 2026; it was ~0.06) |
 | Re-recording one or two acts | ElevenLabs | 25–35 credits |
 | Take check | OpenAI `gpt-4o-mini-transcribe` | ~1¢ |
 | Word timings for your own narration | OpenAI `whisper-1` | ~$0.006 a minute |

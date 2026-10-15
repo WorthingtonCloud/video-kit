@@ -237,6 +237,10 @@ for (let t = Math.max(0.05, FROM); t < Math.min(END, TO); t += STEP) {
         const ta = T.r.width * T.r.height;
         for (const S of shapes) {
           if (S.el.contains(T.el) || T.el.contains(S.el) || T.group.contains(S.el)) continue; // its own card, or a mark inside its own chip
+          // a strike through a claim the video refutes (a notebook-style design that strikes out the hype it answers,
+          // Oct 15, 2026): a line marked [data-strike] crossing words marked [data-struck] is the point, not a fight.
+          // Both ends are declared, so a strike that wanders onto any other words still counts.
+          if (S.el.closest("[data-strike]") && T.el.closest("[data-struck]")) continue;
           // a thin shape (a rule, a dashed marker) covers little area but still cuts through the words: any crossing counts
           const thin = Math.min(S.r.width, S.r.height) < 8,
             x = inter(T.r, S.r);
@@ -745,6 +749,8 @@ seenAt.forEach(([t, els], k) => {
                 tw = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
               for (let n; (n = tw.nextNode()); ) {
                 if (!n.textContent.trim() || !n.parentElement || vis(n.parentElement) < 0.3) continue;
+                // the words a dot is striking (declared [data-struck], see covers): the pencil has to cross them
+                if (n.parentElement.closest("[data-struck]")) continue;
                 const rg = document.createRange();
                 rg.selectNodeContents(n);
                 for (const q of rg.getClientRects()) {

@@ -34,6 +34,7 @@ COMMANDS = [
     ("narrate", "py", "narrate.py", True, "elevenlabs", "voice", "read narration.txt with word timings"),
     ("check-take", "py", "check_take.py", True, "openai", "voice", "transcribe a take, list words that differ"),
     ("listen", "py", "listen.py", True, None, "voice", "a listening page for the takes"),
+    ("lyrics", "py", "lyrics.py", True, "openai", "voice", "time a song take's lyrics (lyrics.txt) so a round shows them"),
     ("pitch", "py", "pitch.py", True, None, "voice", "is a take monotone"),
     ("fit", "py", "fit.py", True, None, "voice", "fit a take to a length: shorter pauses, then faster"),
     ("voicebed", "py", "voicebed.py", True, None, "voice", "the voice bed + word timings"),
@@ -49,6 +50,7 @@ COMMANDS = [
     ("mix", "py", "mix.py", True, None, "sound", "voice + music + effects onto the picture"),
     ("mixer", "py", "serve.py", True, None, "sound", "Review Studio's Mix panel: take, levels, ducking, Save"),
     ("review", "py", "review.py", True, None, "review", "Review Studio: point at the video, say what's wrong; rounds, choices, rules"),
+    ("pack", "py", "pack.py", False, "openai (words, when the video has no word timings)", "review", "pack a video for a model that can't watch video: frame strips, a sound map, the soundtrack, one zip"),
     ("protocol", "self", None, False, None, "review", "the rules every skill shares: review (default), studio (where things live), files (names, folders, the path to final)"),
     ("status", "video", "video.py", True, None, "lifecycle", "where this video stands, and the one next step"),
     ("shape", "video", "video.py", True, None, "lifecycle", "build the other shape, once the first is approved"),
@@ -64,7 +66,7 @@ ALIASES = {"audit": "inspect"}  # the old name for vs inspect
 SELF_HELP = {  # the steps studio.py runs itself
     "setup": ("vs setup [--studio PATH] [--default]\n"
               "  Makes the studio (default ~/video-studio, remembered in ~/.config/video-studio), installs the\n"
-              "  engine's packages and a Python with numpy once, fetches the profile's fonts, and runs vs doctor."),
+              "  engine's packages and a Python with numpy and Pillow once, fetches the profile's fonts, and runs vs doctor."),
     "new": ("vs new <video> --kind explainer|reel --shape vertical|widescreen\n"
             "  A new video in studio/projects/<video>, from the templates; its folder's name is the video's name, in\n"
             "  every file it makes (lowercase words and hyphens). --shape is the one it starts in: the other is made once\n"
@@ -274,11 +276,18 @@ def setup(args):
               " files): about 190 MB the first time")
         subprocess.run(["npm", "install", "--no-fund", "--no-audit"], cwd=ENGINE, check=True)
     try:
-        python()
+        py = python()
     except SystemExit:
-        print("  making a Python for the engine with numpy (engine/.venv)")
+        print("  making a Python for the engine with numpy and Pillow (engine/.venv)")
         subprocess.run([sys.executable, "-m", "venv", os.path.join(ENGINE, ".venv")], check=True)
-        subprocess.run([os.path.join(ENGINE, ".venv/bin/pip"), "install", "-q", "numpy"], check=True)
+        subprocess.run([os.path.join(ENGINE, ".venv/bin/pip"), "install", "-q", "numpy", "pillow"], check=True)
+        py = python()
+    if subprocess.run([py, "-c", "import PIL"], capture_output=True).returncode:  # vs pack draws with it (3.5)
+        if py == os.path.join(ENGINE, ".venv/bin/python"):
+            print("  adding Pillow to the engine's Python (vs pack draws its sheets with it)")
+            subprocess.run([py, "-m", "pip", "install", "-q", "pillow"], check=True)
+        else:
+            print(f"  ⚠️  {py} has no Pillow: vs pack needs it (pip install pillow into that Python)")
     b = vslib.profile().get("brand", {})
     for k, w in (("font", "500,600,700,800"), ("mono", "500,700")):
         fam = b.get(k, {}).get("family")

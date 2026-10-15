@@ -222,12 +222,14 @@ addEventListener("hashchange", goHash);
 
 // a take round: the script follows the voice (the act being spoken lights up), and a click on an act plays it from its start
 let litAct = null;
-// the act being spoken, or in a pause the one about to start (a click on an act seeks just before its first word)
+// the words being heard: a sung option's own on the stage (decide.js, on its clock from the choice's moment), else the round's
+const wordsNow = () => app.optionWords || { W: app.maps?.words || [], t0: 0 };
+// the act (or a song's line) being spoken, or in a pause the one about to start (a click on one seeks just before its first word)
 const actAt = (t) => {
-  const W = app.maps?.words || [];
-  return (W.find((w) => w.t1 >= t) || W.at(-1))?.act ?? null;
+  const { W, t0 } = wordsNow();
+  return (W.find((w) => w.t1 >= t - t0) || W.at(-1))?.act ?? null;
 };
-player.on((t) => {
+function light(t) {
   if (!document.body.classList.contains("take")) return;
   const doc = $("#listen").contentDocument,
     a = actAt(t);
@@ -235,17 +237,19 @@ player.on((t) => {
   litAct = a;
   doc.querySelectorAll(".act").forEach((x) => x.classList.toggle("now", +x.dataset.act === a));
   doc.querySelector(".act.now")?.scrollIntoView({ block: "center", behavior: "smooth" });
-});
+}
+player.on(light);
+document.addEventListener("words:changed", () => ((litAct = null), light(player.t())));
 $("#listen").addEventListener("load", () => {
   litAct = null;
   $("#listen").contentDocument?.addEventListener("click", (e) => {
     const a = +e.target.closest?.(".act")?.dataset.act,
-      W = app.maps?.words || [],
+      { W, t0 } = wordsNow(),
       i = a ? W.findIndex((x) => x.act === a) : -1;
     if (i < 0 || !document.body.classList.contains("take")) return;
     // into the pause before its first word, past the last word of the act before (the player snaps to a frame)
     const prev = W[i - 1]?.t1 ?? 0;
-    player.seek(Math.min(W[i].t0, Math.max(prev + 0.05, W[i].t0 - 0.15)));
+    player.seek(t0 + Math.min(W[i].t0, Math.max(prev + 0.05, W[i].t0 - 0.15)));
   });
 });
 

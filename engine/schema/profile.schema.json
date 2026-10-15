@@ -185,6 +185,17 @@
     }
    }
   },
+  "pack": {
+   "type": "object",
+   "additionalProperties": false,
+   "properties": {
+    "out": {
+     "type": "string",
+     "minLength": 1,
+     "description": "vs pack: the folder packs go in (<it>/<video>-for-review + its zip), e.g. ~/Downloads; else the project's pack/"
+    }
+   }
+  },
   "spend": {
    "type": "object",
    "additionalProperties": false,

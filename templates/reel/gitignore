@@ -6,3 +6,18 @@ media/
 voice/*.mp3
 voice/*.wav
 music/*.mp3
+# media regenerates from the scripts or lives on disk; timings, notes and scripts stay in git (Oct 14: a template
+# without these let a wrap commit ~100 MB of stems and masters)
+stems/
+mix/*.wav
+mix/*.mp3
+music/*.wav
+music/**/*.mp3
+notes/*.mp3
+# vs pack: the plan, the transcript and PROMPT.md stay; frames, sheets, audio and zips regenerate
+pack/frames/
+pack/survey/
+pack/**/*.mp3
+pack/**/*.jpg
+pack/**/*.png
+pack/*.zip

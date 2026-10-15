@@ -115,6 +115,7 @@ import argparse, fcntl, glob, json, os, re, subprocess, sys
 from datetime import datetime, timezone
 
 import vslib
+import lyrics  # a song take's words, timed: what a round on sung audio shows
 import feedback  # the protocol, with nothing about video in it: phases, asks, verdicts, the hand-off, learning
 
 REVIEW = "review"
@@ -1854,6 +1855,7 @@ def open_take(args, take):
     kind = "explainer" if os.path.exists("plan.json") else "reel"
     if stage not in STAGES[kind]:
         raise Refused(f"no stage {stage!r} for a {kind}: {', '.join(STAGES[kind])}")
+    words_on_screen(take, getattr(args, "instrumental", False))
     cut = vslib.SHAPES.get(vslib.active_shape(), "9x16")
     take_timeline(take)
     S, _ = append([{"type": "round.opened", "version": 0, "cut": cut, "video": take, "size": None, "audio": True,
@@ -1861,6 +1863,33 @@ def open_take(args, take):
     R = current(S)
     print(f"round {R['n']} open on take {R['take']} (the voice, no picture yet): {take} · stage: {stage}")
     print(server_line())
+
+
+def _sung(take):
+    """A take with lyrics to show: the project has lyrics.txt and the take isn't a narration take."""
+    return os.path.exists(lyrics.LYRICS) and not os.path.basename(take).startswith("narration-")
+
+
+def words_on_screen(take, instrumental=False):
+    """Audio with words is reviewed with its words on the screen, lit and scrolling as they're heard (a reviewer, Oct
+    14, 2026). A song take needs its lyrics timed (vs lyrics); the listening page is rebuilt for it here, free. A take
+    with no words anywhere is refused unless it says it's an instrumental."""
+    if _sung(take):
+        if lyrics.needs([take]):
+            raise Refused(f"{take} is sung, so its lyrics go on the screen, and it has no timings yet: vs lyrics {take} "
+                          "--yes (a transcript, under a cent a minute), then open the round again")
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "listen.py"), take],
+                       check=True, capture_output=True)
+        return
+    if os.path.exists(re.sub(r"\.[a-z0-9]+$", ".words.json", take)):  # a narration take: vs narrate timed its words
+        if os.path.exists("narration.txt") and not os.path.exists("build/listen/index.html"):
+            subprocess.run([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)), "listen.py"), take],
+                           check=True, capture_output=True)
+        return
+    if not instrumental:
+        raise Refused(f"{take}: a round on audio shows its words, and there are none for this take. A song: put the "
+                      f"approved lyrics in {lyrics.LYRICS} ([Section] above each part, one line per line) and run vs lyrics "
+                      f"{take} --yes. Narration: vs narrate makes its timings. No words at all: --instrumental")
 
 
 def take_timeline(take):
@@ -2662,6 +2691,9 @@ def offer(args):
                 opt["timing"] = diff
         elif os.path.isfile(v) and os.path.splitext(v)[1].lower() in MEDIA:
             opt.update(kind=MEDIA[os.path.splitext(v)[1].lower()], preview=v)
+            if opt["kind"] == "audio" and _sung(v) and lyrics.needs([v]):
+                raise Refused(f"option {k}: {v} is sung, so its lyrics go on the screen while it plays, and it has no "
+                              f"timings yet: vs lyrics {' '.join(lyrics.needs([x.partition('=')[2] for x in args.option if x.partition('=')[2].lower().endswith(AUDIO)]))} --yes")
             if opt["kind"] in ("video", "audio"):
                 # how long it runs and whether it carries sound: a clip that brings its own soundtrack plays it (the
                 # human hears the option, not the round), and a short one has to say where it sits on the round's clock
@@ -2751,6 +2783,7 @@ def main():
     o = sub.add_parser("open"); o.add_argument("--video"); o.add_argument("--ask", action="store_true")
     o.add_argument("--also"); o.add_argument("--only", action="store_true")
     o.add_argument("--stage", choices=sorted(ALL_STAGES))
+    o.add_argument("--instrumental", action="store_true", help="a take with no words to show (no lyrics, no narration)")
     av = sub.add_parser("advise"); av.add_argument("finding", nargs="*"); av.add_argument("--check")
     av.add_argument("--advice", choices=["leave", "fix"], required=True); av.add_argument("--plain", required=True); av.add_argument("--why")
     st = sub.add_parser("step"); st.add_argument("text", nargs="?", default=""); st.add_argument("--stage", choices=sorted(ALL_STAGES))

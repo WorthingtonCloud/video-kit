@@ -16,6 +16,10 @@ through the real interface and the reel shows up inside itself. Its reviewer gav
 one transition ("the screen seems to freeze a bit on this fade"); the agent replaced it, and both shapes were approved
 on the next version. Nothing in it was paid for.
 
+A third skill packs any finished video for a chat model that can't watch video (ChatGPT, Gemini): captioned frame
+strips, a map of the sound, the soundtrack and a timed script in one zip, so you can ask an outside model what it thinks
+of the cut.
+
 ## How it works
 
 https://github.com/user-attachments/assets/83fe5ddf-b0f1-41be-9d63-7fbf1e3c38a1
@@ -53,16 +57,16 @@ Set up video-kit: run its setup, then tell me what's missing.
 
 After that, ask in plain words: "make an explainer from this article", "make a sizzle reel for my app".
 
-**Another agent with a skills folder?** Clone this repo and link its two skills into that folder. Link them, don't
+**Another agent with a skills folder?** Clone this repo and link its skills into that folder. Link them, don't
 copy them: each skill's `vs` command finds the engine beside it.
 
 ```bash
 git clone https://github.com/WorthingtonCloud/video-kit ~/video-kit
-ln -s ~/video-kit/skills/explainer-video ~/video-kit/skills/sizzle-reel <your skills folder>/
+ln -s ~/video-kit/skills/explainer-video ~/video-kit/skills/sizzle-reel ~/video-kit/skills/video-for-chatgpt <your skills folder>/
 ```
 
 **You need:** Node 22+, Python 3, a full build of ffmpeg, and curl. Setup installs the rest once: HyperFrames (the
-renderer), GSAP (the animation), puppeteer and its Chrome, and a Python with numpy, about 190 MB. It also makes your
+renderer), GSAP (the animation), puppeteer and its Chrome, and a Python with numpy and Pillow, about 200 MB. It also makes your
 studio folder (`~/video-studio`). macOS and Linux run it as is; on Windows, use WSL. After a plugin update, run setup
 again: the engine's packages live beside the new version.
 
@@ -201,6 +205,7 @@ Your second video asks fewer questions than your first.
 |---|---|
 | `skills/explainer-video/` | The explainer method: the steps, the gates, the costs, and every mistake that cost a round of notes |
 | `skills/sizzle-reel/` | The reel method, the motion vocabulary, and its own list of mistakes |
+| `skills/video-for-chatgpt/` | Packing a finished video for a model that can't watch video: what to caption, the prompt template, an example plan |
 | `engine/` | One engine under both: `studio.py` (the `vs` command), the build, the scene library, the checks, the Review Studio, and `protocol/` (the review loop and where everything lives, shared by both skills) |
 | `library/sfx/` | 30 sound effects with a measured index (where each starts and peaks, a starting level) |
 | `templates/` | A new studio, a new explainer, a new reel |
@@ -215,6 +220,21 @@ come from the words, never typed in. No render until `vs inspect` finds no error
 the voice and never competes. The picture is never re-rendered for sound. In widescreen, anything that leaves a
 vertical frame has to leave the wide one too. The full lists, with the fix for each, are in each skill's
 `references/scars.md`.
+
+## New in 3.5
+
+`vs pack` and a third skill, `video-for-chatgpt`: a finished video packed for a chat model that can't play video.
+`vs pack survey` puts a frame from every second on time-labeled sheets for the agent to look at, takes the soundtrack
+and its loudness, and, for a kit video, starts the plan with its sections and every sound effect. `vs pack words` times
+every line, free from the kit's own word timings (or a song's), else with OpenAI's whisper for about $0.006 a minute.
+`vs pack build` draws the captioned strips and a sound map and zips them with the soundtrack and the agent's
+PROMPT.md. Every frame is an exact seek, on the sheets and in the strips alike: sheets made with ffmpeg's fps filter
+show each frame about half a second after the time under it. `vs setup` adds Pillow to the engine's Python for it.
+
+Also: audio with words is reviewed with its words on the screen, the line being heard lit as it plays. `vs lyrics`
+times a song take's lyrics onto what a transcript heard, and `vs review` won't open a round on sung audio without
+them. `vs narrate` estimates a take at about 0.22 ElevenLabs credits a character, the current price (it was 0.06).
+`vs inspect` lets a line drawn to strike out words cross them, when both are marked as meant.
 
 ## New in 3.0
 

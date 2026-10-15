@@ -1,0 +1,22 @@
+{
+ "video": "../drafts/v3/how-coffee-works-widescreen-v3.mp4",
+ "videos": {"vertical": "../drafts/v3/how-coffee-works-vertical-v3.mp4"},
+ "strips": [
+  {"slug": "hook", "title": "The hook (0:00-0:09)", "cols": 3,
+   "note": "A dark stage. A single white card types out \"How coffee works\" letter by letter, then four bars grow up from its base one after another; the last bar is red and taller than the rest. A small red dot settles under it.",
+   "t": [0.5, 2.0, 3.4, 5.2, 7.0, 8.6],
+   "labels": {"0.5": "the card fades in", "2.0": "\"Ever wondered...\"", "3.4": "title fully typed", "5.2": "bars grow on \"every morning\"", "7.0": "the red bar lands", "8.6": "the dot settles: cut"}},
+  {"slug": "beans", "title": "From the bean (0:09-0:31)", "cols": 3,
+   "note": "A whip-pan to a row of three labeled jars (GREEN, ROASTED, GROUND). Each jar lifts as it's named.",
+   "t": [9.2, 12.0, 15.4, 19.8, 24.1, 30.6],
+   "labels": {"9.2": "whip-pan in", "12.0": "\"It starts green.\"", "15.4": "ROASTED lifts", "19.8": "\"...then ground fine.\"", "24.1": "all three in a row", "30.6": "zoom out: cut"}},
+  {"slug": "vertical", "title": "The vertical (9:16) version: six moments", "cols": 6, "src": "vertical",
+   "note": "The same video re-laid-out for a phone: the card sits higher and the jars stack instead of standing in a row.",
+   "t": [2.0, 7.0, 12.0, 19.8, 40.0, 55.0]}
+ ],
+ "sound": {
+  "sections": [{"name": "hook", "t0": 0, "t1": 9.1}, {"name": "beans", "t0": 9.1, "t1": 31.0}, {"name": "brew", "t0": 31.0, "t1": 52.4}, {"name": "end", "t0": 52.4, "t1": 58.0}],
+  "music": [{"label": "light acoustic bed", "t0": 0.4, "t1": 50.2}, {"label": "end card sting", "t0": 52.4, "t1": 58.0}],
+  "sfx": [{"t": 7.0, "name": "pop", "what": "the red bar lands"}, {"t": 9.1, "name": "whoosh", "what": "the whip-pan into the jars"}, {"t": 15.4, "name": "tick", "what": "ROASTED lifts"}]
+ }
+}

@@ -9,6 +9,12 @@ projects/*/media/
 projects/*/voice/*.mp3
 projects/*/voice/*.wav
 projects/*/music/*.mp3
+projects/*/pack/frames/
+projects/*/pack/survey/
+projects/*/pack/**/*.mp3
+projects/*/pack/**/*.jpg
+projects/*/pack/**/*.png
+projects/*/pack/*.zip
 library/**/*.mp3
 library/**/*.wav
 library/**/*.m4a

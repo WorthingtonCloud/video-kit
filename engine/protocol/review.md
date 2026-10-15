@@ -56,6 +56,11 @@ AGENT WORK         resolve every note, the next version … until the exit crite
    Once the video is past its first shape (`vs status`), both shapes show as one round with a Vertical | Widescreen
    switch, on the same page and port. Every note, finding and approval
    then belongs to the shape on screen.
+   **Audio with words is reviewed with its words on the screen**, the line being heard lit and the page scrolling with
+   it: a narration take shows its script (`narration.txt`, timed by `vs narrate`), a song take its lyrics (`lyrics.txt`,
+   timed by `vs lyrics <take> --yes`, a transcript laid onto the approved words). A choice between sung takes needs
+   each option timed the same way: the lit line follows whichever option is playing. `vs review open` and `vs review
+   offer` refuse sung audio with no timings, and audio with no words at all unless it's `--instrumental`.
 3. **Advise every finding** before you tell them: `vs review advise --check <check> --advice leave|fix --plain "…"
    --why "…"`. A warning they answered in an earlier round carries over (same check, same place, within 3 s). Never
    ask twice.
